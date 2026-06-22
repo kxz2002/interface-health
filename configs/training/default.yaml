@@ -1,0 +1,25 @@
+# 训练超参数默认值
+# 模型特有超参数在对应的 configs/model/*.yaml 中定义
+
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 1e-3
+  weight_decay: 1e-4
+
+scheduler:
+  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+  T_max: 100
+  eta_min: 1e-6
+
+epochs: 100
+batch_size: 256
+num_workers: 4
+
+# 早停
+early_stopping:
+  patience: 10
+  min_delta: 1e-4
+
+# 检查点
+checkpoint_dir: checkpoints/
+save_top_k: 3

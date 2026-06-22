@@ -1,0 +1,11 @@
+defaults:
+  - data: anomod
+  - model: ???        # 待实现模型时填充，例如: deep_svdd
+  - training: default
+  - _self_
+
+# 可复现性
+seed: 42
+
+# 输出目录，按时间戳组织
+output_dir: outputs/${now:%Y-%m-%d_%H-%M-%S}

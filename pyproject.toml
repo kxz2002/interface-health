@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "interface-health"
+version = "0.1.0"
+description = "Per-endpoint multimodal anomaly detection for microservice APIs"
+requires-python = ">=3.10"
+dependencies = [
+    # torch 不在此处，请用 make torch-cpu 或 make torch-gpu 安装
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "hydra-core>=1.3.0",
+    "omegaconf>=2.3.0",
+    "scikit-learn>=1.3.0",
+    "pyyaml>=6.0",
+    "mlflow>=3.13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "black>=23.0",
+    "isort>=5.12",
+    "pre-commit>=3.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
