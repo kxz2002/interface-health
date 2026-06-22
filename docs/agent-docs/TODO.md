@@ -10,7 +10,7 @@
   一条命令复现 baseline 的最低标准：`conda env create` + `pip install` + `python scripts/train.py --config configs/base.yaml`。
   包括：`environment.yml`、`requirements.txt`、`Makefile`（或 `run.sh`）、seed 统一封装。
 
-- [ ] **2. 数据集版本化 + Dataset Card**
+- [x] **2. 数据集版本化 + Dataset Card**
   用 DVC 管理 `dataset/` 和 `data/processed/`，`.dvc` 文件入 git，原始数据不入 git。
   撰写 Dataset Card（数据来源、字段说明、已知问题、引用方式）。
 
@@ -18,7 +18,7 @@
   选型并接入：每次 run 自动记录 config snapshot、git commit hash、数据集版本、random seed、metrics。
   训练脚本与追踪解耦（通过 callback 或 logger wrapper）。
 
-- [ ] **4. 配置系统**
+- [x] **4. 配置系统**
   用 Hydra（或纯 YAML + argparse）把所有超参数从代码中剥离到 `configs/`。
   支持命令行覆盖（`--override key=val`），禁止代码内硬编码任何实验参数。
 
