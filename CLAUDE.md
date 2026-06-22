@@ -64,6 +64,15 @@ notebooks/             # Jupyter notebook 探索性分析
 ## Commands
 
 ```bash
+# 建立环境（新设备）
+make setup && make torch-cpu   # 或 make torch-gpu CUDA_VERSION=cu121
+
+# 同步环境（已有环境，拉新代码后）
+make sync
+
+# MLflow UI（查看实验结果）
+mlflow ui --backend-store-uri outputs/mlruns
+
 # 安装项目包（可编辑模式，使 src.* 可 import）
 pip install -e ".[dev]"
 
@@ -125,6 +134,8 @@ pytest tests/
 ## Python Environment
 - 统一使用 conda 虚拟环境，环境名为 `interface`
 - 多设备训练/推理时确保环境一致
+- torch 不在 environment.yml 中，需手动安装：`make torch-cpu`（无 GPU）或 `make torch-gpu`（有 GPU）
+- 新设备初次建环境：`make setup` → `make torch-cpu/gpu`；已有环境同步：`make sync`
 
 ## Testing
 - 核心数据处理逻辑 (`src/data/`) 和融合模块 (`src/fusion/`) 必须有单元测试
@@ -133,7 +144,9 @@ pytest tests/
 
 ## Known Gotchas
 - PyTorch 和 NumPy 的 seed 必须同时设置，只设一个会导致不可复现
-- Drain3 log parsing 结果依赖输入顺序，不同顺序可能产生不同模板
+- Log parsing 使用 `drain3-improved`（import 路径与原 drain3 相同：`from drain3 import TemplateMiner`）；原 drain3 包因 cachetools==4.2.1 锁定与 mlflow 3.x 不兼容，已弃用
+- Drain log parsing 结果依赖输入顺序，不同顺序可能产生不同模板
+- Kiro/Claude 运行在 base conda 环境，验证 interface 环境中的包须用 `conda run -n interface python -c ...`，直接 `python` 走的是 base
 - 多模态时间对齐时，降采样会丢失 metrics 高频 spike 信号，需谨慎选择对齐策略
 - POT/GPD 动态阈值只需调 q 一个参数，但极度依赖异常分数分布假设
 - **多模态粒度架构约束**：traces/api_responses 可做 endpoint 级特征；metrics（Prometheus）和 logs（原始文本）只能做 service 级特征，无 per-endpoint 粒度——这是采集端的架构性限制，重采也不会变。融合设计的真实形态是 endpoint 级 + service 级两层 join 键，需提前接受
