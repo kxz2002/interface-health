@@ -1,0 +1,6 @@
+outs:
+- md5: ff290644ae4052ad015c347e97c42aaa.dir
+  size: 17618795746
+  nfiles: 37900
+  hash: md5
+  path: lo2-sample

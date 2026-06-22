@@ -1,0 +1,5 @@
+[core]
+    remote = local
+    autostage = true
+['remote "local"']
+    url = /home/kxz2002/dvc-remote/interface-health

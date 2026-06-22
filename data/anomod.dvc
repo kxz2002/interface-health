@@ -1,0 +1,6 @@
+outs:
+- md5: 6bd312a01049762d4c6a52ff4c59171f.dir
+  size: 46353465480
+  nfiles: 734
+  hash: md5
+  path: anomod
