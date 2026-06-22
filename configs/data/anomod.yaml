@@ -28,7 +28,7 @@ fused_file: tt_fused_15s.csv
 window_size_sec: 15
 
 # 异常标签来源：case_metadata.json 的 inject_start_ms / inject_end_ms（毫秒精度）
-# 训练只使用 phase == 'baseline' 的窗口
+# 训练使用：Normal case 全程 + 异常 case 的 baseline/recover 阶段（phase != 'inject'）
 # 评估使用全部 phase
 
 # 多模态粒度（架构性约束）:
