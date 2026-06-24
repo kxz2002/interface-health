@@ -1,0 +1,36 @@
+schema: '2.0'
+stages:
+  train:
+    cmd: python scripts/train_baseline.py --toy --out artifacts/scores.parquet
+    deps:
+    - path: scripts/train_baseline.py
+      hash: md5
+      md5: 75d132fe776aa193ce6c587550035787
+      size: 4371
+    outs:
+    - path: artifacts/scores.parquet
+      hash: md5
+      md5: 742a5c6545f619237170a541f1a6913f
+      size: 12702
+  eval:
+    cmd: python scripts/eval.py --scores artifacts/scores.parquet --out
+      artifacts/metrics.json
+    deps:
+    - path: artifacts/scores.parquet
+      hash: md5
+      md5: 742a5c6545f619237170a541f1a6913f
+      size: 12702
+    - path: scripts/eval.py
+      hash: md5
+      md5: eb26aca897d0e542c266b9ee9950475a
+      size: 5068
+    - path: src/contracts
+      hash: md5
+      md5: 7d88ad174f35c39810a08ca4338f1838.dir
+      size: 8727
+      nfiles: 3
+    outs:
+    - path: artifacts/metrics.json
+      hash: md5
+      md5: 6327140bdb738bfd830c0a0dcf7f77a9
+      size: 671

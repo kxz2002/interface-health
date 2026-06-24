@@ -19,6 +19,7 @@ dependencies:
       - drain3-improved==0.10.0
       - dvc==3.67.1
       - mlflow==3.13.0
+      - pyarrow==17.0.0
       # dev
       - pytest==9.0.3
       - pre-commit==4.6.0

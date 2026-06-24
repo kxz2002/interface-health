@@ -1,0 +1,17 @@
+stages:
+  train:
+    cmd: python scripts/train_baseline.py --toy --out artifacts/scores.parquet
+    deps:
+      - scripts/train_baseline.py
+    outs:
+      - artifacts/scores.parquet
+
+  eval:
+    cmd: python scripts/eval.py --scores artifacts/scores.parquet --out artifacts/metrics.json
+    deps:
+      - scripts/eval.py
+      - src/contracts
+      - artifacts/scores.parquet
+    metrics:
+      - artifacts/metrics.json:
+          cache: false
