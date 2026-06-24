@@ -24,20 +24,20 @@
   输入：`artifacts/scores.parquet`（默认路径可覆盖）。
   行为：读取 → contract 校验 → 计算 AUROC/AUPRC（sklearn）→ 写 `artifacts/metrics.json`。
   指标格式符合 metrics contract v0（含 `protocol_version: v0`）。
-  无标签时退化为基础统计（mean/std/quantiles）。
+  score 分布统计（mean/std/quantiles）作为额外诊断字段一并写入（v0 内标签恒在）。
 
 - [x] **4. Toy Baseline 脚本 `scripts/train_baseline.py`**
   仅实现 `--toy` 模式：合成高斯数据（normal vs anomaly 分布不同），score = 距均值 L2，生成 `artifacts/scores.parquet`（含 `y_true`）。
   目的：让 DVC pipeline 和 CI 在没有真实模型时跑通。
 
-- [ ] **5. DVC pipeline 骨架 `dvc.yaml`**
+- [x] **5. DVC pipeline 骨架 `dvc.yaml`**
   两个 stage：
   - `train`：运行 `train_baseline.py --toy`，产出 `artifacts/scores.parquet`
   - `eval`：运行 `eval.py`，产出 `artifacts/metrics.json`
   明确写出 `deps` 和 `outs`，`dvc repro` 可从头跑通。
   未来替换真实模型只需改 `train` stage 命令，eval 接口不变。
 
-- [ ] **6. Tests**
+- [x] **6. Tests**
   新增三个测试文件：
   - `tests/test_scores_contract.py`：校验器对合法 df 通过、对缺列失败
   - `tests/test_metrics_contract.py`：校验器对合法 dict 通过

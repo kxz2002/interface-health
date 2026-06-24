@@ -40,7 +40,11 @@ def _read_scores(path: Path) -> pd.DataFrame:
     if not path.exists():
         logger.error("scores file not found: %s", path)
         sys.exit(1)
-    return pd.read_parquet(path)
+    try:
+        return pd.read_parquet(path)
+    except Exception as exc:
+        logger.error("failed to read scores parquet at %s: %s", path, exc)
+        sys.exit(1)
 
 
 def _score_stats(score: pd.Series) -> dict:
@@ -86,7 +90,7 @@ def _compute_metrics(df: pd.DataFrame) -> dict:
         "protocol_version": "v0",
         "higher_is_more_anomalous": True,
         "n_samples": int(len(df)),
-        "has_labels": True,
+        "has_labels": True,  # v0 内 scores contract 必有 y_true；False 分支预留给 v1
         "auroc": float(roc_auc_score(y, s)),
         "auprc": float(average_precision_score(y, s)),
         "score_stats": _score_stats(df["score"]),
@@ -110,7 +114,7 @@ def _git_commit() -> str | None:
 def _write_metrics(d: dict, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     # 末尾换行符遵守 POSIX 文本文件惯例，避免 pre-commit end-of-file-fixer 反复修改
-    path.write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n")
+    path.write_text(json.dumps(d, indent=2, ensure_ascii=False, allow_nan=False) + "\n")
 
 
 def main() -> int:

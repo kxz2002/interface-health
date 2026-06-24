@@ -1,6 +1,6 @@
 stages:
   train:
-    cmd: python scripts/train_baseline.py --toy --out artifacts/scores.parquet
+    cmd: python scripts/train_baseline.py --toy --out artifacts/scores.parquet --seed 42
     deps:
       - scripts/train_baseline.py
     outs:

@@ -7,7 +7,7 @@
 | protocol_version            | str            | 固定 "v0"                             |
 | higher_is_more_anomalous    | bool           | v0 固定 True                          |
 | n_samples                   | int            | > 0                                   |
-| has_labels                  | bool           | scores 是否含 y_true                  |
+| has_labels                  | bool           | scores 是否含 y_true（v0 内恒为 True；False 分支预留 v1） |
 | auroc                       | float or None  | has_labels=True 时 ∈ [0,1]，否则 None |
 | auprc                       | float or None  | has_labels=True 时 ∈ [0,1]，否则 None |
 

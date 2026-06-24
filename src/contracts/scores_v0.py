@@ -26,8 +26,11 @@ contract 不感知这些列，但 eval 未来可用它们做分组指标（按 c
 from __future__ import annotations
 
 import math
+from typing import NewType
 
 import pandas as pd
+
+ScoresV0 = NewType("ScoresV0", pd.DataFrame)
 
 REQUIRED_COLUMNS: dict[str, str] = {
     "sample_id": "str",
@@ -40,13 +43,13 @@ class ScoresContractError(ValueError):
     """Scores 表违反 contract 时抛出。错误信息会列出所有发现的问题。"""
 
 
-def validate_scores_df(df: pd.DataFrame) -> None:
+def validate_scores_df(df: pd.DataFrame) -> ScoresV0:
     """对 scores DataFrame 做 contract v0 校验。
 
     校验失败时抛 ScoresContractError，错误信息一次性列出所有问题
     （而非发现第一个就 raise），方便调用方一次定位多个错误。
 
-    校验通过则静默返回 None。
+    校验通过返回 ScoresV0（运行时等价于原 df，仅类型层面标记"已校验"）。
     """
     if not isinstance(df, pd.DataFrame):
         raise ScoresContractError(f"expected pandas.DataFrame, got {type(df).__name__}")
@@ -91,6 +94,12 @@ def validate_scores_df(df: pd.DataFrame) -> None:
     y = df["y_true"]
     if y.isna().any():
         errors.append(f"y_true contains {int(y.isna().sum())} NaN values")
+    elif not (
+        pd.api.types.is_integer_dtype(y)
+        or pd.api.types.is_float_dtype(y)
+        or pd.api.types.is_bool_dtype(y)
+    ):
+        errors.append(f"y_true dtype must be numeric (int/float/bool), got {y.dtype}")
     else:
         try:
             y_int = y.astype(int)
@@ -106,3 +115,4 @@ def validate_scores_df(df: pd.DataFrame) -> None:
 
     if errors:
         raise ScoresContractError("scores contract v0 violations: " + "; ".join(errors))
+    return ScoresV0(df)

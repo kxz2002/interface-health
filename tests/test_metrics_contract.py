@@ -159,3 +159,21 @@ def test_auroc_not_none_without_labels_raises():
     d["auroc"] = 0.5
     with pytest.raises(MetricsContractError, match="auroc"):
         validate_metrics_dict(d)
+
+
+def test_multiple_violations_reported_together():
+    """所有违规应一次性聚合报告，而不是遇到第一个就 raise。"""
+    d = {
+        "protocol_version": "v1",  # 错误：应为 v0
+        "higher_is_more_anomalous": True,
+        "n_samples": -5,  # 错误：必须正整数
+        "has_labels": True,
+        "auroc": 1.5,  # 错误：超出 [0,1]
+        "auprc": 0.88,
+    }
+    with pytest.raises(MetricsContractError) as exc_info:
+        validate_metrics_dict(d)
+    msg = str(exc_info.value)
+    assert "protocol_version" in msg
+    assert "n_samples" in msg
+    assert "auroc" in msg
