@@ -1,4 +1,4 @@
-.PHONY: setup install torch-cpu torch-gpu test lint format clean
+.PHONY: setup install torch-cpu torch-gpu test lint format clean install-skills
 
 # CUDA 版本可按本机驱动修改，常见值: cu118 / cu121 / cu124
 CUDA_VERSION ?= cu121
@@ -8,6 +8,7 @@ setup:
 	conda env create -f environment.yml
 	conda run -n interface pip install -e ".[dev]"
 	conda run -n interface pre-commit install
+	$(MAKE) install-skills
 	@echo "环境创建完成。请继续运行:"
 	@echo "  CPU 设备:  make torch-cpu"
 	@echo "  GPU 设备:  make torch-gpu  (默认 CUDA=$(CUDA_VERSION)，可用 make torch-gpu CUDA_VERSION=cu124 覆盖)"
@@ -41,6 +42,20 @@ lint:
 format:
 	black src/ scripts/ tests/
 	isort src/ scripts/ tests/
+
+# 将 skills-local/ 下的 project-local skills 链接到 .claude/skills/（新协作者 clone 后运行）
+install-skills:
+	@mkdir -p .claude/skills
+	@for skill in skills-local/*/; do \
+		name=$$(basename $$skill); \
+		target=".claude/skills/$$name"; \
+		if [ ! -e "$$target" ]; then \
+			ln -sf "../../$$skill" "$$target"; \
+			echo "  linked: $$name"; \
+		else \
+			echo "  exists: $$name (skipped)"; \
+		fi \
+	done
 
 # 清理实验产物，不触碰数据和模型 checkpoint
 clean:

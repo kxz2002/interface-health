@@ -21,6 +21,24 @@ jobs:
       - name: isort
         run: isort --check-only src/ scripts/ tests/
 
+  check-skills:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install project-local skills
+        run: make install-skills
+      - name: Verify symlinks resolve
+        run: |
+          for skill in skills-local/*/; do
+            name=$(basename "$skill")
+            skill_md=".claude/skills/$name/SKILL.md"
+            if [ ! -f "$skill_md" ]; then
+              echo "FAIL: $skill_md not found or symlink broken"
+              exit 1
+            fi
+            echo "OK: $name"
+          done
+
   test:
     runs-on: ubuntu-latest
     steps:
