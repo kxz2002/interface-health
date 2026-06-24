@@ -41,9 +41,7 @@ def find_empty_items(directory):
     unexpected_empty = []
 
     root_items = [
-        item
-        for item in os.listdir(directory)
-        if os.path.isdir(os.path.join(directory, item))
+        item for item in os.listdir(directory) if os.path.isdir(os.path.join(directory, item))
     ]
     current_root = None
 
@@ -98,13 +96,9 @@ def find_empty_items(directory):
         file_count = sum(1 for type, _ in empty_items if type == "file")
         dir_count = sum(1 for type, _ in empty_items if type == "dir")
         csv_count = sum(
-            1
-            for type, name in empty_items
-            if type == "file" and name.lower().endswith(".csv")
+            1 for type, name in empty_items if type == "file" and name.lower().endswith(".csv")
         )
-        expected_count = sum(
-            count for name, count in freq_table.items() if name in EXPECTED_EMPTY
-        )
+        expected_count = sum(count for name, count in freq_table.items() if name in EXPECTED_EMPTY)
 
         print("\nBreakdown:")
         print(f"Empty directories: {dir_count}")

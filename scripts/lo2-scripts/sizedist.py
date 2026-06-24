@@ -11,9 +11,7 @@ def collect_file_sizes(directory, case_filter="both"):
     size_distributions = defaultdict(list)
 
     root_items = [
-        item
-        for item in os.listdir(directory)
-        if os.path.isdir(os.path.join(directory, item))
+        item for item in os.listdir(directory) if os.path.isdir(os.path.join(directory, item))
     ]
     current_root = None
 
@@ -78,9 +76,7 @@ def plot_distributions(distributions):
             # Add mean and median lines
             mean_val = mean(sizes)
             median_val = median(sizes)
-            ax.axvline(
-                mean_val, color="red", linestyle="--", label=f"Mean: {mean_val:.1f}KB"
-            )
+            ax.axvline(mean_val, color="red", linestyle="--", label=f"Mean: {mean_val:.1f}KB")
             ax.axvline(
                 median_val,
                 color="green",
