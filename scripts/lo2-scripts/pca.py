@@ -54,9 +54,7 @@ _, component_df_errors, _, _ = calc_pca(features_errors)
 TOP_features = 5
 N_components = 3  # From the plot 3 components are enough
 print("\nFull time-series")
-selected_features = top_features(
-    component_df, components=N_components, top=TOP_features
-)
+selected_features = top_features(component_df, components=N_components, top=TOP_features)
 print("\nCorrect test only")
 selected_features_correct = top_features(
     component_df_correct, components=N_components, top=TOP_features

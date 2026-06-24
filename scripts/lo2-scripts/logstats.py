@@ -104,12 +104,8 @@ class LogAnalyzer:
         )
 
         # Sort by total counts and clean up name
-        grouped_data = grouped_data.loc[
-            grouped_data.sum(axis=1).sort_values(ascending=False).index
-        ]
-        grouped_data.columns = grouped_data.columns.str.replace(
-            "light-oauth2-oauth2-", ""
-        )
+        grouped_data = grouped_data.loc[grouped_data.sum(axis=1).sort_values(ascending=False).index]
+        grouped_data.columns = grouped_data.columns.str.replace("light-oauth2-oauth2-", "")
 
         # Plot grouped bars
         grouped_data.plot(kind="bar", width=0.8)

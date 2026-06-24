@@ -1,0 +1,27 @@
+{
+  "protocol_version": "v0",
+  "higher_is_more_anomalous": true,
+  "n_samples": 700,
+  "has_labels": true,
+  "auroc": 0.99998,
+  "auprc": 0.9999501243781095,
+  "score_stats": {
+    "mean": 4.133192161287494,
+    "std": 2.3126123297525583,
+    "min": 0.855481088984388,
+    "max": 9.949675746900981,
+    "p50": 3.074355074335342,
+    "p90": 7.929847552390864,
+    "p99": 9.312379738785548
+  },
+  "label_distribution": {
+    "n_pos": 200,
+    "n_neg": 500,
+    "pos_rate": 0.2857142857142857
+  },
+  "meta": {
+    "git_commit": "b3d6f37a8f4316121f0248ae798b74a977eaa282",
+    "timestamp_utc": "2026-06-23T07:02:46+00:00",
+    "input_path": "artifacts/scores.parquet"
+  }
+}
