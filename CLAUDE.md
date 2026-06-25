@@ -139,6 +139,13 @@ pytest tests/
 
 前期完善基础设施阶段，统一走 `feature/` 分支。
 
+## Project History
+- `history/` 维护项目历次 PR/迭代的决策、坑、遗留 TODO，作为 commit log / CLAUDE.md 之外的第三层文档
+- 结构：`history/index.md`（轻量索引 + 影响域倒排）+ `history/entries/NNN-*.md`（详细文档）
+- **开发新功能 / 重构 / 修 bug 前必读 `history/index.md`**，按影响域定位相关 entry，避免重复踩坑或破坏已有决策
+- **PR merge 前必写一篇新 entry** 到 `history/entries/`，并更新 index 的列表与影响域索引；写之前先查重，避免重复
+- 详细流程见 `skills-local/project-history/SKILL.md`（clone 后运行 `make install-skills` 将 skill 链接到 `.claude/skills/`）
+
 ## Python Environment
 - 统一使用 conda 虚拟环境，环境名为 `interface`
 - 多设备训练/推理时确保环境一致

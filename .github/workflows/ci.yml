@@ -21,6 +21,42 @@ jobs:
       - name: isort
         run: isort --check-only src/ scripts/ tests/
 
+  check-skills:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install project-local skills
+        run: make install-skills
+      - name: Verify symlinks resolve
+        shell: bash
+        run: |
+          if [ ! -d skills-local ]; then
+            echo "ERROR: skills-local/ directory not found"
+            exit 1
+          fi
+          shopt -s nullglob
+          skills=(skills-local/*/)
+          if [ ${#skills[@]} -eq 0 ]; then
+            echo "WARNING: no skills found in skills-local/, nothing to verify"
+            exit 0
+          fi
+          for skill in "${skills[@]}"; do
+            name=$(basename "$skill")
+            skill_link=".claude/skills/$name"
+            skill_md="$skill_link/SKILL.md"
+            if [ ! -L "$skill_link" ]; then
+              echo "FAIL: $skill_link is not a symlink (install-skills may not have run)"
+              exit 1
+            elif [ ! -e "$skill_link" ]; then
+              echo "FAIL: $skill_link is a broken symlink (target: $(readlink "$skill_link"))"
+              exit 1
+            elif [ ! -f "$skill_md" ]; then
+              echo "FAIL: $skill_md not found (skill directory missing SKILL.md)"
+              exit 1
+            fi
+            echo "OK: $name"
+          done
+
   test:
     runs-on: ubuntu-latest
     steps:
