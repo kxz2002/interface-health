@@ -28,8 +28,8 @@
 | # | 日期 | 类型 | 标题 | 影响域 |
 |---|------|------|------|--------|
 | [001](./entries/001-project-init.md) | 2026-05-10 | Feature | 初始化项目结构与基础设施 | 仓库骨架, CLAUDE.md, scripts/lo2-scripts/ |
-| [002](./entries/002-infrastructure.md) | 2026-06-22 | Chore (PR #1) | 搭建工程基础设施 | DVC, Hydra, pyproject, Makefile, CI, src/utils/ |
-| [003](./entries/003-experiment-loop.md) | 2026-06-24 | Chore (PR #2) | 最小可复现实验闭环（迭代 2） | src/contracts/, scripts/train_baseline.py, scripts/eval.py, dvc.yaml, tests/ |
+| [002](./entries/002-infrastructure.md) | 2026-06-22 | Chore (PR #1) | 搭建工程基础设施 | DVC, Hydra, pyproject, Makefile, environment.yml, CI, src/utils/, CLAUDE.md |
+| [003](./entries/003-experiment-loop.md) | 2026-06-24 | Chore (PR #2) | 最小可复现实验闭环（迭代 2） | src/contracts/, scripts/train_baseline.py, scripts/eval.py, dvc.yaml, artifacts/, tests/, CLAUDE.md |
 | [004](./entries/004-project-history.md) | 2026-06-24 | Feature | 引入 Project History 历史记忆系统 | history/, skills-local/, Makefile, CLAUDE.md |
 
 ---
@@ -40,16 +40,19 @@
 
 | 目录 / 主题 | 相关 entries |
 |-------------|--------------|
-| `CLAUDE.md` | 001, 002, 004 |
+| `CLAUDE.md` | 001, 002, 003, 004 |
 | `data/` 组织与 DVC | 002 |
 | `configs/` (Hydra) | 002 |
 | `src/utils/` (seed, logger) | 002 |
 | `src/contracts/` | 003 |
 | `scripts/` (train, eval) | 003 |
 | `scripts/lo2-scripts/` | 001 |
+| `docs/agent-docs/` | 001 |
+| `docs/plans/` | 001 |
+| `artifacts/` | 003 |
 | `dvc.yaml` / DVC pipeline | 002 (初始化), 003 (定义 stage) |
 | `environment.yml` / `Makefile` | 002 |
-| `.github/workflows/ci.yml` | 002 |
+| `.github/workflows/ci.yml` | 002, 004 |
 | `tests/` | 002 (占位), 003 (契约/e2e) |
 | `pyproject.toml` | 002 |
 | `history/` + `skills-local/` | 004 |

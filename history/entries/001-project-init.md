@@ -13,7 +13,8 @@
 - 写第一版 `CLAUDE.md`：确立研究背景（Train-Ticket + One-Class 异常检测方向）
 - 配置 pre-commit（isort + black）、`.gitignore`
 - 引入 `scripts/lo2-scripts/`：LO2 数据集相关的一次性脚本（csv 合并、降采样、PCA、size 分布等）
-- 引入 `docs/agent-docs/`：LO2 数据集说明 + 文献调研笔记 `2026-05-08-lit-review-and-research-directions.md`
+- 引入 `docs/agent-docs/`：LO2 数据集说明（`lo2-dataset-readme.md`、`lo2-scripts.md`）
+- 引入 `docs/plans/2026-05-08-lit-review-and-research-directions.md`：文献调研笔记
 
 ## 关键决策（不在 commit 里）
 

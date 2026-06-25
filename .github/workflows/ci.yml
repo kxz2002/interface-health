@@ -28,12 +28,30 @@ jobs:
       - name: Install project-local skills
         run: make install-skills
       - name: Verify symlinks resolve
+        shell: bash
         run: |
-          for skill in skills-local/*/; do
+          if [ ! -d skills-local ]; then
+            echo "ERROR: skills-local/ directory not found"
+            exit 1
+          fi
+          shopt -s nullglob
+          skills=(skills-local/*/)
+          if [ ${#skills[@]} -eq 0 ]; then
+            echo "WARNING: no skills found in skills-local/, nothing to verify"
+            exit 0
+          fi
+          for skill in "${skills[@]}"; do
             name=$(basename "$skill")
-            skill_md=".claude/skills/$name/SKILL.md"
-            if [ ! -f "$skill_md" ]; then
-              echo "FAIL: $skill_md not found or symlink broken"
+            skill_link=".claude/skills/$name"
+            skill_md="$skill_link/SKILL.md"
+            if [ ! -L "$skill_link" ]; then
+              echo "FAIL: $skill_link is not a symlink (install-skills may not have run)"
+              exit 1
+            elif [ ! -e "$skill_link" ]; then
+              echo "FAIL: $skill_link is a broken symlink (target: $(readlink "$skill_link"))"
+              exit 1
+            elif [ ! -f "$skill_md" ]; then
+              echo "FAIL: $skill_md not found (skill directory missing SKILL.md)"
               exit 1
             fi
             echo "OK: $name"

@@ -1,7 +1,7 @@
 # 004 · 引入 Project History 历史记忆系统
 
 - **日期**: 2026-06-24
-- **PR**: feature/history（待 merge）
+- **PR**: #3 · **Commit**: 49b789c
 - **类型**: Feature（基础设施）
 - **影响域**: `history/`, `skills-local/project-history/`, `Makefile`, `CLAUDE.md`
 

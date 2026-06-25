@@ -46,14 +46,22 @@ format:
 # 将 skills-local/ 下的 project-local skills 链接到 .claude/skills/（新协作者 clone 后运行）
 install-skills:
 	@mkdir -p .claude/skills
+	@if [ ! -d skills-local ] || [ -z "$$(ls -d skills-local/*/ 2>/dev/null)" ]; then \
+		echo "  (skills-local/ 为空，无需安装)"; \
+		exit 0; \
+	fi
 	@for skill in skills-local/*/; do \
+		[ -d "$$skill" ] || continue; \
 		name=$$(basename $$skill); \
 		target=".claude/skills/$$name"; \
-		if [ ! -e "$$target" ]; then \
-			ln -sf "../../$$skill" "$$target"; \
-			echo "  linked: $$name"; \
+		if [ -L "$$target" ]; then \
+			echo "  exists: $$name (symlink, skipped)"; \
+		elif [ -e "$$target" ]; then \
+			echo "ERROR: $$target 已存在且不是 symlink，请手动删除后重试" >&2; \
+			exit 1; \
 		else \
-			echo "  exists: $$name (skipped)"; \
+			ln -sf "../../$$skill" "$$target" || { echo "ERROR: 无法创建 symlink: $$name" >&2; exit 1; }; \
+			echo "  linked: $$name"; \
 		fi \
 	done
 
