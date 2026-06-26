@@ -52,7 +52,7 @@ htmlcov/
 
 # Project specific
 outputs/
-models/
+/models/
 # 数据目录内容由 DVC 管理，.dvc 指针文件入 git，实际数据不入 git
 data/anomod/
 data/lo2-sample/
