@@ -15,3 +15,44 @@ stages:
     metrics:
       - artifacts/metrics.json:
           cache: false
+
+  build_contract:
+    cmd: python scripts/build_contract.py --config configs/contract/v0.yaml --data-root
+      data/anomod --out-dir artifacts/contract_v0 --seed 42
+    deps:
+      - scripts/build_contract.py
+      - src/preprocessors
+      - src/contracts/contract_v0.py
+      - src/data/normalization.py
+      - configs/contract/v0.yaml
+      - configs/contract/endpoint_to_service.yaml
+    outs:
+      - artifacts/contract_v0/train.parquet
+      - artifacts/contract_v0/eval_all.parquet
+      - artifacts/contract_v0/normalization_stats.json
+      - artifacts/contract_v0/schema.json
+
+  train_v0:
+    cmd: python scripts/train_baseline_v0.py --contract-dir artifacts/contract_v0 --out
+      artifacts/baseline_v0/scores.parquet --seed 42 --epochs 50
+    deps:
+      - scripts/train_baseline_v0.py
+      - src/models/deep_svdd.py
+      - src/fusion/early_concat.py
+      - src/data/contract_dataloader.py
+      - artifacts/contract_v0/train.parquet
+      - artifacts/contract_v0/eval_all.parquet
+      - artifacts/contract_v0/schema.json
+    outs:
+      - artifacts/baseline_v0/scores.parquet
+
+  eval_v0:
+    cmd: python scripts/eval_baseline_v0.py --scores artifacts/baseline_v0/scores.parquet
+      --out artifacts/baseline_v0/metrics.json
+    deps:
+      - scripts/eval_baseline_v0.py
+      - src/contracts
+      - artifacts/baseline_v0/scores.parquet
+    metrics:
+      - artifacts/baseline_v0/metrics.json:
+          cache: false
