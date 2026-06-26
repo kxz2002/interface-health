@@ -153,7 +153,16 @@ def _merge_log(
         return ep_df
     if log_df.empty:
         return ep_df
-    return pd.merge(ep_df, log_df, on=["service_name", "timestamp_window_ms"], how="left")
+    merged = pd.merge(ep_df, log_df, on=["service_name", "timestamp_window_ms"], how="left")
+    log_cols = [c for c in merged.columns if c.startswith("service_log__")]
+    if log_cols:
+        hit_rate = merged[log_cols[0]].notna().mean()
+        if hit_rate < 0.5:
+            LOG.warning(
+                "log join 命中率 %.1f%%，log 特征可能大面积 NaN（时区或时间对齐问题）",
+                hit_rate * 100,
+            )
+    return merged
 
 
 def _fill_missing_feature_cols(ep_df: pd.DataFrame, cfg: ContractConfig) -> None:
@@ -190,6 +199,7 @@ def _attach_label_columns(ep_df: pd.DataFrame, case_meta: dict) -> None:
         ep_df["phase"] = "normal"
 
     ep_df["is_anomaly"] = ep_df["phase"] == "inject"
+    # is_train_eligible 标记 non-inject 窗口；train.parquet 目前只取 Normal case（更严格）
     ep_df["is_train_eligible"] = ~ep_df["is_anomaly"]
     ep_df["injection_start_ms"] = inject_start
     ep_df["injection_end_ms"] = inject_end
