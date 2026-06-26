@@ -10,7 +10,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import average_precision_score, roc_auc_score
+
+from src.contracts.metrics_v0 import validate_metrics_dict
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -23,27 +25,48 @@ def _safe_auroc(y_true, scores) -> float | None:
     return float(roc_auc_score(y_true, scores))
 
 
+def _safe_auprc(y_true, scores) -> float | None:
+    """单类时返回 None 而非抛出异常。"""
+    if len(np.unique(y_true)) < 2:
+        return None
+    return float(average_precision_score(y_true, scores))
+
+
 def compute_stratified_metrics(df: pd.DataFrame) -> dict:
-    result: dict = {}
+    stratified: dict = {}
 
-    result["overall"] = {"auroc": _safe_auroc(df["y_true"].values, df["score"].values)}
+    stratified["overall"] = {"auroc": _safe_auroc(df["y_true"].values, df["score"].values)}
 
-    result["by_anomaly_type"] = {}
+    stratified["by_anomaly_type"] = {}
     for atype, grp in df.groupby("anomaly_type"):
-        result["by_anomaly_type"][atype] = {
+        stratified["by_anomaly_type"][atype] = {
             "auroc": _safe_auroc(grp["y_true"].values, grp["score"].values),
             "n_samples": len(grp),
         }
 
-    result["by_anomaly_level"] = {}
+    stratified["by_anomaly_level"] = {}
     if "anomaly_level" in df.columns:
         for level, grp in df.groupby("anomaly_level"):
-            result["by_anomaly_level"][level] = {
+            stratified["by_anomaly_level"][level] = {
                 "auroc": _safe_auroc(grp["y_true"].values, grp["score"].values),
                 "n_samples": len(grp),
             }
 
-    return result
+    auroc = _safe_auroc(df["y_true"].values, df["score"].values)
+    auprc = _safe_auprc(df["y_true"].values, df["score"].values)
+    # has_labels=True only when both classes are present and scores are computable;
+    # single-class data cannot produce valid AUROC/AUPRC so we signal has_labels=False.
+    has_labels = auroc is not None
+
+    return {
+        "protocol_version": "v0",
+        "higher_is_more_anomalous": True,
+        "n_samples": len(df),
+        "has_labels": has_labels,
+        "auroc": auroc,
+        "auprc": auprc,
+        "stratified": stratified,
+    }
 
 
 def main():
@@ -56,7 +79,9 @@ def main():
     logger.info("Loaded %d samples from %s", len(df), args.scores)
 
     metrics = compute_stratified_metrics(df)
-    logger.info("Overall AUROC: %s", metrics["overall"]["auroc"])
+    logger.info("Overall AUROC: %s", metrics["stratified"]["overall"]["auroc"])
+
+    validate_metrics_dict(metrics)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(metrics, indent=2))

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -7,6 +8,8 @@ import pandas as pd
 import yaml
 
 from src.preprocessors.base import ModalityPreprocessor
+
+logger = logging.getLogger(__name__)
 
 _REPO_ROOT = Path(__file__).parents[2]  # src/preprocessors/ -> src/ -> repo root
 
@@ -71,6 +74,10 @@ class ApiPreprocessor(ModalityPreprocessor):
     def _compute_divergence(self, df: pd.DataFrame, raw_path: Path) -> pd.Series:
         trace_path = self._resolve_trace_path(raw_path)
         if trace_path is None or not trace_path.exists():
+            logger.warning(
+                "latency_divergence: trace 文件缺失（%s），该列填 NaN（网络类故障信号丢失）",
+                trace_path,
+            )
             return pd.Series(pd.NA, index=df.index, dtype="float64")
 
         trace = pd.read_csv(

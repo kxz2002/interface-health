@@ -100,20 +100,28 @@ def test_scores_has_diagnostic_columns(pipeline_out):
 
 
 def test_metrics_json_overall_auroc(pipeline_out):
-    """V4: metrics.json 有 overall.auroc 且在 [0,1]。"""
+    """V4: metrics.json 顶层有 auroc 且在 [0,1]。"""
     metrics = json.loads(pipeline_out["metrics"].read_text())
-    assert "overall" in metrics
-    auroc = metrics["overall"]["auroc"]
+    auroc = metrics["auroc"]
     # mini data 可能全为一类，auroc 可以是 None
     if auroc is not None:
         assert 0.0 <= auroc <= 1.0
 
 
 def test_metrics_json_has_stratified_keys(pipeline_out):
-    """V5: metrics.json 含 by_anomaly_type / by_anomaly_level。"""
+    """V5: metrics.json 含 stratified.by_anomaly_type / by_anomaly_level。"""
     metrics = json.loads(pipeline_out["metrics"].read_text())
-    assert "by_anomaly_type" in metrics
-    assert "by_anomaly_level" in metrics
+    assert "stratified" in metrics
+    assert "by_anomaly_type" in metrics["stratified"]
+    assert "by_anomaly_level" in metrics["stratified"]
+
+
+def test_metrics_json_passes_contract_validation(pipeline_out):
+    """V7: metrics.json 通过 metrics contract v0 校验。"""
+    from src.contracts.metrics_v0 import validate_metrics_dict
+
+    metrics = json.loads(pipeline_out["metrics"].read_text())
+    validate_metrics_dict(metrics)
 
 
 def test_pipeline_reproducible(tmp_path):

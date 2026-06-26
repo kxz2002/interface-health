@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.contracts.metrics_v0 import validate_metrics_dict
+
 REPO_ROOT = Path(__file__).parents[1]
 
 
@@ -29,12 +31,17 @@ def test_metrics_has_stratified_keys(tmp_path):
         cwd=str(REPO_ROOT),
     )
     metrics = json.loads(out.read_text())
-    assert "overall" in metrics
-    assert "by_anomaly_type" in metrics
-    assert "by_anomaly_level" in metrics
-    assert "Lv_P_cpu" in metrics["by_anomaly_type"]
-    assert "performance" in metrics["by_anomaly_level"]
-    assert 0 <= metrics["overall"]["auroc"] <= 1
+    assert "protocol_version" in metrics
+    assert "auroc" in metrics
+    assert "auprc" in metrics
+    assert "stratified" in metrics
+    assert "overall" in metrics["stratified"]
+    assert "by_anomaly_type" in metrics["stratified"]
+    assert "by_anomaly_level" in metrics["stratified"]
+    assert "Lv_P_cpu" in metrics["stratified"]["by_anomaly_type"]
+    assert "performance" in metrics["stratified"]["by_anomaly_level"]
+    assert 0 <= metrics["stratified"]["overall"]["auroc"] <= 1
+    validate_metrics_dict(metrics)
 
 
 def test_metrics_skips_single_class_group(tmp_path):
@@ -59,5 +66,7 @@ def test_metrics_skips_single_class_group(tmp_path):
         cwd=str(REPO_ROOT),
     )
     metrics = json.loads(out.read_text())
-    assert "overall" in metrics
     # 单类 group 可以是 null 或 skipped，不能 KeyError / crash
+    assert metrics["stratified"]["overall"]["auroc"] is None
+    assert metrics["auroc"] is None
+    validate_metrics_dict(metrics)

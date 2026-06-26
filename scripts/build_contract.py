@@ -126,10 +126,13 @@ def _merge_metric(
         }
         try:
             frames.append(metric_pre.transform(csv_path, meta))
-        except Exception:
-            LOG.exception("metric %s transform 失败，跳过该文件", csv_path.name)
+        except (ValueError, KeyError, TypeError, pd.errors.ParserError, OSError) as e:
+            LOG.exception("metric %s transform 失败，跳过该文件: %s", csv_path.name, e)
 
     if not frames:
+        LOG.warning(
+            "case %s 全部 metric CSV 处理失败，metric 模态缺失", case_meta.get("case_id", "unknown")
+        )
         return ep_df
     metric_df = pd.concat(frames, ignore_index=True)
     if metric_df.empty:
@@ -148,8 +151,8 @@ def _merge_log(
         return ep_df
     try:
         log_df = log_pre.transform(log_dir, case_meta)
-    except Exception:
-        LOG.exception("log transform 失败，跳过 log 模态")
+    except (ValueError, KeyError, TypeError, OSError) as e:
+        LOG.exception("log transform 失败，跳过 log 模态: %s", e)
         return ep_df
     if log_df.empty:
         return ep_df
@@ -168,6 +171,7 @@ def _merge_log(
 def _fill_missing_feature_cols(ep_df: pd.DataFrame, cfg: ContractConfig) -> None:
     for col in _all_feature_columns(cfg):
         if col not in ep_df.columns:
+            LOG.warning("特征列 %s 缺失（模态未产出），已填 NaN", col)
             ep_df[col] = float("nan")
 
 
@@ -261,6 +265,8 @@ def main() -> None:
     normal_log_files = _collect_normal_log_files(cases)
     if normal_log_files:
         log_pre.fit(normal_log_files)
+    else:
+        LOG.warning("未找到任何 Normal case 日志文件，LogPreprocessor 将在未训练状态下运行")
 
     frames: list[pd.DataFrame] = []
     for case_dir in cases:

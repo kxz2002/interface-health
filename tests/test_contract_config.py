@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from src.contracts.contract_config import load_contract_config
+from src.contracts.contract_config import ModalitySpec, load_contract_config
 
 REPO_ROOT = Path(__file__).parents[1]
 
@@ -33,3 +33,25 @@ def test_normalization_scope_valid():
 def test_missing_modality_field_raises():
     with pytest.raises(ValueError, match="modalities"):
         load_contract_config(REPO_ROOT / "tests/fixtures/bad_contract_no_modalities.yaml")
+
+
+def test_empty_features_raises():
+    """features 为空时 ModalitySpec 应抛 ValueError。"""
+    with pytest.raises(ValueError, match="features"):
+        ModalitySpec(
+            preprocessor="TracePreprocessor",
+            preprocessor_version="v0",
+            features=(),
+            normalization="per_endpoint_min_max",
+        )
+
+
+def test_invalid_normalization_raises():
+    """不支持的 normalization 字符串应抛 ValueError。"""
+    with pytest.raises(ValueError, match="normalization"):
+        ModalitySpec(
+            preprocessor="TracePreprocessor",
+            preprocessor_version="v0",
+            features=("feat_a",),
+            normalization="unknown_norm",
+        )

@@ -56,7 +56,12 @@ def validate_contract_df(df: pd.DataFrame, config_path: str) -> ContractV0:
     missing = [c for c in expected if c not in df.columns]
     if missing:
         errors.append(f"missing columns: {missing}")
-        raise ContractV0Error("contract v0 violations: " + "; ".join(errors))
+        # If ID/label columns missing, subsequent checks would KeyError — raise now
+        critical_missing = [
+            c for c in (REQUIRED_ID_COLUMNS + REQUIRED_LABEL_COLUMNS) if c not in df.columns
+        ]
+        if critical_missing:
+            raise ContractV0Error("contract v0 violations: " + "; ".join(errors))
 
     if df["sample_id"].duplicated().any():
         errors.append(f"sample_id has {int(df['sample_id'].duplicated().sum())} duplicate values")

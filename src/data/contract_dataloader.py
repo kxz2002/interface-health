@@ -22,6 +22,8 @@ class ContractDataset(Dataset):
     ):
         self._mode = mode
         self._seq_len = sequence_length
+        if sequence_length < 1:
+            raise ValueError(f"sequence_length 必须 >= 1，got {sequence_length}")
 
         schema = json.loads(Path(schema_path).read_text())
         self._groups: dict[str, list[str]] = {
@@ -31,11 +33,16 @@ class ContractDataset(Dataset):
         self._df = pd.read_parquet(parquet_path)
 
         feature_cols = [c for cols in self._groups.values() for c in cols]
+        if nan_strategy not in ("mean", "zero"):
+            raise ValueError(f"未知 nan_strategy: {nan_strategy!r}，支持 'mean' 或 'zero'")
         if nan_strategy == "mean":
             # 默认用自身均值；传入 fit_on_parquet 时改用外部（训练集）均值，
             # 避免在 eval 路径上用 eval 自身统计量填补造成训练集信息泄漏。
             fit_src = pd.read_parquet(fit_on_parquet) if fit_on_parquet else self._df
             means = fit_src[feature_cols].mean()
+            all_nan_cols = means[means.isna()].index.tolist()
+            if all_nan_cols:
+                raise ValueError(f"fit 源数据以下特征列全为 NaN，无法均值填补：{all_nan_cols}")
             self._df[feature_cols] = self._df[feature_cols].fillna(means)
         else:
             self._df[feature_cols] = self._df[feature_cols].fillna(0.0)

@@ -10,6 +10,8 @@ class DeepSVDD(nn.Module):
     encoder 无 bias（防超球退化），center 在首次 init_center 后固定。
     """
 
+    center: torch.Tensor | None
+
     def __init__(self, input_dim: int, hidden_dim: int = 128, rep_dim: int = 32):
         super().__init__()
         self.rep_dim = rep_dim
@@ -21,7 +23,7 @@ class DeepSVDD(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim, rep_dim, bias=False),
         )
-        self.center: torch.Tensor | None = None
+        self.register_buffer("center", None)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.encoder(x)
@@ -29,13 +31,15 @@ class DeepSVDD(nn.Module):
     @torch.no_grad()
     def init_center(self, x: torch.Tensor, eps: float = 0.1) -> None:
         """用正常数据初始化超球心（取编码均值，防止接近 0 导致退化）。"""
+        training_state = self.training
         self.eval()
         z = self.encoder(x)
         c = z.mean(dim=0)
         # 防止 center 分量过于接近 0（原论文建议），避免训练塌缩
         c[(c.abs() < eps) & (c < 0)] = -eps
         c[(c.abs() < eps) & (c >= 0)] = eps
-        self.center = c.detach()
+        self.center = c.detach().clone()
+        self.train(training_state)
 
     def score(self, x: torch.Tensor) -> torch.Tensor:
         """返回每个样本的异常分数（距超球心距离的平方）。"""

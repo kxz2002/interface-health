@@ -36,3 +36,19 @@ def test_concat_order_is_deterministic():
     }
     out = fusion(batch)
     assert torch.equal(out, torch.tensor([[1.0, 2.0, 3.0, 4.0]]))
+
+
+def test_missing_modality_key_raises():
+    """modality_dims 缺少 MODALITY_ORDER 中的 key 时应抛 ValueError。"""
+    with pytest.raises(ValueError):
+        EarlyConcatFusion(
+            modality_dims={"endpoint_red": 10, "service_metric": 5}
+        )  # missing service_log
+
+
+def test_extra_modality_key_raises():
+    """modality_dims 含多余 key 时应抛 ValueError。"""
+    with pytest.raises(ValueError):
+        EarlyConcatFusion(
+            modality_dims={"endpoint_red": 10, "service_metric": 5, "service_log": 3, "extra": 2}
+        )

@@ -1,3 +1,5 @@
+import logging
+import tempfile
 from pathlib import Path
 
 from src.preprocessors.log_preprocessor import LogPreprocessor
@@ -41,3 +43,29 @@ def test_log_error_ratio_when_no_events_is_zero(tmp_path):
     assert len(empty_rows) > 0
     assert (empty_rows["service_log__error_ratio"] == 0).all()
     assert (empty_rows["service_log__template_diversity"] == 0).all()
+
+
+def test_canonical_service_name_strips_pod_suffix():
+    """pod 目录名后缀应被剥离得到 canonical service name。"""
+    assert (
+        LogPreprocessor._canonical_service_name("ts-route-service-7a4b5c6d8e-ab9zx")
+        == "ts-route-service"
+    )
+    assert (
+        LogPreprocessor._canonical_service_name("ts-travel-service-6f467bc998-jt5dd")
+        == "ts-travel-service"
+    )
+
+
+def test_canonical_service_name_no_suffix_unchanged():
+    """不含 pod 后缀的目录名保持不变。"""
+    assert LogPreprocessor._canonical_service_name("ts-route-service") == "ts-route-service"
+
+
+def test_transform_warns_when_not_fitted(caplog):
+    """未 fit 时 transform 应发出 warning。"""
+    pre = LogPreprocessor()  # no fit
+    with caplog.at_level(logging.WARNING, logger="src.preprocessors.log_preprocessor"):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pre.transform(Path(tmpdir), case_meta={"case_id": "test"})
+    assert any("未 fit" in r.message or "template_id" in r.message for r in caplog.records)

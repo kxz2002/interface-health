@@ -59,6 +59,11 @@ class LogPreprocessor(ModalityPreprocessor):
         self._miner = miner
 
     def transform(self, log_root_dir: Path, case_meta: dict[str, Any]) -> pd.DataFrame:
+        if self._miner is None:
+            logger.warning(
+                "LogPreprocessor.transform 在未 fit 的 miner 上调用，"
+                "template_id 将全部为 -1（log 模态信号失效）"
+            )
         miner = self._miner if self._miner is not None else self._new_miner()
         log_root_dir = Path(log_root_dir)
 
