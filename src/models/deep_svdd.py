@@ -39,7 +39,8 @@ class DeepSVDD(nn.Module):
 
     def score(self, x: torch.Tensor) -> torch.Tensor:
         """返回每个样本的异常分数（距超球心距离的平方）。"""
-        assert self.center is not None, "先调用 init_center"
+        if self.center is None:
+            raise RuntimeError("先调用 init_center 初始化超球心")
         z = self.encoder(x)
         return ((z - self.center) ** 2).sum(dim=1)
 
