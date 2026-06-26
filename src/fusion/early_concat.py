@@ -12,6 +12,12 @@ class EarlyConcatFusion(FusionModule):
 
     def __init__(self, modality_dims: dict[str, int]):
         super().__init__()
+        missing = set(self.MODALITY_ORDER) - set(modality_dims)
+        extra = set(modality_dims) - set(self.MODALITY_ORDER)
+        if missing or extra:
+            raise ValueError(
+                f"modality_dims keys {set(modality_dims)} must match MODALITY_ORDER {self.MODALITY_ORDER}"
+            )
         self._dims = modality_dims
 
     def forward(self, modality_dict: dict[str, torch.Tensor]) -> torch.Tensor:
