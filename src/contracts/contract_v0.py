@@ -33,6 +33,9 @@ RATE_COLUMNS = [
     "endpoint_red__client_5xx_rate",
     "service_metric__cpu_usage_rate",
     "service_metric__memory_usage_ratio",
+    "service_metric__net_rx_error_rate",
+    "service_metric__net_tx_error_rate",
+    "service_log__event_rate",
     "service_log__error_ratio",
 ]
 
