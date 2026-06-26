@@ -18,6 +18,7 @@ class ContractDataset(Dataset):
         mode: str = "point",
         nan_strategy: str = "zero",
         sequence_length: int = 8,
+        fit_on_parquet: str | Path | None = None,
     ):
         self._mode = mode
         self._seq_len = sequence_length
@@ -31,7 +32,10 @@ class ContractDataset(Dataset):
 
         feature_cols = [c for cols in self._groups.values() for c in cols]
         if nan_strategy == "mean":
-            means = self._df[feature_cols].mean()
+            # 默认用自身均值；传入 fit_on_parquet 时改用外部（训练集）均值，
+            # 避免在 eval 路径上用 eval 自身统计量填补造成训练集信息泄漏。
+            fit_src = pd.read_parquet(fit_on_parquet) if fit_on_parquet else self._df
+            means = fit_src[feature_cols].mean()
             self._df[feature_cols] = self._df[feature_cols].fillna(means)
         else:
             self._df[feature_cols] = self._df[feature_cols].fillna(0.0)
@@ -43,14 +47,18 @@ class ContractDataset(Dataset):
         else:
             raise ValueError(f"未知 mode: {mode}")
 
-    def _build_sequence_indices(self) -> list[tuple[str, str, int]]:
-        """构建 (case_id, endpoint_key, start_row_idx) 滑窗索引。不跨 case/endpoint 边界。"""
+    def _build_sequence_indices(self) -> list[list]:
+        """构建滑窗索引，每项为一个窗口的 DataFrame index 列表。不跨 case/endpoint 边界。
+
+        存整窗 index 列表（而非起始物理行号），按 DataFrame index 显式切片，
+        不依赖同一 group 的行在 parquet 中物理连续。
+        """
         indices = []
-        for (case_id, ep_key), group in self._df.groupby(["case_id", "endpoint_key"], sort=False):
+        for _, group in self._df.groupby(["case_id", "endpoint_key"], sort=False):
             g_idx = group.index.tolist()
             if len(g_idx) >= self._seq_len:
                 for i in range(len(g_idx) - self._seq_len + 1):
-                    indices.append((case_id, ep_key, g_idx[i]))
+                    indices.append(g_idx[i : i + self._seq_len])
         return indices
 
     def __len__(self) -> int:
@@ -60,9 +68,8 @@ class ContractDataset(Dataset):
         if self._mode == "point":
             row = self._df.iloc[idx]
             return self._row_to_sample(row)
-        case_id, ep_key, start_idx = self._indices[idx]
-        loc = self._df.index.get_loc(start_idx)
-        rows = self._df.iloc[loc : loc + self._seq_len]
+        idx_list = self._indices[idx]
+        rows = self._df.loc[idx_list]
         return self._rows_to_sequence_sample(rows)
 
     def _row_to_sample(self, row: pd.Series) -> dict:
