@@ -17,6 +17,7 @@ dependencies = [
     "pyyaml>=6.0",
     "mlflow>=3.13.0",
     "pyarrow>=14.0",
+    "drain3-improved>=0.9.11",
 ]
 
 [project.optional-dependencies]
