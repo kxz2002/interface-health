@@ -1,0 +1,42 @@
+contract_version: "v0"
+window_size_s: 15
+
+modalities:
+  endpoint_red:
+    preprocessor: TracePreprocessor
+    preprocessor_version: v0
+    features:
+      - trace_request_count
+      - trace_latency_p50
+      - trace_latency_p95
+      - trace_error_rate
+      - trace_5xx_rate
+      - client_request_count
+      - client_latency_p95
+      - client_error_rate
+      - client_5xx_rate
+      - latency_divergence
+    normalization: per_endpoint_min_max
+    candidates_pool: []
+
+  service_metric:
+    preprocessor: MetricPreprocessor
+    preprocessor_version: v0
+    features:
+      - cpu_usage_rate
+      - memory_usage_ratio
+      - net_rx_error_rate
+      - net_tx_error_rate
+      - process_count
+    normalization: per_service_min_max
+    candidates_pool: []
+
+  service_log:
+    preprocessor: LogPreprocessor
+    preprocessor_version: v0
+    features:
+      - event_rate
+      - error_ratio
+      - template_diversity
+    normalization: per_service_min_max
+    candidates_pool: []
