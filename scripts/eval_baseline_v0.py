@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """eval_baseline_v0: 从 scores.parquet 计算分层 AUROC，输出 metrics.json。"""
+
 from __future__ import annotations
 
 import argparse
