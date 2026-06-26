@@ -8,6 +8,8 @@ import yaml
 
 from src.preprocessors.base import ModalityPreprocessor
 
+_REPO_ROOT = Path(__file__).parents[2]  # src/preprocessors/ -> src/ -> repo root
+
 
 class ApiPreprocessor(ModalityPreprocessor):
     """v0：从 tt_endpoint_health_15s.csv 抽取客户端 RED，并 join 同窗口 trace p95
@@ -38,9 +40,11 @@ class ApiPreprocessor(ModalityPreprocessor):
 
     def __init__(
         self,
-        endpoint_mapping_path: str | Path = "configs/contract/endpoint_to_service.yaml",
+        endpoint_mapping_path: str | Path | None = None,
         trace_red_path: str | Path | None = None,
     ):
+        if endpoint_mapping_path is None:
+            endpoint_mapping_path = _REPO_ROOT / "configs/contract/endpoint_to_service.yaml"
         self._v0_endpoints = set(yaml.safe_load(Path(endpoint_mapping_path).read_text()).keys())
         self._trace_red_path = Path(trace_red_path) if trace_red_path is not None else None
 
