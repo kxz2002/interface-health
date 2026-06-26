@@ -7,7 +7,8 @@ import torch.nn as nn
 class DeepSVDD(nn.Module):
     """Deep SVDD 异常检测器（Ruff et al., 2018）。
 
-    encoder 无 bias（防超球退化），center 在首次 init_center 后固定。
+    encoder 无 bias（防超球退化），center 通过 init_center 初始化，
+    作为 buffer 随模型保存和设备迁移。
     """
 
     center: torch.Tensor | None

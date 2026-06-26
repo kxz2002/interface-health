@@ -125,6 +125,12 @@ def main() -> None:
     )
 
     # 用全部 Normal 训练样本初始化超球心（One-Class：center 只见正常表征）
+    LOG.info("初始化 SVDD 超球心，加载 %d 训练样本...", len(train_ds))
+    if len(train_ds) > 10_000:
+        LOG.warning(
+            "训练集 %d 行，init_center 一次性加载全部数据到内存；如遇 OOM 请考虑增量初始化",
+            len(train_ds),
+        )
     init_loader = DataLoader(train_ds, batch_size=len(train_ds), shuffle=False, collate_fn=_collate)
     init_batch = next(iter(init_loader))
     svdd.init_center(fusion({m: init_batch[m] for m in _MODALITIES}))

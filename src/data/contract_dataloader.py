@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
+
+logger = logging.getLogger(__name__)
 
 
 class ContractDataset(Dataset):
@@ -37,7 +40,7 @@ class ContractDataset(Dataset):
             raise ValueError(f"未知 nan_strategy: {nan_strategy!r}，支持 'mean' 或 'zero'")
         if nan_strategy == "mean":
             # 默认用自身均值；传入 fit_on_parquet 时改用外部（训练集）均值，
-            # 避免在 eval 路径上用 eval 自身统计量填补造成训练集信息泄漏。
+            # 避免 eval 用自身均值填补——eval 自填会引入统计量偏差，应使用训练集均值保持一致性。
             fit_src = pd.read_parquet(fit_on_parquet) if fit_on_parquet else self._df
             means = fit_src[feature_cols].mean()
             all_nan_cols = means[means.isna()].index.tolist()
@@ -45,6 +48,13 @@ class ContractDataset(Dataset):
                 raise ValueError(f"fit 源数据以下特征列全为 NaN，无法均值填补：{all_nan_cols}")
             self._df[feature_cols] = self._df[feature_cols].fillna(means)
         else:
+            all_nan_cols = [c for c in feature_cols if self._df[c].isna().all()]
+            if all_nan_cols:
+                logger.warning(
+                    "nan_strategy='zero': 以下特征列全为 NaN，将填 0"
+                    "（可能表示某模态数据缺失）：%s",
+                    all_nan_cols,
+                )
             self._df[feature_cols] = self._df[feature_cols].fillna(0.0)
 
         if mode == "point":

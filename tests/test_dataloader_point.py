@@ -79,3 +79,37 @@ def test_point_label_carries_phase_and_anomaly(tiny_contract):
     sample = ds[0]
     assert "phase" in sample["label"]
     assert "is_anomaly" in sample["label"]
+
+
+def test_invalid_nan_strategy_raises(tiny_contract):
+    """未知 nan_strategy 应立即抛 ValueError。"""
+    with pytest.raises(ValueError, match="nan_strategy"):
+        ContractDataset(
+            parquet_path=tiny_contract / "train.parquet",
+            schema_path=tiny_contract / "schema.json",
+            nan_strategy="drop",
+        )
+
+
+def test_invalid_sequence_length_raises(tiny_contract):
+    """sequence_length < 1 应立即抛 ValueError。"""
+    with pytest.raises(ValueError, match="sequence_length"):
+        ContractDataset(
+            parquet_path=tiny_contract / "train.parquet",
+            schema_path=tiny_contract / "schema.json",
+            sequence_length=0,
+        )
+
+
+def test_all_nan_mean_fill_raises(tiny_contract):
+    """fit 源数据某特征列全 NaN 时，nan_strategy='mean' 应抛 ValueError。"""
+    df = pd.read_parquet(tiny_contract / "train.parquet")
+    df["service_log__event_rate"] = float("nan")
+    tmp = tiny_contract / "train_all_nan.parquet"
+    df.to_parquet(tmp, index=False)
+    with pytest.raises(ValueError, match="service_log__event_rate"):
+        ContractDataset(
+            parquet_path=tmp,
+            schema_path=tiny_contract / "schema.json",
+            nan_strategy="mean",
+        )

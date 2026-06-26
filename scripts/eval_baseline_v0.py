@@ -54,8 +54,8 @@ def compute_stratified_metrics(df: pd.DataFrame) -> dict:
 
     auroc = _safe_auroc(df["y_true"].values, df["score"].values)
     auprc = _safe_auprc(df["y_true"].values, df["score"].values)
-    # has_labels=True only when both classes are present and scores are computable;
-    # single-class data cannot produce valid AUROC/AUPRC so we signal has_labels=False.
+    # metrics_v0 契约允许 has_labels=False：单类数据无法计算 AUROC/AUPRC，
+    # 此时 auroc/auprc 均为 None，契约要求两者也为 None，逻辑自洽。
     has_labels = auroc is not None
 
     return {
