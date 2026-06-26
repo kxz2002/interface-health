@@ -1,0 +1,5 @@
+2026-06-09 02:29:46.491  INFO 1 --- [main] c.e.SomeLogger : request handled ok
+2026-06-09 02:29:50.100  INFO 1 --- [main] c.e.SomeLogger : request handled ok
+2026-06-09 02:30:01.000  INFO 1 --- [main] c.e.SomeLogger : request handled ok
+2026-06-09 02:30:05.200  INFO 1 --- [main] c.e.SomeLogger : request handled ok
+2026-06-09 02:30:16.000  INFO 1 --- [main] c.e.SomeLogger : request handled ok
