@@ -1,0 +1,6 @@
+case_id,anomaly_type,timestamp_window,endpoint_key,request_count,error_rate,latency_mean,latency_p50,latency_p95,latency_p99,status_2xx_rate,status_4xx_rate,status_5xx_rate,method,normalized_path
+Normal_planA,Normal,2026-06-09T02:29:45Z,POST:/api/v1/travelservice/trips/left,12,0.0,2268.70,2100.00,3100.50,3500.00,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Normal_planA,Normal,2026-06-09T02:30:00Z,POST:/api/v1/travelservice/trips/left,13,0.0,1577.30,1400.00,2200.00,2600.00,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Normal_planA,Normal,2026-06-09T02:29:45Z,GET:/api/v1/routeservice/routes,20,0.0,600.00,550.00,1100.00,1250.00,1.0,0.0,0.0,GET,/api/v1/routeservice/routes
+Normal_planA,Normal,2026-06-09T02:29:45Z,POST:/api/v1/inside_pay_service/inside_payment,5,0.0,900.00,850.00,1200.00,1300.00,1.0,0.0,0.0,POST,/api/v1/inside_pay_service/inside_payment
+Normal_planA,Normal,2026-06-09T02:30:30Z,POST:/api/v1/preserveservice/preserve,7,0.0,3992.24,4220.07,4907.43,5054.13,1.0,0.0,0.0,POST,/api/v1/preserveservice/preserve
