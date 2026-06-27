@@ -56,3 +56,38 @@ T13 初版只继承 `nn.Module`，ABC 约束完全失效（`nn.Module` 用普通
 - **MetricPreprocessor `intermediate_dir` 清理**：`_pipeline_out/metrics_filtered_{case_id}.parquet` 中间缓存在 data/anomod/ 下，READ-ONLY 目录——实际部署时需改 intermediate_dir 到 artifacts/。
 - **Drain3 state 跨 case 复用**：`LogPreprocessor` 默认 `drain3_state_path=None`（每次重新训练模板）。跨 case 共享 state 会提高模板稳定性，但需要评估 train→eval 模板漂移的影响。
 - **序列模式数据量不足**：mini fixture 所有 case 在单 endpoint 下连续步数均 <4，`test_sequence_dataset_shape` 永远 skip。需更长的 fixture 或降低 sequence_length 默认值来真正覆盖序列路径。
+- **log 模态信号缺失（数据重采）**：log join 命中率仅 2%–27%（见下方「坑」），需重新采集保留完整日志。
+
+## DVC 全链路验证（merge 前补充，2026-06-26）
+
+PR merge 前用真实 11-case 数据跑通了 `dvc repro build_contract train_v0 eval_v0`，过程中发现并修复了三类 bug，同时确认了一个不可逆的数据采集限制。
+
+### 修复的 Bug
+
+**Bug 1：`_enumerate_cases` 路径锚点错误**
+- 原因：`rglob("case_metadata.json")` 在真实数据中找到 `trace_data/case_metadata.json`，`p.parent` 返回 `trace_data/`，导致所有 case 因找不到 `_pipeline_out` 而被跳过；`Normal` case 无 metadata 文件完全缺失，共 11 个 case 全部处理失败。
+- 修复：改为 `glob("*/_pipeline_out")` 以 `_pipeline_out/` 为锚点，同时修复 `_load_case_meta` 支持三种布局（直接路径 / `trace_data/` 子路径 / Normal 合成元数据）。
+- 影响文件：`scripts/build_contract.py`
+
+**Bug 2：`LogPreprocessor` 目录层级识别错误**
+- 原因：`transform()` 假设 `log_data/<service-pod>/*.log` 两层结构，真实数据多一层 run-id：`log_data/<run-id>/<service-pod>/*.log`，导致 log 模态完全没有输出。
+- 修复：新增 `_find_service_dirs()`，检测到直接子目录无 `.log` 文件时自动下探一层。
+- 影响文件：`src/preprocessors/log_preprocessor.py`
+
+**Bug 3：`LogPreprocessor` 时区错误**
+- 原因：Spring Boot 日志时间戳是本地时间（CST/UTC+8），`pd.Timestamp(ts_str)` 不带时区直接当 UTC 处理，导致 log 窗口比 endpoint 数据快 8 小时，join 命中率为 0%。
+- 修复：`_parse_line` 中加 `.tz_localize("Asia/Shanghai")` 再取 epoch ms。
+- 影响文件：`src/preprocessors/log_preprocessor.py`
+
+**Bug 4：`ContractDataset` 全 NaN 列守卫过严**
+- 原因：`nan_strategy="mean"` 遇到全 NaN 列直接 raise，但 `trace_5xx_rate` 在 Normal case 下本来就全 NaN（dataset-guide 已记录），阻断了训练流程。
+- 修复：改为 warning + 回退 0 填充，对应测试从「验证 raise」改为「验证 warn+0填充」。
+- 影响文件：`src/data/contract_dataloader.py`、`tests/test_dataloader_point.py`
+
+### 数据采集限制（不可修复）
+
+**log 模态信号基本缺失**：真实数据集的 `log_data/_previous_*.log` 是指向 K8s pod 节点 `/var/log/pods/...` 路径的**断掉的符号连结**——采集时 pod 已销毁，历史日志丢失。每个服务只剩最后一次 log rotation 的当前文件，仅覆盖实验末尾几分钟（而非整个 15–30 分钟实验窗口）。
+
+结果：log join 命中率 2%–27%（各 case 不同），`service_log__*` 三列大面积 NaN 填 0，实际等同常量特征，对 AUROC 无贡献。
+
+**后续行动**：重新采集日志时需在 pod 存活期间直接拷贝 `/var/log/pods/` 下的历史文件，或改用 sidecar/FluentBit 持续采集。待数据重采后 log 模态才能提供有效信号。

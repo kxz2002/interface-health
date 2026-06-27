@@ -69,3 +69,29 @@ def test_transform_warns_when_not_fitted(caplog):
         with tempfile.TemporaryDirectory() as tmpdir:
             pre.transform(Path(tmpdir), case_meta={"case_id": "test"})
     assert any("未 fit" in r.message or "template_id" in r.message for r in caplog.records)
+
+
+def test_find_service_dirs_nested_layout(tmp_path):
+    """nested: log_root/<run-id>/<svc-pod>/*.log"""
+    run_dir = tmp_path / "run_20260609"
+    svc_dir = run_dir / "ts-order-service-abc123-xyz12"
+    svc_dir.mkdir(parents=True)
+    (svc_dir / "ts-order-service.log").write_text("dummy")
+
+    result = LogPreprocessor._find_service_dirs(tmp_path)
+    assert result == [svc_dir]
+
+
+def test_parse_line_timezone_converts_to_utc():
+    """CST 10:41:43 → UTC 02:41:43（差 8h），验证 epoch ms 对应 UTC 时间。"""
+    import pandas as pd
+
+    log_pre = LogPreprocessor(log_timezone="Asia/Shanghai")
+    line = "2026-06-09 10:41:43.491  INFO 1 --- [thread] logger : message"
+    result = log_pre._parse_line(line)
+    assert result is not None
+    ts_ms, level, _ = result
+    utc_time = pd.to_datetime(ts_ms, unit="ms", utc=True)
+    assert utc_time.hour == 2
+    assert utc_time.minute == 41
+    assert level == "INFO"

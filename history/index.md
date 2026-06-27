@@ -76,3 +76,4 @@
 - **CLI 合约**：脚本失败必须 `exit 1` 而不是只 log；JSON 输出必须 `allow_nan=False`（003）
 - **PR review 反复抓到的类别**：silent failure、测试覆盖不足、文档/代码口径漂移
 - **环境管理**：Kiro/Claude 默认 base conda，验证 `interface` 环境用 `conda run -n interface`（002）
+- **log 模态信号**：Train-Ticket 数据集中 `_previous_*.log` 是断掉的 K8s 符号连结，log 采集仅覆盖实验末尾几分钟；log 特征大面积 NaN 属数据采集限制，非代码 bug；重采时需在 pod 存活期间拷贝历史文件（005）

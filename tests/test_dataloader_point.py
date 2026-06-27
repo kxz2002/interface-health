@@ -101,15 +101,24 @@ def test_invalid_sequence_length_raises(tiny_contract):
         )
 
 
-def test_all_nan_mean_fill_raises(tiny_contract):
-    """fit 源数据某特征列全 NaN 时，nan_strategy='mean' 应抛 ValueError。"""
+def test_all_nan_mean_fill_falls_back_to_zero(tiny_contract, caplog):
+    """fit 源数据某特征列全 NaN 时，nan_strategy='mean' 应回退到 0 填充并发出 warning。"""
+    import logging
+
     df = pd.read_parquet(tiny_contract / "train.parquet")
     df["service_log__event_rate"] = float("nan")
     tmp = tiny_contract / "train_all_nan.parquet"
     df.to_parquet(tmp, index=False)
-    with pytest.raises(ValueError, match="service_log__event_rate"):
-        ContractDataset(
+    with caplog.at_level(logging.WARNING, logger="src.data.contract_dataloader"):
+        ds = ContractDataset(
             parquet_path=tmp,
             schema_path=tiny_contract / "schema.json",
             nan_strategy="mean",
         )
+    assert "service_log__event_rate" in caplog.text
+    # 全 NaN 列应被 0 填充，不影响 dataset 正常使用
+    assert len(ds) > 0
+    sample = ds[0]
+    svc_log_tensor = sample["service_log"]
+    # service_log__event_rate 是 service_log modality 的第一个特征
+    assert svc_log_tensor[0].item() == pytest.approx(0.0)

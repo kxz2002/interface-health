@@ -45,7 +45,19 @@ class ContractDataset(Dataset):
             means = fit_src[feature_cols].mean()
             all_nan_cols = means[means.isna()].index.tolist()
             if all_nan_cols:
-                raise ValueError(f"fit 源数据以下特征列全为 NaN，无法均值填补：{all_nan_cols}")
+                # 全NaN列无法计算均值（如 trace_5xx_rate 在 Normal case 下几乎全NaN），
+                # 回退到 0 填充，而非 raise，避免合理的模态缺失场景阻断流程。
+                logger.warning(
+                    "fit 源数据以下特征列全为 NaN，均值填补回退到 0（可能表示模态信号天然缺失）：%s",
+                    all_nan_cols,
+                )
+                logger.warning(
+                    "effective feature_dim=%d/%d（%d 列全NaN已回退到0）",
+                    len(feature_cols) - len(all_nan_cols),
+                    len(feature_cols),
+                    len(all_nan_cols),
+                )
+                means = means.fillna(0.0)
             self._df[feature_cols] = self._df[feature_cols].fillna(means)
         else:
             all_nan_cols = [c for c in feature_cols if self._df[c].isna().all()]

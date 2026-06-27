@@ -36,8 +36,13 @@ class LogPreprocessor(ModalityPreprocessor):
     WINDOW_MS = 15_000
     ERROR_LEVELS = frozenset({"ERROR", "FATAL"})
 
-    def __init__(self, drain3_state_path: str | Path | None = None):
+    def __init__(
+        self,
+        drain3_state_path: str | Path | None = None,
+        log_timezone: str = "Asia/Shanghai",
+    ):
         self._state_path = Path(drain3_state_path) if drain3_state_path else None
+        self._timezone = log_timezone
         self._miner: TemplateMiner | None = None
 
     def _new_miner(self) -> TemplateMiner:
@@ -68,7 +73,7 @@ class LogPreprocessor(ModalityPreprocessor):
         log_root_dir = Path(log_root_dir)
 
         records: list[dict[str, Any]] = []
-        for service_dir in sorted(p for p in log_root_dir.iterdir() if p.is_dir()):
+        for service_dir in self._find_service_dirs(log_root_dir):
             service_name = self._canonical_service_name(service_dir.name)
             for log_file in sorted(service_dir.glob("*.log")):
                 for line in log_file.read_text(errors="replace").splitlines():
@@ -135,16 +140,40 @@ class LogPreprocessor(ModalityPreprocessor):
         return list(self.OUTPUT_COLUMNS)
 
     @staticmethod
+    def _find_service_dirs(log_root_dir: Path) -> list[Path]:
+        """Return service-pod directories (each containing .log files).
+
+        Handles two layouts:
+        - Flat (mini fixture):  log_root_dir/<service-pod>/*.log
+        - Nested (real anomod): log_root_dir/<run-id>/<service-pod>/*.log
+        """
+        direct_subdirs = sorted(p for p in log_root_dir.iterdir() if p.is_dir())
+
+        def _is_leaf_with_logs(d: Path) -> bool:
+            has_logs = any(d.glob("*.log"))
+            has_subdirs = any(p.is_dir() for p in d.iterdir())
+            return has_logs and not has_subdirs
+
+        if any(_is_leaf_with_logs(d) for d in direct_subdirs):
+            return direct_subdirs
+        # nested layout: go one level deeper
+        nested: list[Path] = []
+        for run_dir in direct_subdirs:
+            nested.extend(sorted(p for p in run_dir.iterdir() if p.is_dir()))
+        return nested
+
+    @staticmethod
     def _canonical_service_name(dir_name: str) -> str:
         stripped = _POD_SUFFIX_RE.sub("", dir_name)
         return stripped or dir_name
 
-    @staticmethod
-    def _parse_line(line: str) -> tuple[int, str, str] | None:
+    def _parse_line(self, line: str) -> tuple[int, str, str] | None:
         m = _LOG_LINE_RE.match(line)
         if m is None:
             return None
-        ts = pd.Timestamp(m.group("ts"))
+        # Log timestamps are local time; tz_localize converts to correct UTC epoch ms
+        # so windows align with endpoint data.
+        ts = pd.Timestamp(m.group("ts")).tz_localize(self._timezone)
         ts_ms = int(ts.value // 1_000_000)
         content = line[m.end() :].strip()
         return ts_ms, m.group("level"), content

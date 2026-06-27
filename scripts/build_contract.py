@@ -2,7 +2,7 @@
 """离线 pipeline：raw data → contract v0 parquet。
 
 流程：
-1. 枚举 data_root 下所有含 case_metadata.json 的 case 目录
+1. 枚举 data_root 下所有含 _pipeline_out/ 的 case 目录
 2. 每个 case 跑 4 个 preprocessor，按 join 键组装宽表
    - endpoint_red：trace + api 按 (endpoint_key, timestamp_window_ms) inner join
    - service_metric / service_log：按 (service_name, timestamp_window_ms) left join
@@ -43,11 +43,30 @@ _SCOPE_MAP: dict[str, tuple[Scope, Method]] = {
 
 
 def _enumerate_cases(data_root: Path) -> list[Path]:
-    return sorted(p.parent for p in data_root.rglob("case_metadata.json"))
+    # Anchor on _pipeline_out/ instead of case_metadata.json: works for both
+    # mini-fixture layout (JSON at case root) and real data layout (JSON inside
+    # trace_data/), and also picks up Normal case which has no metadata file.
+    return sorted(p.parent for p in data_root.glob("*/_pipeline_out") if p.is_dir())
 
 
 def _load_case_meta(case_dir: Path) -> dict:
-    return json.loads((case_dir / "case_metadata.json").read_text())
+    # Layout A (mini fixture / legacy): case_metadata.json directly in case dir
+    direct = case_dir / "case_metadata.json"
+    if direct.exists():
+        return json.loads(direct.read_text())
+    # Layout B (real anomod data): case_metadata.json inside trace_data/
+    in_trace = case_dir / "trace_data" / "case_metadata.json"
+    if in_trace.exists():
+        return json.loads(in_trace.read_text())
+    # Layout C (Normal case in real data): no metadata file; synthesize from dir name.
+    return {
+        "case_id": case_dir.name,
+        "anomaly_type": "Normal",
+        "anomaly_level": "none",
+        "target_service": None,
+        "inject_start_ms": None,
+        "inject_end_ms": None,
+    }
 
 
 def _is_normal_case(case_meta: dict) -> bool:
@@ -259,7 +278,7 @@ def main() -> None:
     cases = _enumerate_cases(Path(args.data_root))
     LOG.info("发现 %d 个 case", len(cases))
     if not cases:
-        raise RuntimeError(f"data_root {args.data_root} 下未找到任何 case_metadata.json")
+        raise RuntimeError(f"data_root {args.data_root} 下未找到任何含 _pipeline_out/ 的 case 目录")
 
     # Drain3 模板只在 Normal case 上 fit，保证模板字典不被异常日志污染
     normal_log_files = _collect_normal_log_files(cases)
