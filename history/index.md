@@ -31,6 +31,7 @@
 | [002](./entries/002-infrastructure.md) | 2026-06-22 | Chore (PR #1) | 搭建工程基础设施 | DVC, Hydra, pyproject, Makefile, environment.yml, CI, src/utils/, CLAUDE.md |
 | [003](./entries/003-experiment-loop.md) | 2026-06-24 | Chore (PR #2) | 最小可复现实验闭环（迭代 2） | src/contracts/, scripts/train_baseline.py, scripts/eval.py, dvc.yaml, artifacts/, tests/, CLAUDE.md |
 | [004](./entries/004-project-history.md) | 2026-06-24 | Feature | 引入 Project History 历史记忆系统 | history/, skills-local/, Makefile, CLAUDE.md |
+| [005](./entries/005-contract-v0.md) | 2026-06-26 | Feature | Contract v0 多模态数据融合接口墙（全链路 18-dim + Deep SVDD baseline） | src/contracts/, src/preprocessors/, src/fusion/, src/models/, src/data/, scripts/, configs/contract/, dvc.yaml, tests/ |
 
 ---
 
@@ -57,10 +58,12 @@
 | `pyproject.toml` | 002 |
 | `history/` + `skills-local/` | 004 |
 | `Makefile` | 002 (环境), 004 (install-skills) |
-| 多模态融合（`src/fusion/`） | _尚无_，001 建空目录 |
-| 模型实现（`src/models/`） | _尚无_，001 建空目录 |
-| 数据 loader（`src/data/`） | _尚无_，003 留 TODO |
-| 评估指标细化（per-endpoint, phase 对齐） | _尚无_，003 留 TODO |
+| 多模态融合（`src/fusion/`） | 005 |
+| 模型实现（`src/models/`） | 005 |
+| 数据 loader（`src/data/`） | 005 |
+| 评估指标细化（per-endpoint, phase 对齐） | 005 |
+| `src/preprocessors/` | 005 |
+| `configs/contract/` | 005 |
 
 ---
 
@@ -73,3 +76,4 @@
 - **CLI 合约**：脚本失败必须 `exit 1` 而不是只 log；JSON 输出必须 `allow_nan=False`（003）
 - **PR review 反复抓到的类别**：silent failure、测试覆盖不足、文档/代码口径漂移
 - **环境管理**：Kiro/Claude 默认 base conda，验证 `interface` 环境用 `conda run -n interface`（002）
+- **log 模态信号**：Train-Ticket 数据集中 `_previous_*.log` 是断掉的 K8s 符号连结，log 采集仅覆盖实验末尾几分钟；log 特征大面积 NaN 属数据采集限制，非代码 bug；重采时需在 pod 存活期间拷贝历史文件（005）

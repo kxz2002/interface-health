@@ -1,0 +1,9 @@
+# 8 个 v0 外部 endpoint → Train-Ticket service 静态映射
+"POST:/api/v1/preserveservice/preserve": ts-preserve-service
+"POST:/api/v1/orderservice/order/refresh": ts-order-service
+"POST:/api/v1/travelservice/trips/left": ts-travel-service
+"POST:/api/v1/travel2service/trips/left": ts-travel2-service
+"POST:/api/v1/travelplanservice/travelPlan/cheapest": ts-travel-plan-service
+"POST:/api/v1/travelplanservice/travelPlan/minStation": ts-travel-plan-service
+"POST:/api/v1/travelplanservice/travelPlan/quickest": ts-travel-plan-service
+"GET:/api/v1/routeservice/routes": ts-route-service

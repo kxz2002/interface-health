@@ -1,0 +1,77 @@
+{
+  "protocol_version": "v0",
+  "higher_is_more_anomalous": true,
+  "n_samples": 3271,
+  "has_labels": true,
+  "auroc": 0.5346266796863614,
+  "auprc": 0.3708194783041222,
+  "stratified": {
+    "overall": {
+      "auroc": 0.5346266796863614
+    },
+    "by_anomaly_type": {
+      "Lv_D_CONNECTION_POOL_exhaustion": {
+        "auroc": 0.5103092783505154,
+        "n_samples": 354
+      },
+      "Lv_D_TRANSACTION_timeout": {
+        "auroc": 0.5104166666666667,
+        "n_samples": 223
+      },
+      "Lv_D_cachelimit": {
+        "auroc": 0.5051282051282051,
+        "n_samples": 354
+      },
+      "Lv_P_DISKIO_preserve": {
+        "auroc": 0.5547892720306513,
+        "n_samples": 207
+      },
+      "Lv_P_NETLOSS_preserve": {
+        "auroc": 0.5772988505747126,
+        "n_samples": 207
+      },
+      "Lv_S_DNSFAIL_preserve_no_order": {
+        "auroc": 0.5102040816326531,
+        "n_samples": 356
+      },
+      "Lv_S_HTTPABORT_preserve": {
+        "auroc": 0.5102040816326531,
+        "n_samples": 356
+      },
+      "Lv_S_KILLPOD_gateway": {
+        "auroc": null,
+        "n_samples": 159
+      },
+      "Lv_S_KILLPOD_order": {
+        "auroc": 0.017699115044247787,
+        "n_samples": 274
+      },
+      "Lv_S_KILLPOD_preserve": {
+        "auroc": 0.36785442073170727,
+        "n_samples": 324
+      },
+      "Normal": {
+        "auroc": null,
+        "n_samples": 457
+      }
+    },
+    "by_anomaly_level": {
+      "database": {
+        "auroc": 0.5086058519793459,
+        "n_samples": 931
+      },
+      "none": {
+        "auroc": null,
+        "n_samples": 457
+      },
+      "performance": {
+        "auroc": 0.5659961685823756,
+        "n_samples": 414
+      },
+      "service": {
+        "auroc": 0.38034104121909346,
+        "n_samples": 1469
+      }
+    }
+  }
+}
