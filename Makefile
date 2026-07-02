@@ -6,7 +6,7 @@ CUDA_VERSION ?= cu121
 # 一条命令复现环境（不含 torch，装完后按设备运行 make torch-cpu 或 make torch-gpu）
 setup:
 	conda env create -f environment.yml
-	conda run -n interface pip install -e ".[dev]"
+	conda run -n interface python -m pip install -e ".[dev]"
 	conda run -n interface pre-commit install
 	$(MAKE) install-skills
 	@echo "环境创建完成。请继续运行:"
@@ -16,21 +16,21 @@ setup:
 # 同步环境到 environment.yml 最新状态（已有环境、拉新代码后用）
 sync:
 	conda env update -n interface -f environment.yml --prune
-	conda run -n interface pip install -e ".[dev]"
+	conda run -n interface python -m pip install -e ".[dev]"
 	@echo "环境已同步。如果新代码新增了 torch 依赖变更，请手动运行 make torch-cpu 或 make torch-gpu"
 
 # 仅安装包（环境已存在时用）
 install:
-	pip install -e ".[dev]"
+	python -m pip install -e ".[dev]"
 	pre-commit install
 
 # torch CPU 版（无 GPU 设备 / CI 环境）
 torch-cpu:
-	pip install torch --index-url https://download.pytorch.org/whl/cpu
+	python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 
 # torch GPU 版，默认 CUDA_VERSION=cu121，可命令行覆盖
 torch-gpu:
-	pip install torch --index-url https://download.pytorch.org/whl/$(CUDA_VERSION)
+	python -m pip install torch --index-url https://download.pytorch.org/whl/$(CUDA_VERSION)
 
 test:
 	pytest tests/ -v
