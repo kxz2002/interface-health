@@ -1,9 +1,11 @@
-# 8 个 v0 外部 endpoint → Train-Ticket service 静态映射
-"POST:/api/v1/preserveservice/preserve": ts-preserve-service
+# 8 个真实 client 外部入口 → Train-Ticket service 静态映射
+# 口径来源：docs/agent-docs/dataset-guide.md §6（由 test_endpoint_mapping_matches_dataset_guide 钉住）
+# service 名以 log_data pod 目录核对（排除 gateway 视角）
+"GET:/api/v1/assuranceservice/assurances/types": ts-assurance-service
+"GET:/api/v1/contactservice/contacts/account/{uuid}": ts-contacts-service
+"POST:/api/v1/inside_pay_service/inside_payment": ts-inside-payment-service
 "POST:/api/v1/orderservice/order/refresh": ts-order-service
-"POST:/api/v1/travelservice/trips/left": ts-travel-service
+"POST:/api/v1/preserveservice/preserve": ts-preserve-service
 "POST:/api/v1/travel2service/trips/left": ts-travel2-service
-"POST:/api/v1/travelplanservice/travelPlan/cheapest": ts-travel-plan-service
-"POST:/api/v1/travelplanservice/travelPlan/minStation": ts-travel-plan-service
-"POST:/api/v1/travelplanservice/travelPlan/quickest": ts-travel-plan-service
-"GET:/api/v1/routeservice/routes": ts-route-service
+"POST:/api/v1/travelservice/trips/left": ts-travel-service
+"POST:/api/v1/users/login": ts-auth-service
