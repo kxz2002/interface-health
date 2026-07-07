@@ -1,0 +1,5 @@
+name: mini
+roots:
+  - tests/fixtures/mini_data_root
+normal_source: tests/fixtures/mini_data_root
+fused_window: 15s
