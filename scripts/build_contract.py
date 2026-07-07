@@ -58,7 +58,15 @@ def _enumerate_cases_multi(roots: list[Path]) -> list[Path]:
     """
     merged: list[Path] = []
     for root in roots:
-        merged.extend(_enumerate_cases(root))
+        # Path.glob 对不存在的目录静默返回空，多 root 配置里路径打错会悄悄
+        # 丢掉半个数据集且无任何提示，故显式校验目录存在性。
+        if not root.is_dir():
+            raise RuntimeError(f"数据源 root 不存在或不是目录: {root}")
+        root_cases = _enumerate_cases(root)
+        LOG.info("root %s 发现 %d 个 case", root, len(root_cases))
+        if not root_cases:
+            LOG.warning("root %s 存在但未发现任何含 _pipeline_out/ 的 case，可能是误配置", root)
+        merged.extend(root_cases)
     return sorted(merged, key=lambda p: p.name)
 
 
@@ -323,7 +331,10 @@ def main() -> None:
     feature_cols = _all_feature_columns(cfg)
     normal_mask = full["anomaly_type"].str.startswith("Normal")
     if not normal_mask.any():
-        raise RuntimeError("无 Normal case，无法 fit Normalizer")
+        raise RuntimeError(
+            f"无 Normal case，无法 fit Normalizer（normal_source={dataset_cfg.normal_source}，"
+            f"检查该 root 是否含 anomaly_type=Normal 的 case）"
+        )
 
     normal_cases = full.loc[normal_mask, "case_id"].unique()
     LOG.info("Normal case 数=%d，来自 %s", len(normal_cases), dataset_cfg.normal_source)
