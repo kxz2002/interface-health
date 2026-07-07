@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+import yaml
 
 from src.preprocessors.api_preprocessor import ApiPreprocessor
 
@@ -63,7 +64,12 @@ def test_api_transform_filters_to_v0_endpoints():
     pre = _make_preprocessor()
     df = pre.transform(FIXTURE, case_meta={"case_id": "Normal_planA"})
     assert df["endpoint_key"].nunique() <= 8
-    assert df["endpoint_key"].str.contains("inside_pay_service").sum() == 0
+    # routeservice 是名单外的死条目，必须被过滤掉
+    assert df["endpoint_key"].str.contains("routeservice").sum() == 0
+    # inside_pay_service 是真实白名单 endpoint，必须保留
+    assert df["endpoint_key"].str.contains("inside_pay_service").sum() > 0
+    v0_endpoints = set(yaml.safe_load(ENDPOINT_MAPPING.read_text()).keys())
+    assert set(df["endpoint_key"].unique()).issubset(v0_endpoints)
 
 
 def test_api_transform_timestamp_is_epoch_ms():
