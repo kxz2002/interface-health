@@ -22,6 +22,7 @@ import yaml
 
 from src.contracts.contract_config import ContractConfig, load_contract_config
 from src.contracts.contract_v0 import RATE_COLUMNS, validate_contract_df
+from src.data.dataset_config import load_dataset_config
 from src.data.normalization import Method, Normalizer, Scope
 from src.preprocessors.api_preprocessor import ApiPreprocessor
 from src.preprocessors.log_preprocessor import LogPreprocessor
@@ -47,6 +48,18 @@ def _enumerate_cases(data_root: Path) -> list[Path]:
     # mini-fixture layout (JSON at case root) and real data layout (JSON inside
     # trace_data/), and also picks up Normal case which has no metadata file.
     return sorted(p.parent for p in data_root.glob("*/_pipeline_out") if p.is_dir())
+
+
+def _enumerate_cases_multi(roots: list[Path]) -> list[Path]:
+    """跨多个数据源 root 枚举 case，合并后按 case 名排序。
+
+    每个 root 独立 _enumerate_cases 再 concat；不同 root 的 case 目录名在本数据集
+    里天然唯一（时间戳后缀），故不做跨 root 去重。返回按 dir.name 排序保证稳定。
+    """
+    merged: list[Path] = []
+    for root in roots:
+        merged.extend(_enumerate_cases(root))
+    return sorted(merged, key=lambda p: p.name)
 
 
 def _load_case_meta(case_dir: Path) -> dict:
@@ -254,7 +267,7 @@ def _collect_normal_log_files(cases: list[Path]) -> list[Path]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build contract v0 parquet")
     parser.add_argument("--config", required=True)
-    parser.add_argument("--data-root", required=True)
+    parser.add_argument("--dataset", required=True, help="数据集组成 config（configs/data/*.yaml）")
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--drain3-state", default=None)
@@ -275,10 +288,14 @@ def main() -> None:
     metric_pre = MetricPreprocessor(intermediate_dir=intermediate_dir)
     log_pre = LogPreprocessor(drain3_state_path=args.drain3_state or (out / "drain3.bin"))
 
-    cases = _enumerate_cases(Path(args.data_root))
+    dataset_cfg = load_dataset_config(args.dataset)
+    LOG.info("数据集 %s，roots=%s", dataset_cfg.name, [str(r) for r in dataset_cfg.roots])
+    cases = _enumerate_cases_multi(dataset_cfg.roots)
     LOG.info("发现 %d 个 case", len(cases))
     if not cases:
-        raise RuntimeError(f"data_root {args.data_root} 下未找到任何含 _pipeline_out/ 的 case 目录")
+        raise RuntimeError(
+            f"dataset {args.dataset} 的 roots {dataset_cfg.roots} 下未找到任何含 _pipeline_out/ 的 case 目录"
+        )
 
     # Drain3 模板只在 Normal case 上 fit，保证模板字典不被异常日志污染
     normal_log_files = _collect_normal_log_files(cases)
@@ -307,6 +324,9 @@ def main() -> None:
     normal_mask = full["anomaly_type"].str.startswith("Normal")
     if not normal_mask.any():
         raise RuntimeError("无 Normal case，无法 fit Normalizer")
+
+    normal_cases = full.loc[normal_mask, "case_id"].unique()
+    LOG.info("Normal case 数=%d，来自 %s", len(normal_cases), dataset_cfg.normal_source)
 
     normalizer = Normalizer(_build_normalizer_rules(cfg))
     # 分组归一化需要 endpoint_key / service_name 列，故传完整子集而非仅特征列
