@@ -1,0 +1,9 @@
+{
+  "case_id": "Lv_E_HTTPABORT_travel_mini",
+  "anomaly_type": "Lv_E_HTTPABORT_travel",
+  "anomaly_level": "endpoint",
+  "target_service": "ts-travel-service",
+  "target_endpoint": "POST:/api/v1/travelservice/trips/left",
+  "inject_start_ms": 1783150000000,
+  "inject_end_ms": 1783150015000
+}

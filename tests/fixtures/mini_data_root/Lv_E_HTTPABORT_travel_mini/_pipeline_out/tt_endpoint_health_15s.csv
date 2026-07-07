@@ -1,0 +1,4 @@
+case_id,anomaly_type,timestamp_window,endpoint_key,request_count,error_rate,latency_mean,latency_p50,latency_p95,latency_p99,status_2xx_rate,status_4xx_rate,status_5xx_rate,method,normalized_path
+Lv_E_HTTPABORT_travel_mini,Lv_E_HTTPABORT_travel,2026-07-04T07:26:30Z,POST:/api/v1/travelservice/trips/left,9,0.0,22500.0,22000.0,45000.0,45500.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Lv_E_HTTPABORT_travel_mini,Lv_E_HTTPABORT_travel,2026-07-04T07:26:45Z,POST:/api/v1/travelservice/trips/left,11,0.2,45000.0,44000.0,90000.0,92000.0,0.8,0.0,0.2,POST,/api/v1/travelservice/trips/left
+Lv_E_HTTPABORT_travel_mini,Lv_E_HTTPABORT_travel,2026-07-04T07:27:00Z,POST:/api/v1/travelservice/trips/left,10,0.0,23000.0,22500.0,46000.0,46500.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
