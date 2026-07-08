@@ -32,6 +32,8 @@
 | [003](./entries/003-experiment-loop.md) | 2026-06-24 | Chore (PR #2) | 最小可复现实验闭环（迭代 2） | src/contracts/, scripts/train_baseline.py, scripts/eval.py, dvc.yaml, artifacts/, tests/, CLAUDE.md |
 | [004](./entries/004-project-history.md) | 2026-06-24 | Feature | 引入 Project History 历史记忆系统 | history/, skills-local/, Makefile, CLAUDE.md |
 | [005](./entries/005-contract-v0.md) | 2026-06-26 | Feature | Contract v0 多模态数据融合接口墙（全链路 18-dim + Deep SVDD baseline） | src/contracts/, src/preprocessors/, src/fusion/, src/models/, src/data/, scripts/, configs/contract/, dvc.yaml, tests/ |
+| [006](./entries/006-endpoint-raw2-multi-source.md) | 2026-07-08 | Feature (PR #6) | endpoint_raw2 接入 Contract v0：多数据源合并 pipeline | src/data/dataset_config.py, scripts/build_contract.py, configs/data/, configs/contract/endpoint_to_service.yaml, dvc.yaml, tests/ |
+| [007](./entries/007-fix-normalizer-nan-propagation.md) | 2026-07-08 | Bugfix | 修复 Normalizer 全 NaN group 的 NaN 传染 bug | src/data/normalization.py, tests/test_normalization.py |
 
 ---
 
@@ -64,6 +66,10 @@
 | 评估指标细化（per-endpoint, phase 对齐） | 005 |
 | `src/preprocessors/` | 005 |
 | `configs/contract/` | 005 |
+| `configs/data/`（多数据源配置） | 006 |
+| `src/data/dataset_config.py` | 006 |
+| `configs/contract/endpoint_to_service.yaml` | 006 |
+| `src/data/normalization.py`（Normalizer） | 007 |
 
 ---
 
@@ -77,3 +83,4 @@
 - **PR review 反复抓到的类别**：silent failure、测试覆盖不足、文档/代码口径漂移
 - **环境管理**：Kiro/Claude 默认 base conda，验证 `interface` 环境用 `conda run -n interface`（002）
 - **log 模态信号**：Train-Ticket 数据集中 `_previous_*.log` 是断掉的 K8s 符号连结，log 采集仅覆盖实验末尾几分钟；log 特征大面积 NaN 属数据采集限制，非代码 bug；重采时需在 pod 存活期间拷贝历史文件（005）
+- **NaN 传染**：`Normalizer` 等只在 Normal 上 fit 的组件，遇到某 group 全 NaN（数据采集缺口）时不能直接算统计量再 transform 全量数据——NaN 统计量会通过减法/除法把其他数据完好的 case 一起污染。修复方式是在 transform 端对 NaN 统计量做跳过判断，保留原值不做运算（007）。同类模式：`ContractDataset` 的全 NaN 列填 0 兜底（005 Bug 4）

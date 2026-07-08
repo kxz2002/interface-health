@@ -1,0 +1,4 @@
+case_id,anomaly_type,timestamp_window,endpoint_key,request_count,error_rate,latency_mean,latency_p50,latency_p95,latency_p99,status_2xx_rate,status_4xx_rate,status_5xx_rate,method,normalized_path
+Lv_NanTest_anomaly,Lv_NanTest_anomaly,2026-06-21T00:00:00Z,POST:/api/v1/travelservice/trips/left,9,0.0,22500.0,22000.0,45000.0,45000.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Lv_NanTest_anomaly,Lv_NanTest_anomaly,2026-06-21T00:00:15Z,POST:/api/v1/travelservice/trips/left,11,0.3,56000.0,55000.0,99000.0,100000.0,0.7,0.0,0.3,POST,/api/v1/travelservice/trips/left
+Lv_NanTest_anomaly,Lv_NanTest_anomaly,2026-06-21T00:00:30Z,POST:/api/v1/travelservice/trips/left,7,0.0,23500.0,23000.0,47000.0,47000.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left

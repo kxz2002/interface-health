@@ -350,6 +350,19 @@ def main() -> None:
     # min-max 在 Normal 上 fit，eval case 的 rate 列可能超出 [0,1]。
     # 这些列受 contract [0,1] 约束，饱和裁剪：超过正常上界即视为完全异常（=1）。
     rate_feature_cols = [c for c in RATE_COLUMNS if c in feature_cols]
+    skipped = normalizer.skipped_groups()
+    for col in rate_feature_cols:
+        skipped_groups = skipped.get(col)
+        if skipped_groups:
+            # 该列在这些 group 上 Normal fit 集合全 NaN，transform 时跳过了归一化，
+            # 保留的是未归一化的原始量纲。裁剪到 [0,1] 的语义是"超过正常上界即完全异常"，
+            # 对未归一化的原始值不成立——裁剪前必须先提醒，而非静默按归一化语义处理。
+            LOG.warning(
+                "%s 在 group=%s 上因 Normal fit 全 NaN 跳过归一化，clip(0,1) 会按原始量纲裁剪，"
+                "可能误判正常原始值为完全异常",
+                col,
+                skipped_groups,
+            )
     full[rate_feature_cols] = full[rate_feature_cols].clip(lower=0.0, upper=1.0)
 
     validate_contract_df(full, args.config)

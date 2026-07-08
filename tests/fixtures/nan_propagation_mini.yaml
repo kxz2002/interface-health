@@ -1,0 +1,5 @@
+name: nan_propagation_mini
+roots:
+  - tests/fixtures/nan_propagation_mini
+normal_source: tests/fixtures/nan_propagation_mini
+fused_window: 15s
