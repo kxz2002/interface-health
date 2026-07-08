@@ -1,0 +1,13 @@
+metric_name,timestamp,datetime,value,beta_kubernetes_io_arch,beta_kubernetes_io_os,cpu,device,fstype,id,instance,interface,job,kubernetes_io_arch,kubernetes_io_hostname,kubernetes_io_os,mode,mountpoint,namespace,plugin_name,pod,state
+container_cpu_usage_seconds_total,1782000000,,100.0,,,,,,,docker-desktop,,kubelet-cadvisor,,,,,,,,ts-travel-service-6f467bc998-jt5dd,
+container_memory_usage_bytes,1782000000,,500000000.0,,,,,,,docker-desktop,,kubelet-cadvisor,,,,,,,,ts-travel-service-6f467bc998-jt5dd,
+container_spec_memory_limit_bytes,1782000000,,0,,,,,,,docker-desktop,,kubelet-cadvisor,,,,,,,,ts-travel-service-6f467bc998-jt5dd,
+container_processes,1782000000,,0,,,,,,,docker-desktop,,kubelet-cadvisor,,,,,,,,ts-travel-service-6f467bc998-jt5dd,
+container_cpu_usage_seconds_total,1782000015,,101.5,,,,,,,docker-desktop,,kubelet-cadvisor,,,,,,,,ts-travel-service-6f467bc998-jt5dd,
+container_memory_usage_bytes,1782000015,,500000000.0,,,,,,,docker-desktop,,kubelet-cadvisor,,,,,,,,ts-travel-service-6f467bc998-jt5dd,
+container_spec_memory_limit_bytes,1782000015,,0,,,,,,,docker-desktop,,kubelet-cadvisor,,,,,,,,ts-travel-service-6f467bc998-jt5dd,
+container_processes,1782000015,,0,,,,,,,docker-desktop,,kubelet-cadvisor,,,,,,,,ts-travel-service-6f467bc998-jt5dd,
+container_cpu_usage_seconds_total,1782000030,,103.0,,,,,,,docker-desktop,,kubelet-cadvisor,,,,,,,,ts-travel-service-6f467bc998-jt5dd,
+container_memory_usage_bytes,1782000030,,500000000.0,,,,,,,docker-desktop,,kubelet-cadvisor,,,,,,,,ts-travel-service-6f467bc998-jt5dd,
+container_spec_memory_limit_bytes,1782000030,,0,,,,,,,docker-desktop,,kubelet-cadvisor,,,,,,,,ts-travel-service-6f467bc998-jt5dd,
+container_processes,1782000030,,0,,,,,,,docker-desktop,,kubelet-cadvisor,,,,,,,,ts-travel-service-6f467bc998-jt5dd,
