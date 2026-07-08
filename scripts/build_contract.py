@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+from collections.abc import Sequence
 from pathlib import Path
 
 import pandas as pd
@@ -50,7 +51,7 @@ def _enumerate_cases(data_root: Path) -> list[Path]:
     return sorted(p.parent for p in data_root.glob("*/_pipeline_out") if p.is_dir())
 
 
-def _enumerate_cases_multi(roots: list[Path]) -> list[Path]:
+def _enumerate_cases_multi(roots: Sequence[Path]) -> list[Path]:
     """跨多个数据源 root 枚举 case，合并后按 case 名排序。
 
     每个 root 独立 _enumerate_cases 再 concat；不同 root 的 case 目录名在本数据集

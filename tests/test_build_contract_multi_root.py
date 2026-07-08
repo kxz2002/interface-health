@@ -25,7 +25,7 @@ def test_enumerate_cases_multi_root_merges_and_sorts(tmp_path):
 
 def test_enumerate_cases_multi_root_nonexistent_raises(tmp_path):
     # 不存在的 root（如配置里的路径打错）现在应显式 raise，而不是静默返回空
-    with pytest.raises(RuntimeError, match="empty"):
+    with pytest.raises(RuntimeError, match="不存在或不是目录"):
         _enumerate_cases_multi([tmp_path / "empty"])
 
 
