@@ -26,8 +26,8 @@ def pipeline_out(tmp_path_factory):
             "scripts/build_contract.py",
             "--config",
             str(REPO_ROOT / "configs/contract/v0.yaml"),
-            "--data-root",
-            str(MINI_DATA_ROOT),
+            "--dataset",
+            str(REPO_ROOT / "tests/fixtures/mini_dataset.yaml"),
             "--out-dir",
             str(contract_dir),
             "--seed",
@@ -76,6 +76,40 @@ def pipeline_out(tmp_path_factory):
         "scores": scores_path,
         "metrics": metrics_path,
     }
+
+
+@pytest.fixture(scope="module")
+def merged_pipeline_out(tmp_path_factory):
+    out = tmp_path_factory.mktemp("e2e_merged")
+    contract_dir = out / "contract_v0"
+
+    subprocess.run(
+        [
+            sys.executable,
+            "scripts/build_contract.py",
+            "--config",
+            str(REPO_ROOT / "configs/contract/v0.yaml"),
+            "--dataset",
+            str(REPO_ROOT / "tests/fixtures/merged_mini.yaml"),
+            "--out-dir",
+            str(contract_dir),
+            "--seed",
+            "42",
+        ],
+        check=True,
+        cwd=str(REPO_ROOT),
+    )
+
+    return {"contract_dir": contract_dir}
+
+
+def test_endpoint_level_case_in_eval_and_normal_source(merged_pipeline_out):
+    """V8: 合并后 eval_all 含 endpoint 级 mini case；train(Normal) 不含它。"""
+    eval_df = pd.read_parquet(merged_pipeline_out["contract_dir"] / "eval_all.parquet")
+    train_df = pd.read_parquet(merged_pipeline_out["contract_dir"] / "train.parquet")
+    assert "Lv_E_HTTPABORT_travel_mini" in set(eval_df["case_id"])
+    assert (train_df["anomaly_type"] == "Normal").all()
+    assert "Lv_E_HTTPABORT_travel_mini" not in set(train_df["case_id"])
 
 
 def test_contract_parquet_schema_stable(pipeline_out):
@@ -136,8 +170,8 @@ def test_pipeline_reproducible(tmp_path):
                 "scripts/build_contract.py",
                 "--config",
                 str(REPO_ROOT / "configs/contract/v0.yaml"),
-                "--data-root",
-                str(MINI_DATA_ROOT),
+                "--dataset",
+                str(REPO_ROOT / "tests/fixtures/mini_dataset.yaml"),
                 "--out-dir",
                 str(contract_dir),
                 "--seed",

@@ -1,0 +1,10 @@
+# configs/data/merged_v1.yaml
+# anomod_v1 (service 级故障) + endpoint_raw2 (endpoint 级故障，log 重采版) 合并数据集
+# Normal case 只来自 anomod_v1（endpoint_raw2 无 Normal）
+name: merged_v1
+description: anomod_v1 (12 case, 含 Normal) + endpoint_raw2 (16 endpoint 级故障 case)
+roots:
+  - data/anomod_v1
+  - data/endpoint_raw2
+normal_source: data/anomod_v1
+fused_window: 15s

@@ -8,14 +8,14 @@ from src.preprocessors.trace_preprocessor import TracePreprocessor
 REPO_ROOT = Path(__file__).parents[1]
 
 V0_ENDPOINTS = {
-    "POST:/api/v1/preserveservice/preserve",
+    "GET:/api/v1/assuranceservice/assurances/types",
+    "GET:/api/v1/contactservice/contacts/account/{uuid}",
+    "POST:/api/v1/inside_pay_service/inside_payment",
     "POST:/api/v1/orderservice/order/refresh",
-    "POST:/api/v1/travelservice/trips/left",
+    "POST:/api/v1/preserveservice/preserve",
     "POST:/api/v1/travel2service/trips/left",
-    "POST:/api/v1/travelplanservice/travelPlan/cheapest",
-    "POST:/api/v1/travelplanservice/travelPlan/minStation",
-    "POST:/api/v1/travelplanservice/travelPlan/quickest",
-    "GET:/api/v1/routeservice/routes",
+    "POST:/api/v1/travelservice/trips/left",
+    "POST:/api/v1/users/login",
 }
 
 

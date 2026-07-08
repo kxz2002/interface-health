@@ -34,7 +34,7 @@ def test_metric_transform_aggregates_to_service_level(tmp_path):
     df = pre.transform(FIXTURE, case_meta=_WIDE_META)
     assert not df.duplicated(["service_name", "timestamp_window_ms"]).any()
     # fixture 含 2 个 ts service
-    assert set(df["service_name"]) == {"ts-route-service", "ts-order-service"}
+    assert set(df["service_name"]) == {"ts-preserve-service", "ts-order-service"}
 
 
 def test_metric_uses_intermediate_cache(tmp_path):
@@ -62,7 +62,7 @@ def test_metric_cpu_rate_is_counter_diff(tmp_path):
     """cpu_usage_rate 应由累积计数器相邻差分得到（非裸累积值），首窗无前值→0。"""
     pre = MetricPreprocessor(intermediate_dir=tmp_path)
     df = pre.transform(FIXTURE, _WIDE_META)
-    route = df[df["service_name"] == "ts-route-service"].sort_values("timestamp_window_ms")
+    route = df[df["service_name"] == "ts-preserve-service"].sort_values("timestamp_window_ms")
     # 计数器累积值是几百量级；rate 应是每秒 core 量级（远小于裸值）
     assert (route["service_metric__cpu_usage_rate"] >= 0).all()
     assert route["service_metric__cpu_usage_rate"].max() < 50
