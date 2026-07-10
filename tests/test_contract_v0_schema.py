@@ -1,4 +1,4 @@
-"""contract v0 schema：18 维特征列 + 6 个标识列 + 8 个标签列。"""
+"""contract v0 schema：18 维特征列 + 6 个标识列 + 10 个标签列。"""
 
 from pathlib import Path
 
@@ -54,6 +54,8 @@ def _make_valid_row():
         "target_service": None,
         "anomaly_type": "Normal",
         "anomaly_level": "none",
+        "label_granularity": "case",
+        "is_endpoint_anomaly": False,
     }
 
 

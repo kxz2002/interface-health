@@ -1,0 +1,7 @@
+case_id,anomaly_type,timestamp_window,endpoint_key,request_count,error_rate,latency_mean,latency_p50,latency_p95,latency_p99,status_2xx_rate,status_4xx_rate,status_5xx_rate,method,normalized_path
+Lv_E_HTTPABORT_assurance_mini,Lv_E_HTTPABORT_assurance,2027-01-15T08:00:00Z,GET:/api/v1/assuranceservice/assurances/types,9,0.0,310.0,300.0,610.0,660.0,1.0,0.0,0.0,GET,/api/v1/assuranceservice/assurances/types
+Lv_E_HTTPABORT_assurance_mini,Lv_E_HTTPABORT_assurance,2027-01-15T08:00:15Z,GET:/api/v1/assuranceservice/assurances/types,11,0.4,910.0,890.0,1810.0,1910.0,0.6,0.0,0.4,GET,/api/v1/assuranceservice/assurances/types
+Lv_E_HTTPABORT_assurance_mini,Lv_E_HTTPABORT_assurance,2027-01-15T08:00:30Z,GET:/api/v1/assuranceservice/assurances/types,10,0.0,320.0,310.0,620.0,670.0,1.0,0.0,0.0,GET,/api/v1/assuranceservice/assurances/types
+Lv_E_HTTPABORT_assurance_mini,Lv_E_HTTPABORT_assurance,2027-01-15T08:00:00Z,POST:/api/v1/users/login,7,0.0,155.0,150.0,305.0,325.0,1.0,0.0,0.0,POST,/api/v1/users/login
+Lv_E_HTTPABORT_assurance_mini,Lv_E_HTTPABORT_assurance,2027-01-15T08:00:15Z,POST:/api/v1/users/login,8,0.0,160.0,155.0,310.0,330.0,1.0,0.0,0.0,POST,/api/v1/users/login
+Lv_E_HTTPABORT_assurance_mini,Lv_E_HTTPABORT_assurance,2027-01-15T08:00:30Z,POST:/api/v1/users/login,9,0.0,153.0,148.0,303.0,323.0,1.0,0.0,0.0,POST,/api/v1/users/login

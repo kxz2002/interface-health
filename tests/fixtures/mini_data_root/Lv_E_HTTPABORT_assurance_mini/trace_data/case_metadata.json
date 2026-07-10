@@ -1,0 +1,9 @@
+{
+  "case_id": "Lv_E_HTTPABORT_assurance_mini",
+  "anomaly_type": "Lv_E_HTTPABORT_assurance",
+  "anomaly_level": "endpoint",
+  "target_service": "ts-assurance-service",
+  "target_endpoint": "GET:/api/v1/assuranceservice/assurances/types",
+  "inject_start_ms": 1800000015000,
+  "inject_end_ms": 1800000015000
+}

@@ -252,6 +252,17 @@ def _attach_label_columns(ep_df: pd.DataFrame, case_meta: dict) -> None:
     ep_df["anomaly_type"] = case_meta.get("anomaly_type", "Normal")
     ep_df["anomaly_level"] = case_meta.get("anomaly_level", "none")
 
+    target_endpoint = case_meta.get("target_endpoint")
+    if target_endpoint is not None:
+        ep_df["label_granularity"] = "endpoint"
+        is_target = ep_df.get("is_target_endpoint", False)
+        if isinstance(is_target, pd.Series):
+            is_target = is_target.fillna(False)
+        ep_df["is_endpoint_anomaly"] = is_target & ep_df["is_anomaly"]
+    else:
+        ep_df["label_granularity"] = "case"
+        ep_df["is_endpoint_anomaly"] = ep_df["is_anomaly"]
+
 
 def _build_normalizer_rules(cfg: ContractConfig) -> dict[str, tuple[Scope, Method]]:
     rules: dict[str, tuple[Scope, Method]] = {}
