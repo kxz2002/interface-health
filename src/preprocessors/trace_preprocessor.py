@@ -49,7 +49,11 @@ class TracePreprocessor(ModalityPreprocessor):
         raw = pd.read_csv(raw_path)
         df = raw[raw["endpoint_key"].isin(self._v0_endpoints)].copy()
         df = df.rename(columns=self._RENAME)
-        return df[["endpoint_key", "timestamp_window_ms"] + self.OUTPUT_COLUMNS]
+        if "is_target_endpoint" not in df.columns:
+            df["is_target_endpoint"] = False
+        return df[
+            ["endpoint_key", "timestamp_window_ms", "is_target_endpoint"] + self.OUTPUT_COLUMNS
+        ]
 
     def get_feature_columns(self) -> list[str]:
         return list(self.OUTPUT_COLUMNS)
