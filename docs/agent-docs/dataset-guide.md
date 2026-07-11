@@ -138,6 +138,21 @@ data/anomod/
 
 关键字段：`inject_start_ms` / `inject_end_ms` 是毫秒级时间戳，是强标注的唯一来源，用于划分 baseline/inject/recover 三个阶段。
 
+**endpoint 级精确标签字段**（仅 `endpoint_raw2` 等 endpoint 级故障注入数据源具备）：
+
+| 字段 | 位置 | 说明 |
+|---|---|---|
+| `target_endpoint` | `case_metadata.json` | 本次故障注入的目标 endpoint（字符串，`METHOD:/path` 格式）。case 级故障注入数据源（如 `anomod_v1`）没有这个字段 |
+| `anomaly_level` | `case_metadata.json` | 故障类型描述（如 `"endpoint"`/`"performance"`/`"database"`），**不等价于**"标签精确度"，不要用它判断该 case 是否有精确 per-endpoint 标签 |
+| `is_target_endpoint` | `tt_traces_red_15s.csv`（server 侧，逐行） | 标记"这一行的 endpoint 是不是本次注入的目标"，**全程**（baseline/inject/recover）保持该 case 的判定结果不变，不随 phase 变化。要得到"此刻是否异常"需要与 `phase=='inject'` 做 AND |
+
+Contract v0 pipeline 据此产出两个衍生列（见 `_attach_label_columns`）：
+
+- `label_granularity`：`"endpoint"`（该 case 有 `target_endpoint`，标签精确到具体 endpoint）或 `"case"`（无该字段，fallback 为 case 级近似标签，历史遗留粒度）
+- `is_endpoint_anomaly`：精确 case 为 `is_target_endpoint AND phase=='inject'`；fallback case 直接等于 `is_anomaly`
+
+`is_anomaly`/`y_true` 语义不受影响，继续是 case 级"该时间窗口是否处于注入期"判断，供需要该语义的历史逻辑使用。
+
 ### 4.3 metric_data
 
 文件：`metric_data/<case_id>_metrics_*.csv`，Prometheus long-format，每行一条指标采样。

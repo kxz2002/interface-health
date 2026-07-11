@@ -403,7 +403,12 @@ def _write_schema(out: Path, cfg: ContractConfig) -> None:
                     }
                     for name, spec in cfg.modalities.items()
                 },
-                "evaluation_strata": ["overall", "by_anomaly_type", "by_anomaly_level"],
+                "evaluation_strata": [
+                    "overall",
+                    "by_anomaly_type",
+                    "by_anomaly_level",
+                    "by_endpoint",
+                ],
             },
             indent=2,
         )

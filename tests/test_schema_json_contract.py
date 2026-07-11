@@ -40,3 +40,9 @@ def test_schema_json_keys_stable(tmp_path):
         "service_metric",
         "service_log",
     }
+    assert schema["evaluation_strata"] == [
+        "overall",
+        "by_anomaly_type",
+        "by_anomaly_level",
+        "by_endpoint",
+    ]
