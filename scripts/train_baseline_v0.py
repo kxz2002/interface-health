@@ -156,6 +156,8 @@ def main() -> None:
             "phase": eval_df["phase"],
             "anomaly_type": eval_df["anomaly_type"],
             "anomaly_level": eval_df["anomaly_level"],
+            "is_endpoint_anomaly": eval_df["is_endpoint_anomaly"].astype(int),
+            "label_granularity": eval_df["label_granularity"],
         }
     )
 
