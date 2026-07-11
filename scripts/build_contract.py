@@ -255,6 +255,8 @@ def _attach_label_columns(ep_df: pd.DataFrame, case_meta: dict) -> None:
     target_endpoint = case_meta.get("target_endpoint")
     if target_endpoint is not None:
         ep_df["label_granularity"] = "endpoint"
+        # .get() 兜底：理论上 trace_df 总是第一个被 merge 进 ep_df 的，这一列应该总存在，
+        # 但用 .get() 比假设列一定存在更安全，避免未来数据源变化时静默抛 KeyError。
         is_target = ep_df.get("is_target_endpoint", False)
         if isinstance(is_target, pd.Series):
             is_target = is_target.fillna(False)
