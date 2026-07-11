@@ -34,7 +34,7 @@
 | [005](./entries/005-contract-v0.md) | 2026-06-26 | Feature | Contract v0 多模态数据融合接口墙（全链路 18-dim + Deep SVDD baseline） | src/contracts/, src/preprocessors/, src/fusion/, src/models/, src/data/, scripts/, configs/contract/, dvc.yaml, tests/ |
 | [006](./entries/006-endpoint-raw2-multi-source.md) | 2026-07-08 | Feature (PR #6) | endpoint_raw2 接入 Contract v0：多数据源合并 pipeline | src/data/dataset_config.py, scripts/build_contract.py, configs/data/, configs/contract/endpoint_to_service.yaml, dvc.yaml, tests/ |
 | [007](./entries/007-fix-normalizer-nan-propagation.md) | 2026-07-08 | Bugfix | 修复 Normalizer 全 NaN group 的 NaN 传染 bug | src/data/normalization.py, tests/test_normalization.py |
-| [008](./entries/008-per-endpoint-label-eval.md) | 2026-07-11 | Feature | per-endpoint 精确标签接入 Contract v0 评估 | `src/preprocessors/trace_preprocessor.py`, `scripts/build_contract.py`, `scripts/train_baseline_v0.py`, `scripts/eval_baseline_v0.py`, `src/contracts/contract_v0.py` |
+| [008](./entries/008-per-endpoint-label-eval.md) | 2026-07-11 | Feature | per-endpoint 精确标签接入评估 | `src/preprocessors/trace_preprocessor.py`, `scripts/build_contract.py`, `scripts/train_baseline_v0.py`, `scripts/eval_baseline_v0.py`, `src/contracts/contract_v0.py` |
 
 ---
 
@@ -72,6 +72,8 @@
 | `configs/contract/endpoint_to_service.yaml` | 006 |
 | `src/data/normalization.py`（Normalizer） | 007 |
 | `src/preprocessors/trace_preprocessor.py`（is_target_endpoint 传递） | 008 |
+| `scripts/build_contract.py`（label_granularity/is_endpoint_anomaly 标签路由，`_attach_label_columns`） | 006, 008 |
+| `scripts/train_baseline_v0.py`（out_df 显式字段字典，新增列需手动传递） | 008 |
 | `scripts/eval_baseline_v0.py`（by_endpoint 分层） | 008 |
 
 ---
