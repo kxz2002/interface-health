@@ -144,7 +144,7 @@ data/anomod/
 |---|---|---|
 | `target_endpoint` | `case_metadata.json` | 本次故障注入的目标 endpoint（字符串，`METHOD:/path` 格式）。case 级故障注入数据源（如 `anomod_v1`）没有这个字段 |
 | `anomaly_level` | `case_metadata.json` | 故障类型描述（如 `"endpoint"`/`"performance"`/`"database"`），**不等价于**"标签精确度"，不要用它判断该 case 是否有精确 per-endpoint 标签 |
-| `is_target_endpoint` | `tt_traces_red_15s.csv`（server 侧，逐行） | 标记"这一行的 endpoint 是不是本次注入的目标"，**全程**（baseline/inject/recover）保持该 case 的判定结果不变，不随 phase 变化。要得到"此刻是否异常"需要与 `phase=='inject'` 做 AND |
+| `is_target_endpoint` | `tt_traces_red_15s.csv`（服务端侧，逐行） | 标记"这一行的 endpoint 是不是本次注入的目标"，**全程**（baseline/inject/recover）保持该 case 的判定结果不变，不随 phase 变化。要得到"此刻是否异常"需要与 `phase=='inject'` 做 AND |
 
 Contract v0 pipeline 据此产出两个衍生列（见 `_attach_label_columns`）：
 
