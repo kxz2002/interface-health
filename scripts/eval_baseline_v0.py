@@ -34,26 +34,41 @@ def _safe_auprc(y_true, scores) -> float | None:
 
 def compute_stratified_metrics(df: pd.DataFrame) -> dict:
     stratified: dict = {}
+    label_col = df["is_endpoint_anomaly"].astype(int)
 
-    stratified["overall"] = {"auroc": _safe_auroc(df["y_true"].values, df["score"].values)}
+    stratified["overall"] = {"auroc": _safe_auroc(label_col.values, df["score"].values)}
 
     stratified["by_anomaly_type"] = {}
     for atype, grp in df.groupby("anomaly_type"):
+        grp_label = grp["is_endpoint_anomaly"].astype(int).values
         stratified["by_anomaly_type"][atype] = {
-            "auroc": _safe_auroc(grp["y_true"].values, grp["score"].values),
+            "auroc": _safe_auroc(grp_label, grp["score"].values),
             "n_samples": len(grp),
         }
 
     stratified["by_anomaly_level"] = {}
     if "anomaly_level" in df.columns:
         for level, grp in df.groupby("anomaly_level"):
+            grp_label = grp["is_endpoint_anomaly"].astype(int).values
             stratified["by_anomaly_level"][level] = {
-                "auroc": _safe_auroc(grp["y_true"].values, grp["score"].values),
+                "auroc": _safe_auroc(grp_label, grp["score"].values),
                 "n_samples": len(grp),
             }
 
-    auroc = _safe_auroc(df["y_true"].values, df["score"].values)
-    auprc = _safe_auprc(df["y_true"].values, df["score"].values)
+    # by_endpoint: 按 endpoint_key 分组，对全部数据一视同仁——不按 label_granularity
+    # 过滤或拆分。precise（endpoint 级）与 fallback（case 级）标签来源的行混在同一个
+    # endpoint_key 分组里统一计算，与 by_anomaly_type/by_anomaly_level 完全对称。
+    stratified["by_endpoint"] = {}
+    if "endpoint_key" in df.columns:
+        for ep, grp in df.groupby("endpoint_key"):
+            grp_label = grp["is_endpoint_anomaly"].astype(int).values
+            stratified["by_endpoint"][ep] = {
+                "auroc": _safe_auroc(grp_label, grp["score"].values),
+                "n_samples": len(grp),
+            }
+
+    auroc = _safe_auroc(label_col.values, df["score"].values)
+    auprc = _safe_auprc(label_col.values, df["score"].values)
     # metrics_v0 契约允许 has_labels=False：单类数据无法计算 AUROC/AUPRC，
     # 此时 auroc/auprc 均为 None，契约要求两者也为 None，逻辑自洽。
     has_labels = auroc is not None
