@@ -35,3 +35,17 @@ def test_enumerate_cases_multi_root_existing_but_no_cases_warns_not_raises(tmp_p
     empty_root.mkdir()
 
     assert _enumerate_cases_multi([empty_root]) == []
+
+
+def test_enumerate_cases_multi_root_archived_case_not_scanned(tmp_path):
+    # 归档：把 case 从 root 直接子目录挪到 root/_archive/ 下多一层，
+    # 验证 _enumerate_cases_multi（root.glob("*/_pipeline_out")，只扫一层）不会扫到它。
+    root = tmp_path / "anomod_like"
+    _make_case(root, "Lv_P_DISKIO_preserve")
+    (root / "_archive" / "Normal_old" / "_pipeline_out").mkdir(parents=True)
+
+    cases = _enumerate_cases_multi([root])
+
+    names = [c.name for c in cases]
+    assert names == ["Lv_P_DISKIO_preserve"]
+    assert "Normal_old" not in names

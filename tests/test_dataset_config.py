@@ -49,3 +49,23 @@ def test_roots_not_a_list_raises(tmp_path):
     cfg_path.write_text("name: x\nroots: data/anomod_v1\nnormal_source: data/anomod_v1\n")
     with pytest.raises(ValueError, match="roots"):
         load_dataset_config(cfg_path)
+
+
+def test_load_three_root_config_with_wrapper_normal_source(tmp_path):
+    cfg_path = tmp_path / "merged_v2.yaml"
+    cfg_path.write_text(
+        "name: merged_v2\n"
+        "roots:\n"
+        "  - data/anomod_v1\n"
+        "  - data/endpoint_raw2\n"
+        "  - data/normal_v2\n"
+        "normal_source: data/normal_v2\n"
+        "fused_window: 15s\n"
+    )
+    cfg = load_dataset_config(cfg_path)
+    assert cfg.roots == (
+        Path("data/anomod_v1"),
+        Path("data/endpoint_raw2"),
+        Path("data/normal_v2"),
+    )
+    assert cfg.normal_source == Path("data/normal_v2")
