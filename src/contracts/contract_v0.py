@@ -25,6 +25,8 @@ REQUIRED_LABEL_COLUMNS = [
     "target_service",
     "anomaly_type",
     "anomaly_level",
+    "label_granularity",
+    "is_endpoint_anomaly",
 ]
 RATE_COLUMNS = [
     "endpoint_red__trace_error_rate",

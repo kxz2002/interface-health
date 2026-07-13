@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from src.contracts.metrics_v0 import validate_metrics_dict
 
@@ -19,6 +20,7 @@ def test_metrics_has_stratified_keys(tmp_path):
             "case_id": ["Normal"] * 10 + ["Lv_P_cpu"] * 10,
             "anomaly_type": ["Normal"] * 10 + ["Lv_P_cpu"] * 10,
             "anomaly_level": ["none"] * 10 + ["performance"] * 10,
+            "is_endpoint_anomaly": [0] * 10 + [1] * 10,
         }
     )
     scores = tmp_path / "scores.parquet"
@@ -54,6 +56,7 @@ def test_metrics_skips_single_class_group(tmp_path):
             "case_id": ["Normal"] * 10,
             "anomaly_type": ["Normal"] * 10,
             "anomaly_level": ["none"] * 10,
+            "is_endpoint_anomaly": [0] * 10,
         }
     )
     scores = tmp_path / "scores.parquet"
@@ -70,3 +73,130 @@ def test_metrics_skips_single_class_group(tmp_path):
     assert metrics["stratified"]["overall"]["auroc"] is None
     assert metrics["auroc"] is None
     validate_metrics_dict(metrics)
+
+
+def test_stratified_layers_use_is_endpoint_anomaly_not_y_true(tmp_path):
+    """构造 y_true 与 is_endpoint_anomaly 取值相反的数据，断言四层输出的数值
+    对应 is_endpoint_anomaly，不是 y_true——验证标签口径切换正确。"""
+    df = pd.DataFrame(
+        {
+            "sample_id": [f"s{i}" for i in range(20)],
+            "score": [0.1] * 10 + [0.9] * 10,
+            # y_true 与 is_endpoint_anomaly 故意完全相反
+            "y_true": [1] * 10 + [0] * 10,
+            "is_endpoint_anomaly": [0] * 10 + [1] * 10,
+            "case_id": ["Normal"] * 10 + ["Lv_E_HTTPABORT_assurance_mini"] * 10,
+            "anomaly_type": ["Normal"] * 10 + ["Lv_E_HTTPABORT_assurance"] * 10,
+            "anomaly_level": ["none"] * 10 + ["endpoint"] * 10,
+            "endpoint_key": ["ep_a"] * 10 + ["ep_a"] * 10,
+            "label_granularity": ["case"] * 10 + ["endpoint"] * 10,
+        }
+    )
+    scores = tmp_path / "scores.parquet"
+    df.to_parquet(scores)
+
+    out = tmp_path / "metrics.json"
+    subprocess.run(
+        [sys.executable, "scripts/eval_baseline_v0.py", "--scores", str(scores), "--out", str(out)],
+        check=True,
+        cwd=str(REPO_ROOT),
+    )
+    metrics = json.loads(out.read_text())
+    # score 越高越异常；用 is_endpoint_anomaly 时高分组(score=0.9)对应 is_endpoint_anomaly=1，
+    # 完全可分，AUROC 应为 1.0。若代码仍误用 y_true，会因高分组 y_true=0 而得到 AUROC=0.0。
+    assert metrics["stratified"]["overall"]["auroc"] == pytest.approx(1.0)
+    assert metrics["auroc"] == pytest.approx(1.0)
+
+
+def test_by_anomaly_type_and_level_use_is_endpoint_anomaly_not_y_true(tmp_path):
+    """by_anomaly_type/by_anomaly_level 各自必须有内部混合标签的分组，才能真正验证
+    这两层用的是 is_endpoint_anomaly 而非 y_true——否则组内单类时 AUROC 恒为 None，
+    误用 y_true 也不会被发现（见 pr-test-analyzer 变异测试报告）。"""
+    df = pd.DataFrame(
+        {
+            "sample_id": [f"s{i}" for i in range(20)],
+            "score": [0.1, 0.9] * 10,
+            # y_true 与 is_endpoint_anomaly 故意完全相反，且同一 anomaly_type/level 组内混合两类
+            "y_true": [1, 0] * 10,
+            "is_endpoint_anomaly": [0, 1] * 10,
+            "case_id": ["c1"] * 20,
+            "anomaly_type": ["Lv_X"] * 20,
+            "anomaly_level": ["endpoint"] * 20,
+        }
+    )
+    scores = tmp_path / "scores.parquet"
+    df.to_parquet(scores)
+
+    out = tmp_path / "metrics.json"
+    subprocess.run(
+        [sys.executable, "scripts/eval_baseline_v0.py", "--scores", str(scores), "--out", str(out)],
+        check=True,
+        cwd=str(REPO_ROOT),
+    )
+    metrics = json.loads(out.read_text())
+    # score 越高越异常；用 is_endpoint_anomaly 时高分行对应 is_endpoint_anomaly=1，完全可分，
+    # AUROC 应为 1.0。若误用 y_true，会因高分行 y_true=0 得到 AUROC=0.0。
+    assert metrics["stratified"]["by_anomaly_type"]["Lv_X"]["auroc"] == pytest.approx(1.0)
+    assert metrics["stratified"]["by_anomaly_level"]["endpoint"]["auroc"] == pytest.approx(1.0)
+
+
+def test_eval_raises_clear_error_when_endpoint_label_columns_missing(tmp_path):
+    """pre-PR 的旧版 scores.parquet 没有 is_endpoint_anomaly/label_granularity 列，
+    eval 必须给出可读的错误信息，而不是裸的 KeyError。"""
+    df = pd.DataFrame(
+        {
+            "sample_id": [f"s{i}" for i in range(10)],
+            "score": [0.1] * 5 + [0.9] * 5,
+            "y_true": [0] * 5 + [1] * 5,
+        }
+    )
+    scores = tmp_path / "scores.parquet"
+    df.to_parquet(scores)
+
+    out = tmp_path / "metrics.json"
+    result = subprocess.run(
+        [sys.executable, "scripts/eval_baseline_v0.py", "--scores", str(scores), "--out", str(out)],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert "is_endpoint_anomaly" in result.stderr
+    assert "dvc repro train_v0" in result.stderr
+
+
+def test_by_endpoint_stratum_groups_by_endpoint_key(tmp_path):
+    """by_endpoint 新增分层：按 endpoint_key 分组算 AUROC，不区分 label_granularity。"""
+    df = pd.DataFrame(
+        {
+            "sample_id": [f"s{i}" for i in range(20)],
+            "score": [0.1, 0.9] * 10,
+            "y_true": [0, 1] * 10,
+            "is_endpoint_anomaly": [0, 1] * 10,
+            "case_id": ["c1"] * 10 + ["c2"] * 10,
+            "anomaly_type": ["Lv_X"] * 20,
+            "anomaly_level": ["endpoint"] * 20,
+            # 前 10 行是 endpoint A（label_granularity=endpoint），
+            # 后 10 行是 endpoint B（label_granularity=case，即 fallback 数据源）
+            "endpoint_key": ["ep_A"] * 10 + ["ep_B"] * 10,
+            "label_granularity": ["endpoint"] * 10 + ["case"] * 10,
+        }
+    )
+    scores = tmp_path / "scores.parquet"
+    df.to_parquet(scores)
+
+    out = tmp_path / "metrics.json"
+    subprocess.run(
+        [sys.executable, "scripts/eval_baseline_v0.py", "--scores", str(scores), "--out", str(out)],
+        check=True,
+        cwd=str(REPO_ROOT),
+    )
+    metrics = json.loads(out.read_text())
+    assert "by_endpoint" in metrics["stratified"]
+    by_ep = metrics["stratified"]["by_endpoint"]
+    # 两个 endpoint 都要出现，不因 label_granularity 不同被排除或拆分成两组
+    assert set(by_ep.keys()) == {"ep_A", "ep_B"}
+    assert by_ep["ep_A"]["n_samples"] == 10
+    assert by_ep["ep_B"]["n_samples"] == 10
+    assert by_ep["ep_A"]["auroc"] == pytest.approx(1.0)
+    assert by_ep["ep_B"]["auroc"] == pytest.approx(1.0)

@@ -53,42 +53,42 @@ stages:
       size: 398
     - path: scripts/build_contract.py
       hash: md5
-      md5: 7dfe6eca2086be924cb524df367e6e43
-      size: 15309
+      md5: d418c83de49f7b5afcc415e7bd122388
+      size: 17590
     - path: src/contracts/contract_v0.py
       hash: md5
-      md5: 6b6a66c68315029c008ad9720cab0ecc
-      size: 2616
+      md5: c6e63c9f72db6cc8ed06db6ec0e2fb2d
+      size: 2668
     - path: src/data/dataset_config.py
       hash: md5
       md5: 426a45a25ff9e214ec94ed35d6aa506d
       size: 1753
     - path: src/data/normalization.py
       hash: md5
-      md5: 94bb7bac59766449fd420fc5a1f6268a
-      size: 2984
+      md5: c88e67e1ffd13e3b1b03a62211ac8114
+      size: 4340
     - path: src/preprocessors
       hash: md5
-      md5: b9c06117145b51d552fd69cab82cf51f.dir
-      size: 25368
+      md5: 244c6f9e7366dad7143db1fb3e50c07e.dir
+      size: 25508
       nfiles: 5
     outs:
     - path: artifacts/contract_v0/eval_all.parquet
       hash: md5
-      md5: 88d75f6d15f242ff25aa093caa092055
-      size: 622179
+      md5: 307d95ab7f81e9f5a932a1abd873dda0
+      size: 829084
     - path: artifacts/contract_v0/normalization_stats.json
       hash: md5
       md5: 41132d31816b36508ed277b5b8c4a819
       size: 13790
     - path: artifacts/contract_v0/schema.json
       hash: md5
-      md5: 01e22127b981340027b5732dd86ef73a
-      size: 1415
+      md5: 5ed6d4ff9d4cdae76fd181088066aa9e
+      size: 1434
     - path: artifacts/contract_v0/train.parquet
       hash: md5
-      md5: 2a87a3bb7263d7afd8ac39cbea09f5dc
-      size: 56902
+      md5: 7a47a6e08402e11e8bdc114236e6e0ca
+      size: 58783
   train_v0:
     cmd: python scripts/train_baseline_v0.py --contract-dir
       artifacts/contract_v0 --out artifacts/baseline_v0/scores.parquet --seed 42
@@ -96,20 +96,20 @@ stages:
     deps:
     - path: artifacts/contract_v0/eval_all.parquet
       hash: md5
-      md5: 88d75f6d15f242ff25aa093caa092055
-      size: 622179
+      md5: 307d95ab7f81e9f5a932a1abd873dda0
+      size: 829084
     - path: artifacts/contract_v0/schema.json
       hash: md5
-      md5: 01e22127b981340027b5732dd86ef73a
-      size: 1415
+      md5: 5ed6d4ff9d4cdae76fd181088066aa9e
+      size: 1434
     - path: artifacts/contract_v0/train.parquet
       hash: md5
-      md5: 2a87a3bb7263d7afd8ac39cbea09f5dc
-      size: 56902
+      md5: 7a47a6e08402e11e8bdc114236e6e0ca
+      size: 58783
     - path: scripts/train_baseline_v0.py
       hash: md5
-      md5: a84dd7cd8b3ece0deb62946dfc0b020e
-      size: 5922
+      md5: 5d6846e28cb02a29b8a5ef7a2d870c45
+      size: 6064
     - path: src/data/contract_dataloader.py
       hash: md5
       md5: 1935ff1ca8e7b26550f227c575dac5fb
@@ -125,8 +125,8 @@ stages:
     outs:
     - path: artifacts/baseline_v0/scores.parquet
       hash: md5
-      md5: ec848fad6a1d38e7bda5ccacd32039e5
-      size: 254210
+      md5: 536e960deef52ee582badc7464ec45dd
+      size: 259546
   eval_v0:
     cmd: python scripts/eval_baseline_v0.py --scores
       artifacts/baseline_v0/scores.parquet --out
@@ -134,19 +134,19 @@ stages:
     deps:
     - path: artifacts/baseline_v0/scores.parquet
       hash: md5
-      md5: ec848fad6a1d38e7bda5ccacd32039e5
-      size: 254210
+      md5: 536e960deef52ee582badc7464ec45dd
+      size: 259546
     - path: scripts/eval_baseline_v0.py
       hash: md5
-      md5: 709bdf38bfcf68c2f5b7df5018f6512c
-      size: 2953
+      md5: 57d40b8c355e9280d6cd6117b0ed7d87
+      size: 4466
     - path: src/contracts
       hash: md5
-      md5: f9836421304e403bfb85d9761d711f51.dir
-      size: 13638
+      md5: d8b1e3be74849001a7b3149b1920114f.dir
+      size: 13690
       nfiles: 5
     outs:
     - path: artifacts/baseline_v0/metrics.json
       hash: md5
-      md5: 67eb36b5c238197ce823c3f93a73aa25
-      size: 3659
+      md5: bb5edcb417a3e5935ff769d8469876a9
+      size: 4676

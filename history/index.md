@@ -34,6 +34,7 @@
 | [005](./entries/005-contract-v0.md) | 2026-06-26 | Feature | Contract v0 多模态数据融合接口墙（全链路 18-dim + Deep SVDD baseline） | src/contracts/, src/preprocessors/, src/fusion/, src/models/, src/data/, scripts/, configs/contract/, dvc.yaml, tests/ |
 | [006](./entries/006-endpoint-raw2-multi-source.md) | 2026-07-08 | Feature (PR #6) | endpoint_raw2 接入 Contract v0：多数据源合并 pipeline | src/data/dataset_config.py, scripts/build_contract.py, configs/data/, configs/contract/endpoint_to_service.yaml, dvc.yaml, tests/ |
 | [007](./entries/007-fix-normalizer-nan-propagation.md) | 2026-07-08 | Bugfix | 修复 Normalizer 全 NaN group 的 NaN 传染 bug | src/data/normalization.py, tests/test_normalization.py |
+| [008](./entries/008-per-endpoint-label-eval.md) | 2026-07-11 | Feature | per-endpoint 精确标签接入评估 | `src/preprocessors/trace_preprocessor.py`, `scripts/build_contract.py`, `scripts/train_baseline_v0.py`, `scripts/eval_baseline_v0.py`, `src/contracts/contract_v0.py` |
 
 ---
 
@@ -70,6 +71,10 @@
 | `src/data/dataset_config.py` | 006 |
 | `configs/contract/endpoint_to_service.yaml` | 006 |
 | `src/data/normalization.py`（Normalizer） | 007 |
+| `src/preprocessors/trace_preprocessor.py`（is_target_endpoint 传递） | 008 |
+| `scripts/build_contract.py`（label_granularity/is_endpoint_anomaly 标签路由，`_attach_label_columns`） | 006, 008 |
+| `scripts/train_baseline_v0.py`（out_df 显式字段字典，新增列需手动传递） | 008 |
+| `scripts/eval_baseline_v0.py`（by_endpoint 分层） | 008 |
 
 ---
 
@@ -84,3 +89,4 @@
 - **环境管理**：Kiro/Claude 默认 base conda，验证 `interface` 环境用 `conda run -n interface`（002）
 - **log 模态信号**：Train-Ticket 数据集中 `_previous_*.log` 是断掉的 K8s 符号连结，log 采集仅覆盖实验末尾几分钟；log 特征大面积 NaN 属数据采集限制，非代码 bug；重采时需在 pod 存活期间拷贝历史文件（005）
 - **NaN 传染**：`Normalizer` 等只在 Normal 上 fit 的组件，遇到某 group 全 NaN（数据采集缺口）时不能直接算统计量再 transform 全量数据——NaN 统计量会通过减法/除法把其他数据完好的 case 一起污染。修复方式是在 transform 端对 NaN 统计量做跳过判断，保留原值不做运算（007）。同类模式：`ContractDataset` 的全 NaN 列填 0 兜底（005 Bug 4）
+- **标签精度分级**：数据集里不同数据源标签粒度不一致（case 级近似 vs endpoint 级精确）时，用 contract 层的显式列（如 `label_granularity`）标记精度，而不是靠数据源名字或已有的故障类型字段（如 `anomaly_level`）隐性判断——后者语义上不等价，未来数据源变化会静默失配（008）
