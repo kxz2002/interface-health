@@ -1,0 +1,7 @@
+case_id,anomaly_type,timestamp_window,endpoint_key,request_count,error_rate,latency_mean,latency_p50,latency_p95,latency_p99,status_2xx_rate,status_4xx_rate,status_5xx_rate,method,normalized_path
+Lv_P_DISKIO,Lv_P_DISKIO_preserve,2026-06-09T04:40:00Z,POST:/api/v1/travelservice/trips/left,9,0.0,22500.0,22000.0,45000.0,45000.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Lv_P_DISKIO,Lv_P_DISKIO_preserve,2026-06-09T04:40:15Z,POST:/api/v1/travelservice/trips/left,11,0.3,56000.0,55000.0,99000.0,100000.0,0.7,0.0,0.3,POST,/api/v1/travelservice/trips/left
+Lv_P_DISKIO,Lv_P_DISKIO_preserve,2026-06-09T04:40:30Z,POST:/api/v1/travelservice/trips/left,7,0.0,23500.0,23000.0,47000.0,47000.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Lv_P_DISKIO,Lv_P_DISKIO_preserve,2026-06-09T04:40:00Z,GET:/api/v1/routeservice/routes,13,0.0,520.0,500.0,990.0,1030.0,1.0,0.0,0.0,GET,/api/v1/routeservice/routes
+Lv_P_DISKIO,Lv_P_DISKIO_preserve,2026-06-09T04:40:15Z,GET:/api/v1/routeservice/routes,14,0.0,540.0,520.0,1010.0,1050.0,1.0,0.0,0.0,GET,/api/v1/routeservice/routes
+Lv_P_DISKIO,Lv_P_DISKIO_preserve,2026-06-09T04:40:30Z,GET:/api/v1/routeservice/routes,10,0.0,510.0,490.0,980.0,1020.0,1.0,0.0,0.0,GET,/api/v1/routeservice/routes

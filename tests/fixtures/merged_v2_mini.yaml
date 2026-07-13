@@ -1,0 +1,7 @@
+name: merged_v2_mini
+roots:
+  - tests/fixtures/merged_v2_mini/anomod_like
+  - tests/fixtures/merged_v2_mini/endpoint_like
+  - tests/fixtures/merged_v2_mini/normal_v2_root
+normal_source: tests/fixtures/merged_v2_mini/normal_v2_root
+fused_window: 15s

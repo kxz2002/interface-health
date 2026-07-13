@@ -1,0 +1,8 @@
+{
+  "case_id": "Lv_P_DISKIO_preserve",
+  "anomaly_type": "Lv_P_DISKIO_preserve",
+  "anomaly_level": "performance",
+  "target_service": "ts-travel-service",
+  "inject_start_ms": 1780980010000,
+  "inject_end_ms": 1780980020000
+}
