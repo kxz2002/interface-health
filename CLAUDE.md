@@ -11,7 +11,7 @@
 - **场景 A（项目拿到）**：在 SAT 专有数据上做论文，考虑周期性、动态基线等真实业务场景
 - **场景 B（项目落空）**：在 Train-Ticket 数据集上做，专注异常检测创新
 
-当前数据集：Train-Ticket 微服务系统，11 个 case（1 Normal + 10 故障注入），数据在 `data/anomod/` 下。数据集字段口径、pipeline 逻辑与已知问题详见 `docs/agent-docs/dataset-guide.md`，接触数据相关代码前必读。
+当前数据集：Train-Ticket 微服务系统，合并两个数据源共 28 个 case——`data/anomod_v1/`（12 case，1 Normal + 11 service 级故障注入）+ `data/endpoint_raw2/`（16 case，endpoint 级故障注入），由 `configs/data/merged_v1.yaml` 声明合并（`normal_source` 固定为 anomod_v1）。数据集字段口径、pipeline 逻辑与已知问题详见 `docs/agent-docs/dataset-guide.md`，接触数据相关代码前必读。
 
 ### 两个论文创新方向
 
@@ -34,10 +34,14 @@
 ## Directory Structure
 ```
 data/                  # 所有数据集根目录，每个数据集为独立原子单元
-├── anomod/            # Train-Ticket 故障注入数据集（44GB，READ-ONLY，never modify）
+├── anomod_v1/         # Train-Ticket service 级故障注入数据集（12 case 含 Normal，READ-ONLY，never modify）
 │   ├── Normal/
-│   ├── Lv_P_*/  Lv_S_*/  Lv_D_*/   # 10 个故障注入 case
+│   ├── Lv_P_*/  Lv_S_*/  Lv_D_*/   # 11 个故障注入 case
 │   └── <case>/_pipeline_out/         # pipeline 产物（tt_endpoint_health_15s.csv / tt_traces_red_15s.csv）
+├── endpoint_raw2/     # endpoint 级故障注入数据集（16 case，log 重采修复版，READ-ONLY）
+│   └── Lv_E_HTTP{ABORT,DELAY,PATCH,REPLACE}_{assurance,order,travel,travel2}/
+├── endpoint_raw/      # endpoint_raw2 的旧版本，log 采集因 fsnotify watcher 耗尽而全崩（inject/recover 阶段零日志覆盖），已弃用不参与 pipeline
+├── normal_0711_30/, normal_0711_60/  # 新增 Normal 采集，尚未接入任何 configs/data/*.yaml，暂不参与训练/评估
 ├── lo2-sample/        # LO2 数据集样本（logs + metrics）
 └── external/          # 外部/公开数据集
 
@@ -87,7 +91,7 @@ dvc repro train_v0               # 只重跑训练（contract parquet → scores
 dvc repro eval_v0                # 只重跑评估（scores → metrics）
 
 # 单独运行（不走 DVC 缓存）
-python scripts/build_contract.py --config configs/contract/v0.yaml --data-root data/anomod --out-dir artifacts/contract_v0 --seed 42
+python scripts/build_contract.py --config configs/contract/v0.yaml --dataset configs/data/merged_v1.yaml --out-dir artifacts/contract_v0 --seed 42
 python scripts/train_baseline_v0.py --contract-dir artifacts/contract_v0 --out artifacts/baseline_v0/scores.parquet --seed 42 --epochs 50
 python scripts/eval_baseline_v0.py --scores artifacts/baseline_v0/scores.parquet --out artifacts/baseline_v0/metrics.json
 
@@ -101,9 +105,10 @@ pytest tests/
 - 命令行覆盖语法（Hydra）: `python scripts/train.py model.hidden_dim=256 training.lr=1e-4`
 - 切换配置组: `python scripts/train.py model=vae`
 - 模型通过 `hydra.utils.instantiate(cfg.model)` 实例化，`_target_` 指向具体类
+- `configs/data/*.yaml` 声明数据集组成：`roots`（合并哪些数据源目录）+ `normal_source`（Normal 只取自哪个 root）。如 `merged_v1.yaml` = anomod_v1 + endpoint_raw2；`build_contract.py --dataset <该文件>` 消费
 
 ## Data Rules
-- `data/anomod/` 等数据集目录是 READ-ONLY，绝不修改原始数据
+- `data/anomod_v1/` 等数据集目录是 READ-ONLY，绝不修改原始数据
 - 所有数据变换必须代码化（`src/data/`），不可手动处理
 - 每个数据集为独立原子单元，原始数据与 pipeline 产物均在同一目录下
 - 数据集版本记录在对应的 config 文件中
@@ -160,10 +165,12 @@ pytest tests/
 - Kiro/Claude 运行在 base conda 环境，验证 interface 环境中的包须用 `conda run -n interface python -c ...`，直接 `python` 走的是 base
 - 多模态时间对齐时，降采样会丢失 metrics 高频 spike 信号，需谨慎选择对齐策略
 - POT/GPD 动态阈值只需调 q 一个参数，但极度依赖异常分数分布假设
-- **多模态粒度架构约束**：traces/api_responses 可做 endpoint 级特征；metrics（Prometheus）和 logs（原始文本）只能做 service 级特征，无 per-endpoint 粒度——这是采集端的架构性限制，重采也不会变。融合设计的真实形态是 endpoint 级 + service 级两层 join 键，需提前接受
+- **多模态粒度架构约束**：traces/api_responses 可做 endpoint 级特征；metrics（Prometheus）和 logs（原始文本）只能做 service 级特征，无 per-endpoint 粒度——这是采集端的架构性限制，重采也不会变。融合设计的真实形态是 endpoint 级 + service 级两层 join 键，需提前接受。**标签精度**（区别于特征粒度）取决于数据源是否提供 `target_endpoint`：`endpoint_raw2` 有 → per-endpoint 精确标签；`anomod_v1` 无 → case 级近似标签（见下方 per-endpoint 标签精度 gotcha）
 - **eval NaN 填补用 train 均值**：`ContractDataset(fit_on_parquet=train.parquet)` 用训练集统计量填 eval 的 NaN，严禁用 eval 自身均值，否则 eval 统计泄漏到特征
 - **Log join 静默 NaN**：log 特征经 left join 接入，若某 service 在该时间窗口无日志（如 service 挂了），特征为 NaN，后续均值填补会静默抹掉这个"service 无响应"信号
 - **Drain3 输出是聚合统计量，不是 raw token**：LogPreprocessor 产出的是 event_rate/error_ratio/template_diversity 三列，template_id 只作为分组 key 计算多样性，不直接进入特征
+- **Normalizer 全 NaN group 不做归一化，保留原值**：某 group（或 global scope）在 fit 集合（仅 Normal）里全 NaN 时，`transform()` 必须跳过该 group 的归一化运算，不能把 `[nan, nan]` 统计量通过减法/除法应用到全量数据——会把其他数据完好的 case 一起污染成 NaN。跳过后保留原始量纲；若某列同时受 `RATE_COLUMNS` 的 `clip(0,1)` 约束，需确认原始量纲天然落在 `[0,1]`，否则 clip 会把正常值误判为异常
+- **per-endpoint 标签精度**：contract pipeline 按 case 是否含 `target_endpoint`（`case_metadata.json`）产出 `label_granularity`（`"endpoint"` 精确 / `"case"` 近似 fallback）和 `is_endpoint_anomaly`（= `is_target_endpoint AND phase=='inject'`）。判定依据是 `target_endpoint` 字段是否存在，**不是** `anomaly_level`（那是故障类型描述，语义不等价，未来数据源变化会失配）。`is_anomaly`/`y_true` 语义不变（仍是 case 级）；`eval_baseline_v0.py` 的四层分层（overall/by_anomaly_type/by_anomaly_level/by_endpoint）统一用 `is_endpoint_anomaly`
 
 ## Git Commit Convention
 MUST: 撰写提交信息__必须__严格遵守提交格式。
