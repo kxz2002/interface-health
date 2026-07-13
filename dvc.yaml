@@ -18,7 +18,7 @@ stages:
 
   build_contract:
     cmd: python scripts/build_contract.py --config configs/contract/v0.yaml --dataset
-      configs/data/merged_v1.yaml --out-dir artifacts/contract_v0 --seed 42
+      configs/data/merged_v2.yaml --out-dir artifacts/contract_v0 --seed 42
     deps:
       - scripts/build_contract.py
       - src/preprocessors
@@ -27,7 +27,7 @@ stages:
       - src/data/dataset_config.py
       - configs/contract/v0.yaml
       - configs/contract/endpoint_to_service.yaml
-      - configs/data/merged_v1.yaml
+      - configs/data/merged_v2.yaml
     outs:
       - artifacts/contract_v0/train.parquet
       - artifacts/contract_v0/eval_all.parquet
