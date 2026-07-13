@@ -1,0 +1,14 @@
+# configs/data/merged_v2.yaml
+# anomod_v1 (11 个 service 级故障 case，Normal 已归档至 _archive/，不参与枚举)
+# + endpoint_raw2 (16 个 endpoint 级故障 case)
+# + normal_v2 (2 个重采 Normal case：30min + 60min，替换 anomod_v1 原 Normal
+#   —— 原 Normal 因 cadvisor 断流导致 metric 模态窗口内 0 覆盖，详见
+#   docs/superpowers/specs/2026-07-13-normal-v2-ingestion-design.md)
+name: merged_v2
+description: anomod_v1 (11 case) + endpoint_raw2 (16 case) + normal_v2 (2 个重采 Normal case)
+roots:
+  - data/anomod_v1
+  - data/endpoint_raw2
+  - data/normal_v2
+normal_source: data/normal_v2
+fused_window: 15s
