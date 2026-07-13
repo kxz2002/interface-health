@@ -255,12 +255,21 @@ def _attach_label_columns(ep_df: pd.DataFrame, case_meta: dict) -> None:
     target_endpoint = case_meta.get("target_endpoint")
     if target_endpoint is not None:
         ep_df["label_granularity"] = "endpoint"
-        # .get() 兜底：理论上 trace_df 总是第一个被 merge 进 ep_df 的，这一列应该总存在，
-        # 但用 .get() 比假设列一定存在更安全，避免未来数据源变化时静默抛 KeyError。
+        # is_target_endpoint 由 trace_preprocessor.py 保证总是存在（缺失时填 False），
+        # 这里的 .get() 只是防止该保证被未来数据源变化打破——若真的缺失，退化为全 False
+        # 而不是抛 KeyError，代价是这个 case 会静默丢失 inject 窗口的正样本，因此下方
+        # 显式检查该退化并记录 warning，而不是让它悄悄发生。
         is_target = ep_df.get("is_target_endpoint", False)
         if isinstance(is_target, pd.Series):
             is_target = is_target.fillna(False)
         ep_df["is_endpoint_anomaly"] = is_target & ep_df["is_anomaly"]
+        if not ep_df["is_endpoint_anomaly"].any() and ep_df["is_anomaly"].any():
+            LOG.warning(
+                "case target_endpoint=%s 声明为 endpoint 级精确标签，但 inject 阶段内"
+                "没有任何 is_target_endpoint=True 的行，is_endpoint_anomaly 将全为 False。"
+                "请检查 target_endpoint 是否在 v0 endpoint 白名单内，或 endpoint_key 是否对齐。",
+                target_endpoint,
+            )
     else:
         ep_df["label_granularity"] = "case"
         ep_df["is_endpoint_anomaly"] = ep_df["is_anomaly"]

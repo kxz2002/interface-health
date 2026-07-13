@@ -32,7 +32,18 @@ def _safe_auprc(y_true, scores) -> float | None:
     return float(average_precision_score(y_true, scores))
 
 
+# scores_v0 通用契约（src/contracts/scores_v0.py）只强制 sample_id/score/y_true，
+# 因为它同时被 toy pipeline（train_baseline.py/eval.py）共用，那条链路永远不会有
+# is_endpoint_anomaly 列。这里单独校验本脚本实际会读的 per-endpoint 标签列。
 def compute_stratified_metrics(df: pd.DataFrame) -> dict:
+    if "is_endpoint_anomaly" not in df.columns:
+        raise KeyError(
+            "scores.parquet 缺少 is_endpoint_anomaly 列。"
+            "这通常说明 artifacts/baseline_v0/scores.parquet 是 per-endpoint-label-eval "
+            "接入之前生成的旧产物——请先重跑 `dvc repro train_v0` 重新生成 scores.parquet，"
+            "再运行本脚本。"
+        )
+
     stratified: dict = {}
     label_col = df["is_endpoint_anomaly"].astype(int)
 

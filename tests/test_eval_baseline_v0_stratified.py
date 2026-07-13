@@ -108,6 +108,63 @@ def test_stratified_layers_use_is_endpoint_anomaly_not_y_true(tmp_path):
     assert metrics["auroc"] == pytest.approx(1.0)
 
 
+def test_by_anomaly_type_and_level_use_is_endpoint_anomaly_not_y_true(tmp_path):
+    """by_anomaly_type/by_anomaly_level 各自必须有内部混合标签的分组，才能真正验证
+    这两层用的是 is_endpoint_anomaly 而非 y_true——否则组内单类时 AUROC 恒为 None，
+    误用 y_true 也不会被发现（见 pr-test-analyzer 变异测试报告）。"""
+    df = pd.DataFrame(
+        {
+            "sample_id": [f"s{i}" for i in range(20)],
+            "score": [0.1, 0.9] * 10,
+            # y_true 与 is_endpoint_anomaly 故意完全相反，且同一 anomaly_type/level 组内混合两类
+            "y_true": [1, 0] * 10,
+            "is_endpoint_anomaly": [0, 1] * 10,
+            "case_id": ["c1"] * 20,
+            "anomaly_type": ["Lv_X"] * 20,
+            "anomaly_level": ["endpoint"] * 20,
+        }
+    )
+    scores = tmp_path / "scores.parquet"
+    df.to_parquet(scores)
+
+    out = tmp_path / "metrics.json"
+    subprocess.run(
+        [sys.executable, "scripts/eval_baseline_v0.py", "--scores", str(scores), "--out", str(out)],
+        check=True,
+        cwd=str(REPO_ROOT),
+    )
+    metrics = json.loads(out.read_text())
+    # score 越高越异常；用 is_endpoint_anomaly 时高分行对应 is_endpoint_anomaly=1，完全可分，
+    # AUROC 应为 1.0。若误用 y_true，会因高分行 y_true=0 得到 AUROC=0.0。
+    assert metrics["stratified"]["by_anomaly_type"]["Lv_X"]["auroc"] == pytest.approx(1.0)
+    assert metrics["stratified"]["by_anomaly_level"]["endpoint"]["auroc"] == pytest.approx(1.0)
+
+
+def test_eval_raises_clear_error_when_endpoint_label_columns_missing(tmp_path):
+    """pre-PR 的旧版 scores.parquet 没有 is_endpoint_anomaly/label_granularity 列，
+    eval 必须给出可读的错误信息，而不是裸的 KeyError。"""
+    df = pd.DataFrame(
+        {
+            "sample_id": [f"s{i}" for i in range(10)],
+            "score": [0.1] * 5 + [0.9] * 5,
+            "y_true": [0] * 5 + [1] * 5,
+        }
+    )
+    scores = tmp_path / "scores.parquet"
+    df.to_parquet(scores)
+
+    out = tmp_path / "metrics.json"
+    result = subprocess.run(
+        [sys.executable, "scripts/eval_baseline_v0.py", "--scores", str(scores), "--out", str(out)],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert "is_endpoint_anomaly" in result.stderr
+    assert "dvc repro train_v0" in result.stderr
+
+
 def test_by_endpoint_stratum_groups_by_endpoint_key(tmp_path):
     """by_endpoint 新增分层：按 endpoint_key 分组算 AUROC，不区分 label_granularity。"""
     df = pd.DataFrame(
