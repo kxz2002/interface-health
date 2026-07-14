@@ -41,7 +41,7 @@ data/                  # 所有数据集根目录，每个数据集为独立原�
 ├── endpoint_raw2/     # endpoint 级故障注入数据集（16 case，log 重采修复版，READ-ONLY）
 │   └── Lv_E_HTTP{ABORT,DELAY,PATCH,REPLACE}_{assurance,order,travel,travel2}/
 ├── endpoint_raw/      # endpoint_raw2 的旧版本，log 采集因 fsnotify watcher 耗尽而全崩（inject/recover 阶段零日志覆盖），已弃用不参与 pipeline
-├── normal_v2/         # 30/60 分钟重采 Normal 数据（2 case，metric 15s 桶 100% 覆盖），替换 anomod_v1 原 Normal
+├── normal_v2/         # 30/60 分钟重采 Normal 数据（2 case），替换 anomod_v1 原 Normal；不再有 cadvisor 断流导致的全窗口 0 覆盖，但 latency_p50/p95/p99 仍有 ~80% 行 NaN（样本量不足触发分位数计算门限），非 100% 覆盖
 │   ├── normal_0711_30/
 │   └── normal_0711_60/
 ├── lo2-sample/        # LO2 数据集样本（logs + metrics）

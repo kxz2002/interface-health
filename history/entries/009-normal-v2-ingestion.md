@@ -3,13 +3,15 @@
 - **日期**: 2026-07-13
 - **PR**: feature/multi-normal（待合并） · **Commit**: 56c82ec
 - **类型**: Data
-- **影响域**: `configs/data/`, `dvc.yaml`, `tests/fixtures/merged_v2_mini/`, `tests/test_dataset_config.py`, `tests/test_build_contract_multi_root.py`, `tests/test_e2e_smoke.py`, `CLAUDE.md`
+- **影响域**: `configs/data/`, `dvc.yaml`, `dvc.lock`, `artifacts/`, `tests/fixtures/merged_v2_mini/`, `tests/test_dataset_config.py`, `tests/test_build_contract_multi_root.py`, `tests/test_e2e_smoke.py`, `CLAUDE.md`
 
 ## 做了什么
 
 用两份重采 Normal 数据（`data/normal_0711_30`、`data/normal_0711_60`，30min+60min）完全替换 `anomod_v1/Normal` 作为训练/评估用的正常样本来源。新建 `data/normal_v2/` wrapper 目录承载两份重采数据，满足 `_enumerate_cases` 对"root 下一层是具名 case 目录"的假设；归档旧 `anomod_v1/Normal` 到 `anomod_v1/_archive/Normal`，多套一层目录深度使其不再被 `_enumerate_cases` 扫到（数据物理保留，可逆，符合 `anomod_v1` 的 READ-ONLY 约束）。
 
-新建 `configs/data/merged_v2.yaml`（三 root：`anomod_v1` + `endpoint_raw2` + `normal_v2`，`normal_source: data/normal_v2`），`dvc.yaml` 的 `build_contract` 阶段切换过去。`merged_v1.yaml` 保留不动，作历史快照。无任何 `src/`/`scripts/` 生产代码改动；新增测试覆盖（`tests/test_dataset_config.py` 的 `test_load_three_root_config_with_wrapper_normal_source`、`tests/test_build_contract_multi_root.py` 的 `test_enumerate_cases_multi_root_archived_case_not_scanned`、`tests/test_e2e_smoke.py` 新增三个 e2e 用例）验证三 root 配置解析、归档深度排除、以及基于 `merged_v2_mini` fixture 的端到端 case 数量断言。同批次还同步更新了 `CLAUDE.md` 的数据集描述，反映三源合并后的 29 case 组成。
+新建 `configs/data/merged_v2.yaml`（三 root：`anomod_v1` + `endpoint_raw2` + `normal_v2`，`normal_source: data/normal_v2`），`dvc.yaml` 的 `build_contract` 阶段切换过去。`merged_v1.yaml` 保留不动，作历史快照。无任何 `src/`/`scripts/` 生产代码改动；新增测试覆盖（`tests/test_dataset_config.py` 的 `test_load_three_root_config_with_wrapper_normal_source`、`tests/test_build_contract_multi_root.py` 的 `test_enumerate_cases_multi_root_archived_case_not_scanned` 及 `test_enumerate_cases_multi_root_archiving_does_not_exclude_other_siblings`（归档机制不误伤同级有效 case）、`tests/test_e2e_smoke.py` 新增三个 e2e 用例）验证三 root 配置解析、归档深度排除、以及基于 `merged_v2_mini` fixture 的端到端 case 数量断言。同批次还同步更新了 `CLAUDE.md` 的数据集描述，反映三源合并后的 29 case 组成。
+
+切换到 `merged_v2` 后重跑 `dvc repro`（`build_contract` → `train_v0` → `eval_v0`），`artifacts/baseline_v0/metrics.json` 的 AUROC 从 0.505（旧 Normal，metric 断流）提升到 0.661（AUPRC 0.320），验证新 Normal 数据对模型训练有实质帮助。产物见 `dvc.lock`、`artifacts/baseline_v0/metrics.json`、`artifacts/metrics.json`（commit `ffaf576`）。
 
 ## 关键决策（不在 commit 里）
 

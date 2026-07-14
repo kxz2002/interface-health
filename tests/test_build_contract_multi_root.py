@@ -49,3 +49,19 @@ def test_enumerate_cases_multi_root_archived_case_not_scanned(tmp_path):
     names = [c.name for c in cases]
     assert names == ["Lv_P_DISKIO_preserve"]
     assert "Normal_old" not in names
+
+
+def test_enumerate_cases_multi_root_archiving_does_not_exclude_other_siblings(tmp_path):
+    # 归档只应排除被多套一层目录的那个 case，同一 root 下其它一层深度的有效
+    # case 必须原样保留——防止"按深度排除"机制误伤同级兄弟 case。
+    root = tmp_path / "anomod_like"
+    _make_case(root, "Lv_P_DISKIO_preserve")
+    _make_case(root, "Lv_S_HTTPABORT_preserve")
+    _make_case(root, "Lv_D_CPU_assurance")
+    (root / "_archive" / "Normal_old" / "_pipeline_out").mkdir(parents=True)
+
+    cases = _enumerate_cases_multi([root])
+
+    names = [c.name for c in cases]
+    assert names == ["Lv_D_CPU_assurance", "Lv_P_DISKIO_preserve", "Lv_S_HTTPABORT_preserve"]
+    assert "Normal_old" not in names
