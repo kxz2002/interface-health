@@ -2,6 +2,7 @@ schema: '2.0'
 stages:
   train:
     cmd: python scripts/train_baseline.py --toy --out artifacts/scores.parquet
+      --seed 42
     deps:
     - path: scripts/train_baseline.py
       hash: md5
@@ -22,21 +23,21 @@ stages:
       size: 12702
     - path: scripts/eval.py
       hash: md5
-      md5: eb26aca897d0e542c266b9ee9950475a
-      size: 5068
+      md5: e1fdb2a7b31290846415139c07679b6c
+      size: 5289
     - path: src/contracts
       hash: md5
-      md5: 7d88ad174f35c39810a08ca4338f1838.dir
-      size: 8727
-      nfiles: 3
+      md5: d8b1e3be74849001a7b3149b1920114f.dir
+      size: 13690
+      nfiles: 5
     outs:
     - path: artifacts/metrics.json
       hash: md5
-      md5: 6327140bdb738bfd830c0a0dcf7f77a9
+      md5: 1bc2c5c2c4d3f7b2b74bb2e13698f8e9
       size: 671
   build_contract:
     cmd: python scripts/build_contract.py --config configs/contract/v0.yaml
-      --dataset configs/data/merged_v1.yaml --out-dir artifacts/contract_v0
+      --dataset configs/data/merged_v2.yaml --out-dir artifacts/contract_v0
       --seed 42
     deps:
     - path: configs/contract/endpoint_to_service.yaml
@@ -47,10 +48,10 @@ stages:
       hash: md5
       md5: d528a7203bd8251c22f8743577b6a2be
       size: 982
-    - path: configs/data/merged_v1.yaml
+    - path: configs/data/merged_v2.yaml
       hash: md5
-      md5: 6b9ece9229608254dc0a2661ab0b7258
-      size: 398
+      md5: f5b62703c05de10d5d6e744b17003c66
+      size: 647
     - path: scripts/build_contract.py
       hash: md5
       md5: d418c83de49f7b5afcc415e7bd122388
@@ -75,20 +76,20 @@ stages:
     outs:
     - path: artifacts/contract_v0/eval_all.parquet
       hash: md5
-      md5: 307d95ab7f81e9f5a932a1abd873dda0
-      size: 829084
+      md5: 73486f3f75e2e6ce9be11c327675cd27
+      size: 832075
     - path: artifacts/contract_v0/normalization_stats.json
       hash: md5
-      md5: 41132d31816b36508ed277b5b8c4a819
-      size: 13790
+      md5: a5aabeca607dc8aed33326eb59c01e80
+      size: 14184
     - path: artifacts/contract_v0/schema.json
       hash: md5
       md5: 5ed6d4ff9d4cdae76fd181088066aa9e
       size: 1434
     - path: artifacts/contract_v0/train.parquet
       hash: md5
-      md5: 7a47a6e08402e11e8bdc114236e6e0ca
-      size: 58783
+      md5: cccf4aa412cb087f4e819f443c674c44
+      size: 97517
   train_v0:
     cmd: python scripts/train_baseline_v0.py --contract-dir
       artifacts/contract_v0 --out artifacts/baseline_v0/scores.parquet --seed 42
@@ -96,16 +97,16 @@ stages:
     deps:
     - path: artifacts/contract_v0/eval_all.parquet
       hash: md5
-      md5: 307d95ab7f81e9f5a932a1abd873dda0
-      size: 829084
+      md5: 73486f3f75e2e6ce9be11c327675cd27
+      size: 832075
     - path: artifacts/contract_v0/schema.json
       hash: md5
       md5: 5ed6d4ff9d4cdae76fd181088066aa9e
       size: 1434
     - path: artifacts/contract_v0/train.parquet
       hash: md5
-      md5: 7a47a6e08402e11e8bdc114236e6e0ca
-      size: 58783
+      md5: cccf4aa412cb087f4e819f443c674c44
+      size: 97517
     - path: scripts/train_baseline_v0.py
       hash: md5
       md5: 5d6846e28cb02a29b8a5ef7a2d870c45
@@ -125,8 +126,8 @@ stages:
     outs:
     - path: artifacts/baseline_v0/scores.parquet
       hash: md5
-      md5: 536e960deef52ee582badc7464ec45dd
-      size: 259546
+      md5: d86a3e727627bef6fb33bd88929054e8
+      size: 274051
   eval_v0:
     cmd: python scripts/eval_baseline_v0.py --scores
       artifacts/baseline_v0/scores.parquet --out
@@ -134,8 +135,8 @@ stages:
     deps:
     - path: artifacts/baseline_v0/scores.parquet
       hash: md5
-      md5: 536e960deef52ee582badc7464ec45dd
-      size: 259546
+      md5: d86a3e727627bef6fb33bd88929054e8
+      size: 274051
     - path: scripts/eval_baseline_v0.py
       hash: md5
       md5: 57d40b8c355e9280d6cd6117b0ed7d87
@@ -148,5 +149,5 @@ stages:
     outs:
     - path: artifacts/baseline_v0/metrics.json
       hash: md5
-      md5: bb5edcb417a3e5935ff769d8469876a9
-      size: 4676
+      md5: ca426f3c300b7f6edb2a3c89ff0f7c2c
+      size: 4677

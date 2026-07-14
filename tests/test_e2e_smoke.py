@@ -103,6 +103,60 @@ def merged_pipeline_out(tmp_path_factory):
     return {"contract_dir": contract_dir}
 
 
+@pytest.fixture(scope="module")
+def merged_v2_pipeline_out(tmp_path_factory):
+    out = tmp_path_factory.mktemp("e2e_merged_v2")
+    contract_dir = out / "contract_v0"
+
+    subprocess.run(
+        [
+            sys.executable,
+            "scripts/build_contract.py",
+            "--config",
+            str(REPO_ROOT / "configs/contract/v0.yaml"),
+            "--dataset",
+            str(REPO_ROOT / "tests/fixtures/merged_v2_mini.yaml"),
+            "--out-dir",
+            str(contract_dir),
+            "--seed",
+            "42",
+        ],
+        check=True,
+        cwd=str(REPO_ROOT),
+    )
+
+    return {"contract_dir": contract_dir}
+
+
+def test_merged_v2_normal_case_count(merged_v2_pipeline_out):
+    """V9: merged_v2 场景下 Normal case 数为 2，均来自 normal_v2_root。"""
+    train_df = pd.read_parquet(merged_v2_pipeline_out["contract_dir"] / "train.parquet")
+    assert (train_df["anomaly_type"] == "Normal").all()
+    normal_case_ids = set(train_df["case_id"])
+    assert normal_case_ids == {"normal_0711_30_mini", "normal_0711_60_mini"}
+
+
+def test_merged_v2_total_case_count(merged_v2_pipeline_out):
+    """V10: merged_v2 场景下全量 case 数为 4（1 case 级 + 1 endpoint 级 + 2 Normal）。"""
+    eval_df = pd.read_parquet(merged_v2_pipeline_out["contract_dir"] / "eval_all.parquet")
+    train_df = pd.read_parquet(merged_v2_pipeline_out["contract_dir"] / "train.parquet")
+    all_case_ids = set(eval_df["case_id"]) | set(train_df["case_id"])
+    assert all_case_ids == {
+        "Lv_P_DISKIO_preserve",
+        "Lv_E_HTTPABORT_assurance_mini",
+        "normal_0711_30_mini",
+        "normal_0711_60_mini",
+    }
+
+
+def test_merged_v2_archived_case_excluded(merged_v2_pipeline_out):
+    """V11: 归档的 Normal_old 不出现在任何输出 case_id 中。"""
+    eval_df = pd.read_parquet(merged_v2_pipeline_out["contract_dir"] / "eval_all.parquet")
+    train_df = pd.read_parquet(merged_v2_pipeline_out["contract_dir"] / "train.parquet")
+    all_case_ids = set(eval_df["case_id"]) | set(train_df["case_id"])
+    assert "Normal_old" not in all_case_ids
+
+
 def test_endpoint_level_case_in_eval_and_normal_source(merged_pipeline_out):
     """V8: 合并后 eval_all 含 endpoint 级 mini case；train(Normal) 不含它。"""
     eval_df = pd.read_parquet(merged_pipeline_out["contract_dir"] / "eval_all.parquet")

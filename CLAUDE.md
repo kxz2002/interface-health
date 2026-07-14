@@ -11,7 +11,7 @@
 - **场景 A（项目拿到）**：在 SAT 专有数据上做论文，考虑周期性、动态基线等真实业务场景
 - **场景 B（项目落空）**：在 Train-Ticket 数据集上做，专注异常检测创新
 
-当前数据集：Train-Ticket 微服务系统，合并两个数据源共 28 个 case——`data/anomod_v1/`（12 case，1 Normal + 11 service 级故障注入）+ `data/endpoint_raw2/`（16 case，endpoint 级故障注入），由 `configs/data/merged_v1.yaml` 声明合并（`normal_source` 固定为 anomod_v1）。数据集字段口径、pipeline 逻辑与已知问题详见 `docs/agent-docs/dataset-guide.md`，接触数据相关代码前必读。
+当前数据集：Train-Ticket 微服务系统，合并三个数据源共 29 个 case——`data/anomod_v1/`（11 个 service 级故障注入 case，原 Normal 因 cadvisor 断流已归档至 `_archive/`，不参与训练评估）+ `data/endpoint_raw2/`（16 case，endpoint 级故障注入）+ `data/normal_v2/`（2 个重采 Normal case，30min+60min），由 `configs/data/merged_v2.yaml` 声明合并（`normal_source` 固定为 `data/normal_v2`）。历史快照 `configs/data/merged_v1.yaml`（Normal 取自 `anomod_v1`）保留不动，仅用于复现旧实验。数据集字段口径、pipeline 逻辑与已知问题详见 `docs/agent-docs/dataset-guide.md`，接触数据相关代码前必读。
 
 ### 两个论文创新方向
 
@@ -34,14 +34,16 @@
 ## Directory Structure
 ```
 data/                  # 所有数据集根目录，每个数据集为独立原子单元
-├── anomod_v1/         # Train-Ticket service 级故障注入数据集（12 case 含 Normal，READ-ONLY，never modify）
-│   ├── Normal/
+├── anomod_v1/         # Train-Ticket service 级故障注入数据集（READ-ONLY，never modify）
+│   ├── _archive/Normal/              # 原 Normal case，因 cadvisor 断流导致 metric 模态窗口内 0 覆盖，已归档不参与枚举
 │   ├── Lv_P_*/  Lv_S_*/  Lv_D_*/   # 11 个故障注入 case
 │   └── <case>/_pipeline_out/         # pipeline 产物（tt_endpoint_health_15s.csv / tt_traces_red_15s.csv）
 ├── endpoint_raw2/     # endpoint 级故障注入数据集（16 case，log 重采修复版，READ-ONLY）
 │   └── Lv_E_HTTP{ABORT,DELAY,PATCH,REPLACE}_{assurance,order,travel,travel2}/
 ├── endpoint_raw/      # endpoint_raw2 的旧版本，log 采集因 fsnotify watcher 耗尽而全崩（inject/recover 阶段零日志覆盖），已弃用不参与 pipeline
-├── normal_0711_30/, normal_0711_60/  # 新增 Normal 采集，尚未接入任何 configs/data/*.yaml，暂不参与训练/评估
+├── normal_v2/         # 30/60 分钟重采 Normal 数据（2 case），替换 anomod_v1 原 Normal；不再有 cadvisor 断流导致的全窗口 0 覆盖，但 latency_p50/p95/p99 仍有 ~80% 行 NaN（样本量不足触发分位数计算门限），非 100% 覆盖
+│   ├── normal_0711_30/
+│   └── normal_0711_60/
 ├── lo2-sample/        # LO2 数据集样本（logs + metrics）
 └── external/          # 外部/公开数据集
 

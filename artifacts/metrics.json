@@ -20,8 +20,8 @@
     "pos_rate": 0.2857142857142857
   },
   "meta": {
-    "git_commit": "b3d6f37a8f4316121f0248ae798b74a977eaa282",
-    "timestamp_utc": "2026-06-23T07:02:46+00:00",
+    "git_commit": "618c97f2cbd9ffd5219e0ef3319ed33e003df2df",
+    "timestamp_utc": "2026-07-14T01:25:08+00:00",
     "input_path": "artifacts/scores.parquet"
   }
 }

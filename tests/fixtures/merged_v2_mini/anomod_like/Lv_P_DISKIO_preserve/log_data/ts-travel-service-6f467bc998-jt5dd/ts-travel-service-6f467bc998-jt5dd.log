@@ -1,0 +1,5 @@
+2026-06-09 04:40:01.000  INFO 1 --- [main] c.e.SomeLogger : request handled ok
+2026-06-09 04:40:31.000  INFO 1 --- [main] c.e.SomeLogger : request handled ok
+2026-06-09 04:40:16.000  ERROR 1 --- [main] c.e.SomeLogger : disk io timeout writing batch
+2026-06-09 04:40:17.000  ERROR 1 --- [main] c.e.SomeLogger : connection reset by peer
+2026-06-09 04:40:18.000  INFO 1 --- [main] c.e.SomeLogger : retrying request

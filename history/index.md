@@ -35,6 +35,7 @@
 | [006](./entries/006-endpoint-raw2-multi-source.md) | 2026-07-08 | Feature (PR #6) | endpoint_raw2 接入 Contract v0：多数据源合并 pipeline | src/data/dataset_config.py, scripts/build_contract.py, configs/data/, configs/contract/endpoint_to_service.yaml, dvc.yaml, tests/ |
 | [007](./entries/007-fix-normalizer-nan-propagation.md) | 2026-07-08 | Bugfix | 修复 Normalizer 全 NaN group 的 NaN 传染 bug | src/data/normalization.py, tests/test_normalization.py |
 | [008](./entries/008-per-endpoint-label-eval.md) | 2026-07-11 | Feature | per-endpoint 精确标签接入评估 | `src/preprocessors/trace_preprocessor.py`, `scripts/build_contract.py`, `scripts/train_baseline_v0.py`, `scripts/eval_baseline_v0.py`, `src/contracts/contract_v0.py` |
+| [009](./entries/009-normal-v2-ingestion.md) | 2026-07-13 | Data | 30/60 分钟重采 Normal 数据接入 DVC pipeline | `configs/data/`, `dvc.yaml`, `dvc.lock`, `artifacts/`, `tests/fixtures/merged_v2_mini/`, `tests/test_dataset_config.py`, `tests/test_build_contract_multi_root.py`, `tests/test_e2e_smoke.py`, `CLAUDE.md` |
 
 ---
 
@@ -44,7 +45,7 @@
 
 | 目录 / 主题 | 相关 entries |
 |-------------|--------------|
-| `CLAUDE.md` | 001, 002, 003, 004 |
+| `CLAUDE.md` | 001, 002, 003, 004, 009 |
 | `data/` 组织与 DVC | 002 |
 | `configs/` (Hydra) | 002 |
 | `src/utils/` (seed, logger) | 002 |
@@ -54,10 +55,10 @@
 | `docs/agent-docs/` | 001 |
 | `docs/plans/` | 001 |
 | `artifacts/` | 003 |
-| `dvc.yaml` / DVC pipeline | 002 (初始化), 003 (定义 stage) |
+| `dvc.yaml` / DVC pipeline | 002 (初始化), 003 (定义 stage), 009 (切换 merged_v2) |
 | `environment.yml` / `Makefile` | 002 |
 | `.github/workflows/ci.yml` | 002, 004 |
-| `tests/` | 002 (占位), 003 (契约/e2e) |
+| `tests/` | 002 (占位), 003 (契约/e2e), 009 (merged_v2_mini fixture + 归档排除/多 root 测试) |
 | `pyproject.toml` | 002 |
 | `history/` + `skills-local/` | 004 |
 | `Makefile` | 002 (环境), 004 (install-skills) |
@@ -67,7 +68,7 @@
 | 评估指标细化（per-endpoint, phase 对齐） | 005 |
 | `src/preprocessors/` | 005 |
 | `configs/contract/` | 005 |
-| `configs/data/`（多数据源配置） | 006 |
+| `configs/data/`（多数据源配置） | 006, 009 |
 | `src/data/dataset_config.py` | 006 |
 | `configs/contract/endpoint_to_service.yaml` | 006 |
 | `src/data/normalization.py`（Normalizer） | 007 |
