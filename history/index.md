@@ -36,6 +36,7 @@
 | [007](./entries/007-fix-normalizer-nan-propagation.md) | 2026-07-08 | Bugfix | 修复 Normalizer 全 NaN group 的 NaN 传染 bug | src/data/normalization.py, tests/test_normalization.py |
 | [008](./entries/008-per-endpoint-label-eval.md) | 2026-07-11 | Feature | per-endpoint 精确标签接入评估 | `src/preprocessors/trace_preprocessor.py`, `scripts/build_contract.py`, `scripts/train_baseline_v0.py`, `scripts/eval_baseline_v0.py`, `src/contracts/contract_v0.py` |
 | [009](./entries/009-normal-v2-ingestion.md) | 2026-07-13 | Data | 30/60 分钟重采 Normal 数据接入 DVC pipeline | `configs/data/`, `dvc.yaml`, `dvc.lock`, `artifacts/`, `tests/fixtures/merged_v2_mini/`, `tests/test_dataset_config.py`, `tests/test_build_contract_multi_root.py`, `tests/test_e2e_smoke.py`, `CLAUDE.md` |
+| [010](./entries/010-gated-fusion-novelty-check.md) | 2026-07-14 | Docs | Gated Conditional Fusion 立项前 novelty-check 结论（暂缓门控实现，转向补基础设施） | `history/`, `src/fusion/`（后续实施方向） |
 
 ---
 
@@ -62,7 +63,7 @@
 | `pyproject.toml` | 002 |
 | `history/` + `skills-local/` | 004 |
 | `Makefile` | 002 (环境), 004 (install-skills) |
-| 多模态融合（`src/fusion/`） | 005 |
+| 多模态融合（`src/fusion/`） | 005, 010 |
 | 模型实现（`src/models/`） | 005 |
 | 数据 loader（`src/data/`） | 005 |
 | 评估指标细化（per-endpoint, phase 对齐） | 005 |
@@ -91,3 +92,4 @@
 - **log 模态信号**：Train-Ticket 数据集中 `_previous_*.log` 是断掉的 K8s 符号连结，log 采集仅覆盖实验末尾几分钟；log 特征大面积 NaN 属数据采集限制，非代码 bug；重采时需在 pod 存活期间拷贝历史文件（005）
 - **NaN 传染**：`Normalizer` 等只在 Normal 上 fit 的组件，遇到某 group 全 NaN（数据采集缺口）时不能直接算统计量再 transform 全量数据——NaN 统计量会通过减法/除法把其他数据完好的 case 一起污染。修复方式是在 transform 端对 NaN 统计量做跳过判断，保留原值不做运算（007）。同类模式：`ContractDataset` 的全 NaN 列填 0 兜底（005 Bug 4）
 - **标签精度分级**：数据集里不同数据源标签粒度不一致（case 级近似 vs endpoint 级精确）时，用 contract 层的显式列（如 `label_granularity`）标记精度，而不是靠数据源名字或已有的故障类型字段（如 `anomaly_level`）隐性判断——后者语义上不等价，未来数据源变化会静默失配（008）
+- **门控/条件融合类机制不足以单独构成创新点**：FiLM/GS-Fuse 已是成熟的"表征级门控条件融合"机制类别，套用到新场景不算创新；"service 级特征广播复制到 endpoint 行"这一问题定义本身也对应统计学 hierarchical/panel data 框架，非全新问题。融合类工作若要立论，需要论证"具体场景下的增量价值"而非机制新颖性本身，且消融设计要用参数量对齐 baseline 隔离贡献，避免 confounding variable（010）
