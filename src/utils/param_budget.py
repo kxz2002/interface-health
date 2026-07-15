@@ -38,8 +38,8 @@ def solve_hidden_dim_for_param_budget(
             f"（hidden_dim ∈ [{lo}, {hi}]），调整 lo/hi 边界"
         )
 
-    # 标准整数二分：收敛到使 count(build_fn(h)) 不小于 target 的最小 h，
-    # 再在 h 与 h-1 之间取参数量更接近 target 的那个。
+    # 标准整数二分：每访问一个 mid 就与当前最优解比较参数量差距，持续更新 best/best_diff。
+    # 单调性保证收敛后 best 就是 [lo, hi] 内参数量最接近 target 的 hidden_dim。
     best = lo
     best_diff = abs(lo_params - target_params)
     while lo <= hi:
