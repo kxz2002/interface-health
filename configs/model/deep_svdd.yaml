@@ -1,0 +1,3 @@
+_target_: src.models.deep_svdd.DeepSVDD
+hidden_dim: 64
+rep_dim: 32
