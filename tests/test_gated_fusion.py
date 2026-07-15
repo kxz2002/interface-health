@@ -51,6 +51,13 @@ def test_gate_formula_matches_manual_computation():
           e_svc = ReLU(svc_encoder(concat(metric, log)))
           g = sigmoid(gate(concat(e_ep, e_svc)))
           z = e_ep + g * value(e_svc)
+
+    输入/权重刻意打破两处对称性，否则本测试无法检测出角色互换类 bug：
+      1. e_ep(=0.6) 与 e_svc(=1.2) 数值不同——若二者相等，"z=e_svc+g*value(e_ep)"
+         的残差互换 bug 会与正确公式输出一致，测试无法区分。
+      2. gate 权重矩阵按 e_ep/e_svc 两半设不同值（0.05 / 0.09）——若整块权重
+         用同一个标量 fill，gate(concat(e_ep,e_svc)) 与 gate(concat(e_svc,e_ep))
+         在数学上恒等（线性层输出只依赖两半各自的和），拼接顺序互换 bug 也测不出来。
     """
     branch_dim = 2
     fusion = GatedFusion(
@@ -63,14 +70,15 @@ def test_gate_formula_matches_manual_computation():
     with torch.no_grad():
         fusion.ep_encoder[0].weight.fill_(0.1)
         fusion.svc_encoder[0].weight.fill_(0.2)
-        fusion.gate.weight.fill_(0.05)
+        fusion.gate.weight[:, :branch_dim].fill_(0.05)
+        fusion.gate.weight[:, branch_dim:].fill_(0.09)
         fusion.gate.bias.fill_(0.0)
         fusion.value.weight.fill_(0.3)
         fusion.value.bias.fill_(0.0)
 
     batch = {
         "endpoint_red": torch.tensor([[1.0, 2.0, 3.0]]),
-        "service_metric": torch.tensor([[1.0, 1.0]]),
+        "service_metric": torch.tensor([[2.0, 3.0]]),
         "service_log": torch.tensor([[1.0]]),
     }
 
