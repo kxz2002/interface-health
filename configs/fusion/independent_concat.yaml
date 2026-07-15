@@ -1,0 +1,2 @@
+_target_: src.fusion.independent_concat.IndependentConcatFusion
+branch_dim: 16
