@@ -64,3 +64,56 @@ stages:
     metrics:
       - artifacts/baseline_v0/metrics.json:
           cache: false
+
+  build_contract_v1:
+    cmd: python scripts/build_contract.py --config configs/contract/v1.yaml --dataset
+      configs/data/merged_v2.yaml --out-dir artifacts/contract_v1 --seed 42
+    deps:
+      - scripts/build_contract.py
+      - src/preprocessors
+      - src/contracts/contract_v0.py
+      - src/contracts/split_v1.py
+      - src/data/normalization.py
+      - src/data/dataset_config.py
+      - configs/contract/v1.yaml
+      - configs/contract/endpoint_to_service.yaml
+      - configs/data/merged_v2.yaml
+    outs:
+      - artifacts/contract_v1/train_fit.parquet
+      - artifacts/contract_v1/train_val.parquet
+      - artifacts/contract_v1/eval_normal_holdout.parquet
+      - artifacts/contract_v1/train.parquet
+      - artifacts/contract_v1/eval_all.parquet
+      - artifacts/contract_v1/normalization_stats.json
+      - artifacts/contract_v1/schema.json
+
+  train_v1:
+    cmd: python scripts/train_baseline_v0.py contract_dir=artifacts/contract_v1
+      out=artifacts/baseline_v1/scores.parquet seed=42 training.epochs=50
+      fusion=concat model=deep_svdd
+    deps:
+      - scripts/train_baseline_v0.py
+      - configs/base.yaml
+      - configs/fusion/concat.yaml
+      - configs/model/deep_svdd.yaml
+      - configs/training/default.yaml
+      - src/models/deep_svdd.py
+      - src/fusion/early_concat.py
+      - src/fusion/base.py
+      - src/data/contract_dataloader.py
+      - artifacts/contract_v1/train.parquet
+      - artifacts/contract_v1/eval_all.parquet
+      - artifacts/contract_v1/schema.json
+    outs:
+      - artifacts/baseline_v1/scores.parquet
+
+  eval_v1:
+    cmd: python scripts/eval_baseline_v0.py --scores artifacts/baseline_v1/scores.parquet
+      --out artifacts/baseline_v1/metrics.json
+    deps:
+      - scripts/eval_baseline_v0.py
+      - src/contracts
+      - artifacts/baseline_v1/scores.parquet
+    metrics:
+      - artifacts/baseline_v1/metrics.json:
+          cache: false

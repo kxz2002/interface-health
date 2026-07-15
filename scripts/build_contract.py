@@ -23,6 +23,7 @@ import yaml
 
 from src.contracts.contract_config import ContractConfig, load_contract_config
 from src.contracts.contract_v0 import RATE_COLUMNS, validate_contract_df
+from src.contracts.split_v1 import split_normal_rows_temporal
 from src.data.dataset_config import load_dataset_config
 from src.data.normalization import Method, Normalizer, Scope
 from src.preprocessors.api_preprocessor import ApiPreprocessor
@@ -389,12 +390,42 @@ def main() -> None:
 
     validate_contract_df(full, args.config)
 
-    full[normal_mask].reset_index(drop=True).to_parquet(out / "train.parquet", index=False)
-    full.to_parquet(out / "eval_all.parquet", index=False)
+    if cfg.contract_version == "v1":
+        _write_v1(out, full, normal_mask, args.seed)
+    else:
+        # v0：train=全部 Normal，eval_all=全部行（保持向后兼容，train ⊆ eval_all）
+        full[normal_mask].reset_index(drop=True).to_parquet(out / "train.parquet", index=False)
+        full.to_parquet(out / "eval_all.parquet", index=False)
 
     _write_schema(out, cfg)
 
-    LOG.info("完成！train=%d 行，eval_all=%d 行", int(normal_mask.sum()), len(full))
+    LOG.info("完成！版本=%s，总行数=%d", cfg.contract_version, len(full))
+
+
+def _write_v1(out: Path, full: pd.DataFrame, normal_mask: pd.Series, seed: int) -> None:
+    """v1：Normal 行按时间窗三路切分，eval_all 的 Normal 部分只取 holdout。"""
+    normal_df = full[normal_mask].reset_index(drop=True)
+    anomaly_df = full[~normal_mask].reset_index(drop=True)
+    parts = split_normal_rows_temporal(normal_df, seed=seed)
+
+    parts["train_fit"].to_parquet(out / "train_fit.parquet", index=False)
+    parts["train_val"].to_parquet(out / "train_val.parquet", index=False)
+    parts["eval_normal_holdout"].to_parquet(out / "eval_normal_holdout.parquet", index=False)
+
+    # 冗余 train.parquet = train_fit，让 train_v1 stage 复用 Task 4 的训练脚本原样跑通
+    # （训练脚本消费 train_val 早停是下一轮工作，spec 已排除）。
+    parts["train_fit"].to_parquet(out / "train.parquet", index=False)
+
+    # eval_all = 故障 case 全部行 + 仅 holdout 的 Normal 行（修复 train ⊆ eval_all 重叠）
+    eval_all = pd.concat([anomaly_df, parts["eval_normal_holdout"]], ignore_index=True)
+    eval_all.to_parquet(out / "eval_all.parquet", index=False)
+    LOG.info(
+        "v1 切分：train_fit=%d train_val=%d holdout=%d eval_all=%d",
+        len(parts["train_fit"]),
+        len(parts["train_val"]),
+        len(parts["eval_normal_holdout"]),
+        len(eval_all),
+    )
 
 
 def _write_schema(out: Path, cfg: ContractConfig) -> None:
