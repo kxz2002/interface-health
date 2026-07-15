@@ -34,21 +34,27 @@
   ```
   本轮只保证单 stage 可通过 `fusion=xxx` 切换，不预先在 `dvc.yaml` 里搭 L0-L3 矩阵。
 
-### 组件 2：Contract v1 — 三路 group-aware 切分
+### 组件 2：Contract v1 — 三路切分（train_fit / train_val / eval_normal_holdout）
 
-新增 `configs/contract/v1.yaml`（与现有 `v0.yaml` 并存，不替换）。`build_contract.py` 新增 v1 产出路径：
+> **⚠️ 实施修订（2026-07-14，实现前经用户确认）**：本组件原设计为"按 `service_name` 做 `GroupShuffleSplit`"（下方保留原文），实现时**改为按 case 内时间窗时序切分**。原因见本节末"修订说明"。以 plan `docs/superpowers/plans/2026-07-14-fusion-ablation-infra.md` Task 5 为准。
 
-- 对 Normal case 的行，按 `service_name` 分两步调用 `GroupShuffleSplit`（均固定 `seed=42`）做三路切分，按**行数比例**目标 ~60/20/20：
-  1. 第一次切分：从全部 Normal 行中切出 `eval_normal_holdout`（`test_size≈0.2`），剩余记为 `remainder`
-  2. 第二次切分：从 `remainder` 中切出 `train_val`（`test_size≈0.25`，即占全量 ~20%），剩余为 `train_fit`（~60%）
+新增 `configs/contract/v1.yaml`（与现有 `v0.yaml` 并存，不替换）。`build_contract.py` 新增 v1 产出路径。
+
+**修订后的切分口径（实际实现）**：对 Normal case 的行，抽出纯函数 `src/contracts/split_v1.py::split_normal_rows_temporal`——每个 Normal case 独立按 `timestamp_window_ms` 排序，前 60% 时间窗 → `train_fit`，中 20% → `train_val`，后 20% → `eval_normal_holdout`（切分单位是时间窗，同一窗的全部 endpoint 行不拆散）。
   - `train_fit.parquet`：参与梯度下降
-  - `train_val.parquet`：早停/模型选择用
-  - `eval_normal_holdout.parquet`：**不参与任何训练环节**，专门作为最终评估的负样本来源
-  - 8 个 service 行数分布不均（26~224 行），两次 `GroupShuffleSplit` 都是按 service 整体分配、不能拆散 service，实际比例会偏离 60/20/20（允许 ±15 个百分点的容差，测试按此容差校验，不要求精确命中）
+  - `train_val.parquet`：早停/模型选择用（本轮预留，训练脚本下一轮才消费）
+  - `eval_normal_holdout.parquet`：**不参与任何训练环节**，作为最终评估的负样本来源
+  - 时序切分按窗数分配，比例比 service 切分均匀（实测 63.4/18.7/17.9%）；容差 ±5 个百分点。case 时间窗数 < 3 时按可用窗数尽力分配、不足的份为空（保留 schema）。
+
 - `eval_all.parquet` 的 Normal 部分从"全部 Normal 行"改为"仅 `eval_normal_holdout`"——修复训练/评估重叠问题。故障注入 case 的行不受影响（本来就不参与训练）。
 - **Contract 版本升级到 `v1`**：按 CLAUDE.md"破坏字段口径必须升版"的规则，行集合划分方式变化属于接口契约的实质性变化。`configs/contract/v0.yaml`/`artifacts/contract_v0/`/`dvc.yaml` 里的 `build_contract`/`train_v0`/`eval_v0` stage **原样保留、保持可运行**；新增 `build_contract_v1`/`train_v1`/`eval_v1` stage，产出 `artifacts/contract_v1/`、`artifacts/baseline_v1/`。v0/v1 两条 pipeline 并存。
 - **已知代价**：`history/entries/008` 记录的 baseline 指标基于 v0（train⊆eval_all），与 v1 的新指标不可比——这是修复重叠问题必须接受的成本，不是缺陷。
-- Contract 层新增显式断言测试：`train_fit`/`train_val`/`eval_normal_holdout` 三者之间 `sample_id` 两两不重叠（`GroupShuffleSplit` 保证同一 service 的行不会跨切分出现，测试把这个保证锁定下来，防止未来数据源变化时静默失效）。
+- Contract 层新增显式断言测试：`train_fit`/`train_val`/`eval_normal_holdout` 三者之间 `sample_id` 两两不重叠；每个 endpoint 在三份都出现；每个 case 内 `train_fit` 窗全部早于 `train_val`、`train_val` 全部早于 `eval_normal_holdout`（时序分离锁定）。
+
+**修订说明（为什么从 service 切分改为时序切分）**：
+- **原设计（保留存档）**：对 Normal 行按 `service_name` 分两步 `GroupShuffleSplit`（seed=42），先切 `eval_normal_holdout`（`test_size≈0.2`）、再从 remainder 切 `train_val`（`test_size≈0.25`），按行数比例 ~60/20/20，8 个 service 不可拆散故容差 ±15 个百分点。这与 `history/entries/010` 坑 #2 主张的 group-aware / leave-service-out 切分一致。
+- **改动原因**：endpoint→service ~1:1（8 对 8），按 service 整体切会让 `eval_normal_holdout` 的 endpoint 训练时完全没见过，把 per-endpoint One-Class 检测变成考"对未见 endpoint 的泛化"，违背"对已监控 endpoint 检测异常"的研究设想。改时序切分后每个 endpoint 在三份都出现（无泛化偏移），且训练窗早于评估窗保证评估样本训练时未见过（satisfies One-Class 评估要求）。
+- **对 010 泄漏担忧的回应**：010 担忧本质是 train/eval 出现逐行相同的 service 级广播特征；时序切分下 eval 取晚期窗、特征随时间变化，holdout 是未见过的时间窗，FP 估计诚实。"模型学 service identity"在 One-Class（无 service 分类目标）设定下不构成监督式泄漏，"同 service 下 endpoint 无法区分"是门控融合方法本身要解决的建模目标，不该靠切分回避。此偏离记入本轮 history entry。
 
 ### 组件 3：参数量对齐工具
 
@@ -71,7 +77,7 @@ def solve_hidden_dim_for_param_budget(
 ## 测试
 
 - `tests/test_hydra_instantiate.py`：`configs/fusion/concat.yaml`、`configs/model/deep_svdd.yaml` 能正确 instantiate 出预期类型，`fusion.output_dim` 正确传递给 `svdd.input_dim`。
-- `tests/test_contract_v1_split.py`：三路切分的 `sample_id` 两两不重叠；同一 `service_name` 的所有行落在同一个切分里（不会被 `GroupShuffleSplit` 拆散跨切分）；切分行数比例落在 60/20/20 ± 15 个百分点范围内（用 fixture 数据）。
+- `tests/test_contract_v1_split.py`（**已随组件 2 修订为时序切分口径**）：三路切分的 `sample_id` 两两不重叠；每个 endpoint 在三份都出现（时序切分相对 service 切分的关键改进——eval 不出现训练时没见过的 endpoint）；每个 case 内 `train_fit` 窗全早于 `train_val`、`train_val` 全早于 `eval_normal_holdout`（时序分离）；切分行数比例落在 60/20/20 ± 5 个百分点范围内（合成多窗数据）；case 窗数 < 3 时退化不抛异常、空份保留 schema。
 - `tests/test_param_budget.py`：二分查找在若干 toy `build_fn` 上收敛到容差范围内；当 `target_params` 超出 `[build_fn(lo), build_fn(hi)]` 的参数量范围时，明确抛出异常而不是静默返回错误结果。
 
 ## 明确不在本轮范围内

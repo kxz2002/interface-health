@@ -5,3 +5,5 @@
 /eval_all.parquet
 /normalization_stats.json
 /schema.json
+/drain3.bin
+/intermediate/
