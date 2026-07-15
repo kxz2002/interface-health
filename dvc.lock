@@ -169,8 +169,8 @@ stages:
     outs:
     - path: artifacts/baseline_v0/metrics.json
       hash: md5
-      md5: 5c4b3ad51620329c3c3c0c5806db5790
-      size: 4667
+      md5: 7a4288679815774cd44c9827cf64c1d7
+      size: 4668
   build_contract_v1:
     cmd: python scripts/build_contract.py --config configs/contract/v1.yaml
       --dataset configs/data/merged_v2.yaml --out-dir artifacts/contract_v1
@@ -321,5 +321,5 @@ stages:
     outs:
     - path: artifacts/baseline_v1/metrics.json
       hash: md5
-      md5: 26e7fbf49118fbe26851b7c9632019e8
-      size: 4675
+      md5: 6ddf4e7da733452c5eca0f2403ac9bd8
+      size: 4676
