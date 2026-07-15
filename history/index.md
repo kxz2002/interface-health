@@ -37,6 +37,7 @@
 | [008](./entries/008-per-endpoint-label-eval.md) | 2026-07-11 | Feature | per-endpoint 精确标签接入评估 | `src/preprocessors/trace_preprocessor.py`, `scripts/build_contract.py`, `scripts/train_baseline_v0.py`, `scripts/eval_baseline_v0.py`, `src/contracts/contract_v0.py` |
 | [009](./entries/009-normal-v2-ingestion.md) | 2026-07-13 | Data | 30/60 分钟重采 Normal 数据接入 DVC pipeline | `configs/data/`, `dvc.yaml`, `dvc.lock`, `artifacts/`, `tests/fixtures/merged_v2_mini/`, `tests/test_dataset_config.py`, `tests/test_build_contract_multi_root.py`, `tests/test_e2e_smoke.py`, `CLAUDE.md` |
 | [010](./entries/010-gated-fusion-novelty-check.md) | 2026-07-14 | Docs | Gated Conditional Fusion 立项前 novelty-check 结论（暂缓门控实现，转向补基础设施） | `history/`, `src/fusion/`（后续实施方向） |
+| [011](./entries/011-fusion-ablation-infra.md) | 2026-07-15 | Feature/Refactor | Fusion 消融基础设施：Hydra 可插拔化 + Contract v1 时序切分 + 参数量对齐工具 | `src/fusion/`, `src/contracts/`, `src/utils/`, `configs/`, `scripts/train_baseline_v0.py`, `scripts/build_contract.py`, `dvc.yaml`, `CLAUDE.md` |
 
 ---
 
@@ -46,17 +47,17 @@
 
 | 目录 / 主题 | 相关 entries |
 |-------------|--------------|
-| `CLAUDE.md` | 001, 002, 003, 004, 009 |
+| `CLAUDE.md` | 001, 002, 003, 004, 009, 011 |
 | `data/` 组织与 DVC | 002 |
-| `configs/` (Hydra) | 002 |
-| `src/utils/` (seed, logger) | 002 |
-| `src/contracts/` | 003 |
-| `scripts/` (train, eval) | 003 |
+| `configs/` (Hydra) | 002, 011（fusion/model config-group、base.yaml 必填字段） |
+| `src/utils/` (seed, logger) | 002, 011（param_budget） |
+| `src/contracts/` | 003, 011（Contract v1 时序切分） |
+| `scripts/` (train, eval) | 003, 011（train_baseline_v0.py 改 Hydra entrypoint） |
 | `scripts/lo2-scripts/` | 001 |
 | `docs/agent-docs/` | 001 |
 | `docs/plans/` | 001 |
 | `artifacts/` | 003 |
-| `dvc.yaml` / DVC pipeline | 002 (初始化), 003 (定义 stage), 009 (切换 merged_v2) |
+| `dvc.yaml` / DVC pipeline | 002 (初始化), 003 (定义 stage), 009 (切换 merged_v2), 011 (新增 build_contract_v1/train_v1/eval_v1) |
 | `environment.yml` / `Makefile` | 002 |
 | `.github/workflows/ci.yml` | 002, 004 |
 | `tests/` | 002 (占位), 003 (契约/e2e), 009 (merged_v2_mini fixture + 归档排除/多 root 测试) |
@@ -93,3 +94,4 @@
 - **NaN 传染**：`Normalizer` 等只在 Normal 上 fit 的组件，遇到某 group 全 NaN（数据采集缺口）时不能直接算统计量再 transform 全量数据——NaN 统计量会通过减法/除法把其他数据完好的 case 一起污染。修复方式是在 transform 端对 NaN 统计量做跳过判断，保留原值不做运算（007）。同类模式：`ContractDataset` 的全 NaN 列填 0 兜底（005 Bug 4）
 - **标签精度分级**：数据集里不同数据源标签粒度不一致（case 级近似 vs endpoint 级精确）时，用 contract 层的显式列（如 `label_granularity`）标记精度，而不是靠数据源名字或已有的故障类型字段（如 `anomaly_level`）隐性判断——后者语义上不等价，未来数据源变化会静默失配（008）
 - **门控/条件融合类机制不足以单独构成创新点**：FiLM/GS-Fuse 已是成熟的"表征级门控条件融合"机制类别，套用到新场景不算创新；"service 级特征广播复制到 endpoint 行"这一问题定义本身也对应统计学 hierarchical/panel data 框架，非全新问题。融合类工作若要立论，需要论证"具体场景下的增量价值"而非机制新颖性本身，且消融设计要用参数量对齐 baseline 隔离贡献，避免 confounding variable（010）
+- **One-Class 评估集切分：时序切分优于 leave-service-out**：当 endpoint→service 接近 1:1 映射时，leave-service-out 会把"对未见 endpoint 的泛化能力"错误地测成"异常检测能力"，holdout 正常样本仅因训练时没见过该 endpoint 就被打高分。按时间窗时序切分（同一 case 内早窗训练、晚窗评估）既保证每个 endpoint 在训练/评估都出现，又能让 service 级广播特征的泄漏担忧成立（特征随时间变化，不是常量）——但前提是特征本身有时间变异性，若某场景的 service 级特征在整个观测窗内几乎不变，这条论证不成立，需重新评估（011，翻案 010 的遗留 TODO）
