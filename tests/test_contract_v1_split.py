@@ -1,6 +1,13 @@
+import json
+import subprocess
+import sys
+from pathlib import Path
+
 import pandas as pd
 
 from src.contracts.split_v1 import split_normal_rows_temporal
+
+REPO_ROOT = Path(__file__).parents[1]
 
 # 合成两个 Normal case，模拟真实结构：每个 case 多个时间窗，每窗含全部 8 endpoint。
 # 真实数据两 case 各 108/156 窗（已实测），这里各用 100 窗，够切且比例干净。
@@ -84,13 +91,6 @@ def test_too_few_windows_degrades_gracefully():
     assert list(parts["train_val"].columns) == list(df.columns)
 
 
-import subprocess
-import sys
-from pathlib import Path
-
-REPO_ROOT = Path(__file__).parents[1]
-
-
 def test_build_contract_v1_smoke(tmp_path):
     out_dir = tmp_path / "contract_v1"
     subprocess.run(
@@ -112,8 +112,6 @@ def test_build_contract_v1_smoke(tmp_path):
     for name in ("train_fit", "train_val", "eval_normal_holdout", "train", "eval_all"):
         assert (out_dir / f"{name}.parquet").exists(), f"{name}.parquet 缺失"
 
-    import json
-
     schema = json.loads((out_dir / "schema.json").read_text())
     assert schema["contract_version"] == "v1"
 
@@ -124,3 +122,49 @@ def test_build_contract_v1_smoke(tmp_path):
     assert ids[0] & ids[1] == set()
     assert ids[0] & ids[2] == set()
     assert ids[1] & ids[2] == set()
+
+
+def test_build_contract_v1_normalizer_excludes_holdout(tmp_path):
+    """回归测试：Normalizer 必须只在 train_fit 上 fit，不能看到 eval_normal_holdout。
+
+    直接断言 normalization_stats.json 里的 min/max 与 train_fit-only 重新算出来的
+    min/max 一致；如果未来有人把 fit 范围改回全部 Normal 行（fit+holdout），
+    min/max 会被 holdout 的极值拉宽，与这里的期望值不再相等，从而被本测试捕获。
+    """
+    out_dir = tmp_path / "contract_v1_norm"
+    subprocess.run(
+        [
+            sys.executable,
+            "scripts/build_contract.py",
+            "--config",
+            str(REPO_ROOT / "configs/contract/v1.yaml"),
+            "--dataset",
+            str(REPO_ROOT / "tests/fixtures/mini_dataset.yaml"),
+            "--out-dir",
+            str(out_dir),
+            "--seed",
+            "42",
+        ],
+        check=True,
+        cwd=str(REPO_ROOT),
+    )
+
+    holdout = pd.read_parquet(out_dir / "eval_normal_holdout.parquet")
+    assert len(holdout) > 0, "mini fixture 必须产出非空 holdout，否则本测试无法证明隔离"
+
+    stats = json.loads((out_dir / "normalization_stats.json").read_text())
+    col = "endpoint_red__trace_request_count"
+    group = "POST:/api/v1/travelservice/trips/left"
+    persisted_lo, persisted_hi = stats[col]["by_group"][group]
+
+    # mini fixture 的原始 CSV 里该 endpoint 三个时间窗的 trace_request_count 依次为
+    # 8/10/6（见 tests/fixtures/mini_data_root/Normal/_pipeline_out/tt_traces_red_15s.csv）。
+    # fit_frac=0.6 对 3 个窗取 int(3*0.6)=1 个窗给 train_fit，即只有第一个窗（值=8）。
+    # 若 fit 范围正确收窄到 train_fit，min/max 应为 [8.0, 8.0]；若退化回旧 bug
+    # （在全部 Normal 行上 fit，即 8/10/6 都参与），min/max 会变成 [6.0, 10.0]——
+    # 与这里的期望值不同，从而让本测试在 bug 重新引入时失败。
+    assert (persisted_lo, persisted_hi) == (8.0, 8.0), (
+        f"{col}/{group} 的 fit 统计量应只由 train_fit 那 1 行（值=8.0）决定，"
+        f"实际 persisted=[{persisted_lo}, {persisted_hi}]，说明 fit 范围泄漏了"
+        "train_fit 之外的 Normal 行（可能是 train_val 或 eval_normal_holdout）"
+    )

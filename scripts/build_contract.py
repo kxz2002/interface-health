@@ -366,7 +366,23 @@ def main() -> None:
     normalizer = Normalizer(_build_normalizer_rules(cfg))
     # 分组归一化需要 endpoint_key / service_name 列，故传完整子集而非仅特征列
     group_cols = ["endpoint_key", "service_name"]
-    normalizer.fit(full[normal_mask].reset_index(drop=True))
+    if cfg.contract_version == "v1":
+        # v1 把 Normal 行时序切分成 train_fit/train_val/eval_normal_holdout，
+        # eval_normal_holdout 是留给评估的"未来"数据。若 Normalizer 在全部 Normal 行
+        # （包含 holdout）上 fit，min/max 统计量会被 holdout 的取值影响，再用这份统计量
+        # transform 全部行——holdout 虽然在行集合层面被隔离了，但它的数值已经通过归一化
+        # 尺度渗透进了训练特征，是比行重叠更隐蔽的一种泄漏。fit 范围必须收窄到 train_fit。
+        fit_sample_ids = set(
+            split_normal_rows_temporal(full[normal_mask].reset_index(drop=True), seed=args.seed)[
+                "train_fit"
+            ]["sample_id"]
+        )
+        fit_df = full[full["sample_id"].isin(fit_sample_ids)].reset_index(drop=True)
+    else:
+        # v0：train 的定义本身就是"全部 Normal 行"，fit 范围与 train 一致，没有泄漏问题，
+        # 保持原行为不变
+        fit_df = full[normal_mask].reset_index(drop=True)
+    normalizer.fit(fit_df)
     full[feature_cols] = normalizer.transform(full[feature_cols + group_cols])[feature_cols]
     normalizer.save(out / "normalization_stats.json")
 

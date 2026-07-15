@@ -93,9 +93,18 @@ dvc repro train_v0               # 只重跑训练（contract parquet → scores
 dvc repro eval_v0                # 只重跑评估（scores → metrics）
 
 # 单独运行（不走 DVC 缓存）
-python scripts/build_contract.py --config configs/contract/v0.yaml --dataset configs/data/merged_v1.yaml --out-dir artifacts/contract_v0 --seed 42
+python scripts/build_contract.py --config configs/contract/v0.yaml --dataset configs/data/merged_v2.yaml --out-dir artifacts/contract_v0 --seed 42
 python scripts/train_baseline_v0.py contract_dir=artifacts/contract_v0 out=artifacts/baseline_v0/scores.parquet seed=42 training.epochs=50 fusion=concat model=deep_svdd
 python scripts/eval_baseline_v0.py --scores artifacts/baseline_v0/scores.parquet --out artifacts/baseline_v0/metrics.json
+
+# === Contract v1（时序切分，修复 train/eval 行重叠）===
+dvc repro build_contract_v1 train_v1 eval_v1   # 只重跑 v1 链路
+dvc metrics show                               # 同时展示 baseline_v0/v1 的 metrics.json
+
+# 单独运行（不走 DVC 缓存）
+python scripts/build_contract.py --config configs/contract/v1.yaml --dataset configs/data/merged_v2.yaml --out-dir artifacts/contract_v1 --seed 42
+python scripts/train_baseline_v0.py contract_dir=artifacts/contract_v1 out=artifacts/baseline_v1/scores.parquet seed=42 training.epochs=50 fusion=concat model=deep_svdd
+python scripts/eval_baseline_v0.py --scores artifacts/baseline_v1/scores.parquet --out artifacts/baseline_v1/metrics.json
 
 # 运行测试
 pytest tests/
