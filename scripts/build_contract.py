@@ -372,12 +372,13 @@ def main() -> None:
         # （包含 holdout）上 fit，min/max 统计量会被 holdout 的取值影响，再用这份统计量
         # transform 全部行——holdout 虽然在行集合层面被隔离了，但它的数值已经通过归一化
         # 尺度渗透进了训练特征，是比行重叠更隐蔽的一种泄漏。fit 范围必须收窄到 train_fit。
-        fit_sample_ids = set(
-            split_normal_rows_temporal(full[normal_mask].reset_index(drop=True), seed=args.seed)[
-                "train_fit"
-            ]["sample_id"]
-        )
-        fit_df = full[full["sample_id"].isin(fit_sample_ids)].reset_index(drop=True)
+        # 直接用 split 出的 train_fit DataFrame 本身来 fit，不经过 sample_id 集合再过滤——
+        # sample_id 唯一性只在 scores 契约层强制，build 阶段未校验；若存在重复 sample_id，
+        # 用 set+isin 反查 full 可能把本该属于 train_val/holdout 的同 sample_id 行也拉回
+        # fit 集合，悄悄重新引入本该修复的泄漏。直接用 split 返回的 DataFrame 没有这个风险。
+        fit_df = split_normal_rows_temporal(
+            full[normal_mask].reset_index(drop=True), seed=args.seed
+        )["train_fit"]
     else:
         # v0：train 的定义本身就是"全部 Normal 行"，fit 范围与 train 一致，没有泄漏问题，
         # 保持原行为不变

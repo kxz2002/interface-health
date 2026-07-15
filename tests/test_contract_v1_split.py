@@ -123,6 +123,18 @@ def test_build_contract_v1_smoke(tmp_path):
     assert ids[0] & ids[2] == set()
     assert ids[1] & ids[2] == set()
 
+    # 核心不变量：train.parquet 与 eval_all.parquet 的 sample_id 必须互斥。
+    # 这正是 Contract v1 存在的理由（修复 v0 的 train ⊆ eval_all 泄漏）；若
+    # _write_v1 回归成 eval_all = anomaly_df + 全部 normal_df，其他测试均不会
+    # 发现，只有这条断言会失守。
+    train = pd.read_parquet(out_dir / "train.parquet")
+    eval_all = pd.read_parquet(out_dir / "eval_all.parquet")
+    assert set(train["sample_id"]) & set(eval_all["sample_id"]) == set(), (
+        "train.parquet 与 eval_all.parquet 的 sample_id 有重叠——"
+        "这正是 Contract v1 存在的理由（修复 v0 的 train ⊆ eval_all），"
+        "此断言失守说明泄漏修复被破坏"
+    )
+
 
 def test_build_contract_v1_normalizer_excludes_holdout(tmp_path):
     """回归测试：Normalizer 必须只在 train_fit 上 fit，不能看到 eval_normal_holdout。

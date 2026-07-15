@@ -10,13 +10,13 @@ REPO_ROOT = Path(__file__).parents[1]
 MINI_DATA_ROOT = REPO_ROOT / "tests/fixtures/mini_data_root"
 
 
-def _build_contract(contract_dir: Path) -> None:
+def _build_contract(contract_dir: Path, config: str = "configs/contract/v0.yaml") -> None:
     subprocess.run(
         [
             sys.executable,
             "scripts/build_contract.py",
             "--config",
-            str(REPO_ROOT / "configs/contract/v0.yaml"),
+            str(REPO_ROOT / config),
             "--dataset",
             str(REPO_ROOT / "tests/fixtures/mini_dataset.yaml"),
             "--out-dir",
@@ -98,3 +98,18 @@ def test_train_baseline_v0_scores_carry_endpoint_label_columns(tmp_path):
         == merged["is_endpoint_anomaly_src"].astype(bool)
     ).all()
     assert (merged["label_granularity_out"] == merged["label_granularity_src"]).all()
+
+
+def test_train_baseline_v0_works_end_to_end_on_v1_contract(tmp_path):
+    """v1 训练路径此前无任何端到端覆盖——v1 专属问题（如 train_fit 太小、
+    eval_all schema 漂移）此前会绿着上线。复用同一份训练脚本对 v1 contract 跑一遍。"""
+    contract_dir = tmp_path / "contract_v1"
+    _build_contract(contract_dir, config="configs/contract/v1.yaml")
+
+    out = tmp_path / "scores_v1.parquet"
+    _train(contract_dir, out)
+
+    df = pd.read_parquet(out)
+    validate_scores_df(df)
+    eval_all = pd.read_parquet(contract_dir / "eval_all.parquet")
+    assert len(df) == len(eval_all)
