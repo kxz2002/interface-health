@@ -54,8 +54,8 @@ stages:
       size: 647
     - path: scripts/build_contract.py
       hash: md5
-      md5: 47263122f398fbf90485f709fcecb086
-      size: 20239
+      md5: dd4226cf003740eaf719b2912939e1cc
+      size: 20551
     - path: src/contracts/contract_v0.py
       hash: md5
       md5: c6e63c9f72db6cc8ed06db6ec0e2fb2d
@@ -190,7 +190,7 @@ stages:
       size: 647
     - path: scripts/build_contract.py
       hash: md5
-      md5: 3f00d0a10f71ee3de55c79a449ddbe39
+      md5: dd4226cf003740eaf719b2912939e1cc
       size: 20551
     - path: src/contracts/contract_v0.py
       hash: md5
