@@ -93,9 +93,18 @@ dvc repro train_v0               # 只重跑训练（contract parquet → scores
 dvc repro eval_v0                # 只重跑评估（scores → metrics）
 
 # 单独运行（不走 DVC 缓存）
-python scripts/build_contract.py --config configs/contract/v0.yaml --dataset configs/data/merged_v1.yaml --out-dir artifacts/contract_v0 --seed 42
-python scripts/train_baseline_v0.py --contract-dir artifacts/contract_v0 --out artifacts/baseline_v0/scores.parquet --seed 42 --epochs 50
+python scripts/build_contract.py --config configs/contract/v0.yaml --dataset configs/data/merged_v2.yaml --out-dir artifacts/contract_v0 --seed 42
+python scripts/train_baseline_v0.py contract_dir=artifacts/contract_v0 out=artifacts/baseline_v0/scores.parquet seed=42 training.epochs=50 fusion=concat model=deep_svdd
 python scripts/eval_baseline_v0.py --scores artifacts/baseline_v0/scores.parquet --out artifacts/baseline_v0/metrics.json
+
+# === Contract v1（时序切分，修复 train/eval 行重叠）===
+dvc repro build_contract_v1 train_v1 eval_v1   # 只重跑 v1 链路
+dvc metrics show                               # 同时展示 baseline_v0/v1 的 metrics.json
+
+# 单独运行（不走 DVC 缓存）
+python scripts/build_contract.py --config configs/contract/v1.yaml --dataset configs/data/merged_v2.yaml --out-dir artifacts/contract_v1 --seed 42
+python scripts/train_baseline_v0.py contract_dir=artifacts/contract_v1 out=artifacts/baseline_v1/scores.parquet seed=42 training.epochs=50 fusion=concat model=deep_svdd
+python scripts/eval_baseline_v0.py --scores artifacts/baseline_v1/scores.parquet --out artifacts/baseline_v1/metrics.json
 
 # 运行测试
 pytest tests/
@@ -106,7 +115,8 @@ pytest tests/
 - 超参数禁止硬编码在代码中，必须通过配置文件指定
 - 命令行覆盖语法（Hydra）: `python scripts/train.py model.hidden_dim=256 training.lr=1e-4`
 - 切换配置组: `python scripts/train.py model=vae`
-- 模型通过 `hydra.utils.instantiate(cfg.model)` 实例化，`_target_` 指向具体类
+- 模型通过 `hydra.utils.instantiate(cfg.model)` 实例化，融合机制同理通过 `hydra.utils.instantiate(cfg.fusion)` 实例化，`_target_` 指向具体类
+- `train_baseline_v0.py` 是 `@hydra.main` 入口：`contract_dir`/`out` 是 `configs/base.yaml` 里的必填 Hydra 字段（`???`），不是 argparse flag，调用改用 `contract_dir=... out=...` override 语法
 - `configs/data/*.yaml` 声明数据集组成：`roots`（合并哪些数据源目录）+ `normal_source`（Normal 只取自哪个 root）。如 `merged_v1.yaml` = anomod_v1 + endpoint_raw2；`build_contract.py --dataset <该文件>` 消费
 
 ## Data Rules
@@ -195,9 +205,9 @@ Types:
 > Commit attribution 已全局禁用，无需添加 Co-Authored-By 行。
 <!-- ARIS:BEGIN -->
 ## ARIS Skill Scope
-ARIS skills installed in this project: 80 entries.
+ARIS skills installed in this project: 81 entries.
 Manifest: `.aris/installed-skills.txt` (lists every skill ARIS installed and its upstream target).
 For ARIS workflows, prefer the project-local skills under `.claude/skills/` over global skills.
-Do not modify or delete files inside any skill that is a symlink (symlinks point into `/home/kxz2002/Code/Repos/Auto-claude-code-research-in-sleep`).
-Update with: `bash /home/kxz2002/Code/Repos/Auto-claude-code-research-in-sleep/tools/install_aris.sh`  (re-runnable; reconciles new/removed skills).
+Do not modify or delete files inside any skill that is a symlink (symlinks point into `/home/liu/Code/Repos/aris-llm-chat-mirror`).
+Update with: `bash /home/liu/Code/Repos/aris-llm-chat-mirror/tools/install_aris.sh`  (re-runnable; reconciles new/removed skills).
 <!-- ARIS:END -->

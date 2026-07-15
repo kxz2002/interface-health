@@ -10,13 +10,13 @@ REPO_ROOT = Path(__file__).parents[1]
 MINI_DATA_ROOT = REPO_ROOT / "tests/fixtures/mini_data_root"
 
 
-def _build_contract(contract_dir: Path) -> None:
+def _build_contract(contract_dir: Path, config: str = "configs/contract/v0.yaml") -> None:
     subprocess.run(
         [
             sys.executable,
             "scripts/build_contract.py",
             "--config",
-            str(REPO_ROOT / "configs/contract/v0.yaml"),
+            str(REPO_ROOT / config),
             "--dataset",
             str(REPO_ROOT / "tests/fixtures/mini_dataset.yaml"),
             "--out-dir",
@@ -29,27 +29,27 @@ def _build_contract(contract_dir: Path) -> None:
     )
 
 
+def _train(contract_dir: Path, out: Path, seed: int = 42, epochs: int = 2) -> None:
+    subprocess.run(
+        [
+            sys.executable,
+            "scripts/train_baseline_v0.py",
+            f"contract_dir={contract_dir}",
+            f"out={out}",
+            f"seed={seed}",
+            f"training.epochs={epochs}",
+        ],
+        check=True,
+        cwd=str(REPO_ROOT),
+    )
+
+
 def test_train_baseline_v0_writes_scores_contract(tmp_path):
     contract_dir = tmp_path / "contract"
     _build_contract(contract_dir)
 
     out = tmp_path / "scores.parquet"
-    subprocess.run(
-        [
-            sys.executable,
-            "scripts/train_baseline_v0.py",
-            "--contract-dir",
-            str(contract_dir),
-            "--out",
-            str(out),
-            "--seed",
-            "42",
-            "--epochs",
-            "2",
-        ],
-        check=True,
-        cwd=str(REPO_ROOT),
-    )
+    _train(contract_dir, out)
 
     df = pd.read_parquet(out)
     validate_scores_df(df)
@@ -67,22 +67,7 @@ def test_train_baseline_v0_is_reproducible(tmp_path):
     out1 = tmp_path / "scores1.parquet"
     out2 = tmp_path / "scores2.parquet"
     for out in (out1, out2):
-        subprocess.run(
-            [
-                sys.executable,
-                "scripts/train_baseline_v0.py",
-                "--contract-dir",
-                str(contract_dir),
-                "--out",
-                str(out),
-                "--seed",
-                "42",
-                "--epochs",
-                "2",
-            ],
-            check=True,
-            cwd=str(REPO_ROOT),
-        )
+        _train(contract_dir, out)
 
     df1 = pd.read_parquet(out1).sort_values("sample_id").reset_index(drop=True)
     df2 = pd.read_parquet(out2).sort_values("sample_id").reset_index(drop=True)
@@ -96,22 +81,7 @@ def test_train_baseline_v0_scores_carry_endpoint_label_columns(tmp_path):
     _build_contract(contract_dir)
 
     out = tmp_path / "scores.parquet"
-    subprocess.run(
-        [
-            sys.executable,
-            "scripts/train_baseline_v0.py",
-            "--contract-dir",
-            str(contract_dir),
-            "--out",
-            str(out),
-            "--seed",
-            "42",
-            "--epochs",
-            "2",
-        ],
-        check=True,
-        cwd=str(REPO_ROOT),
-    )
+    _train(contract_dir, out)
 
     df = pd.read_parquet(out)
     eval_all = pd.read_parquet(contract_dir / "eval_all.parquet")
@@ -128,3 +98,18 @@ def test_train_baseline_v0_scores_carry_endpoint_label_columns(tmp_path):
         == merged["is_endpoint_anomaly_src"].astype(bool)
     ).all()
     assert (merged["label_granularity_out"] == merged["label_granularity_src"]).all()
+
+
+def test_train_baseline_v0_works_end_to_end_on_v1_contract(tmp_path):
+    """v1 训练路径此前无任何端到端覆盖——v1 专属问题（如 train_fit 太小、
+    eval_all schema 漂移）此前会绿着上线。复用同一份训练脚本对 v1 contract 跑一遍。"""
+    contract_dir = tmp_path / "contract_v1"
+    _build_contract(contract_dir, config="configs/contract/v1.yaml")
+
+    out = tmp_path / "scores_v1.parquet"
+    _train(contract_dir, out)
+
+    df = pd.read_parquet(out)
+    validate_scores_df(df)
+    eval_all = pd.read_parquet(contract_dir / "eval_all.parquet")
+    assert len(df) == len(eval_all)
