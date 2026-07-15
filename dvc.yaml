@@ -35,12 +35,18 @@ stages:
       - artifacts/contract_v0/schema.json
 
   train_v0:
-    cmd: python scripts/train_baseline_v0.py --contract-dir artifacts/contract_v0 --out
-      artifacts/baseline_v0/scores.parquet --seed 42 --epochs 50
+    cmd: python scripts/train_baseline_v0.py contract_dir=artifacts/contract_v0
+      out=artifacts/baseline_v0/scores.parquet seed=42 training.epochs=50
+      fusion=concat model=deep_svdd
     deps:
       - scripts/train_baseline_v0.py
+      - configs/base.yaml
+      - configs/fusion/concat.yaml
+      - configs/model/deep_svdd.yaml
+      - configs/training/default.yaml
       - src/models/deep_svdd.py
       - src/fusion/early_concat.py
+      - src/fusion/base.py
       - src/data/contract_dataloader.py
       - artifacts/contract_v0/train.parquet
       - artifacts/contract_v0/eval_all.parquet
