@@ -103,6 +103,43 @@ def test_global_scope_all_nan_in_fit_keeps_original_values():
     assert out["endpoint_red__trace_5xx_rate"].tolist() == [0.2, 0.9]
 
 
+def test_group_zero_variance_in_fit_keeps_original_values():
+    """fit 集合该 group 只有单一取值（hi-lo=0）时，min-max 无法提供有效 scale，
+    必须像全 NaN 一样跳过归一化保留原值。回归测试：修复前的实现用 max(hi-lo, 1e-9)
+    托底除数，零方差退化组会把 eval 里任何非零差值放大 1e9 倍，产出 1e9~1e13 量级的
+    离谱数值（曾在 artifacts/contract_v1/eval_all.parquet 的
+    endpoint_red__client_latency_p95 / latency_divergence 两列上实际发生）。
+    """
+    fit_df = pd.DataFrame(
+        {
+            "endpoint_key": ["ep-degenerate"] * 3,
+            "endpoint_red__client_latency_p95": [22679.9015, 22679.9015, 22679.9015],
+        }
+    )
+    norm = Normalizer(rules={"endpoint_red__client_latency_p95": ("per_endpoint", "min_max")})
+    norm.fit(fit_df)
+
+    eval_df = pd.DataFrame(
+        {
+            "endpoint_key": ["ep-degenerate"],
+            "endpoint_red__client_latency_p95": [5417.588],  # 真实 eval 值，偏离 fit 常量
+        }
+    )
+    out = norm.transform(eval_df)
+    assert out["endpoint_red__client_latency_p95"].iloc[0] == pytest.approx(5417.588)
+    assert norm.skipped_groups()["endpoint_red__client_latency_p95"] == ["ep-degenerate"]
+
+
+def test_global_scope_zero_variance_in_fit_keeps_original_values():
+    fit_df = pd.DataFrame({"endpoint_red__trace_5xx_rate": [0.0, 0.0, 0.0]})
+    norm = Normalizer(rules={"endpoint_red__trace_5xx_rate": ("global", "min_max")})
+    norm.fit(fit_df)
+
+    other_df = pd.DataFrame({"endpoint_red__trace_5xx_rate": [0.2, 0.9]})
+    out = norm.transform(other_df)
+    assert out["endpoint_red__trace_5xx_rate"].tolist() == [0.2, 0.9]
+
+
 def test_group_partially_nan_in_fit_uses_non_nan_subset():
     """group 只是部分 NaN（非全 NaN）时，fit 用 pandas 默认 skipna 语义从非 NaN 子集
     算统计量，正常参与归一化——不同于全 NaN 时的跳过路径。这里显式钉住该行为，

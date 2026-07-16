@@ -39,6 +39,7 @@
 | [010](./entries/010-gated-fusion-novelty-check.md) | 2026-07-14 | Docs | Gated Conditional Fusion 立项前 novelty-check 结论（暂缓门控实现，转向补基础设施） | `history/`, `src/fusion/`（后续实施方向） |
 | [011](./entries/011-fusion-ablation-infra.md) | 2026-07-15 | Feature/Refactor | Fusion 消融基础设施：Hydra 可插拔化 + Contract v1 时序切分 + 参数量对齐工具 | `src/fusion/`, `src/contracts/`, `src/utils/`, `configs/`, `scripts/train_baseline_v0.py`, `scripts/build_contract.py`, `dvc.yaml`, `CLAUDE.md` |
 | [012](./entries/012-fusion-l1-l2-gated-ablation.md) | 2026-07-15 | Experiment | L1/L2 融合消融：独立编码器 + 门控条件融合实测 | `src/fusion/`, `configs/fusion/`, `tests/` |
+| [013](./entries/013-fix-normalizer-zero-variance-explosion.md) | 2026-07-16 | Bugfix | 修复 Normalizer 零方差 group 除零放大 bug（endpoint_red latency 列 1e13 异常值） | `src/data/normalization.py`, `scripts/build_contract.py`, `tests/test_normalization.py`, `CLAUDE.md` |
 
 ---
 
@@ -74,7 +75,7 @@
 | `configs/data/`（多数据源配置） | 006, 009 |
 | `src/data/dataset_config.py` | 006 |
 | `configs/contract/endpoint_to_service.yaml` | 006 |
-| `src/data/normalization.py`（Normalizer） | 007 |
+| `src/data/normalization.py`（Normalizer） | 007, 013（零方差 group 除零放大） |
 | `src/preprocessors/trace_preprocessor.py`（is_target_endpoint 传递） | 008 |
 | `scripts/build_contract.py`（label_granularity/is_endpoint_anomaly 标签路由，`_attach_label_columns`） | 006, 008 |
 | `scripts/train_baseline_v0.py`（out_df 显式字段字典，新增列需手动传递） | 008 |
@@ -93,6 +94,7 @@
 - **环境管理**：Kiro/Claude 默认 base conda，验证 `interface` 环境用 `conda run -n interface`（002）
 - **log 模态信号**：Train-Ticket 数据集中 `_previous_*.log` 是断掉的 K8s 符号连结，log 采集仅覆盖实验末尾几分钟；log 特征大面积 NaN 属数据采集限制，非代码 bug；重采时需在 pod 存活期间拷贝历史文件（005）
 - **NaN 传染**：`Normalizer` 等只在 Normal 上 fit 的组件，遇到某 group 全 NaN（数据采集缺口）时不能直接算统计量再 transform 全量数据——NaN 统计量会通过减法/除法把其他数据完好的 case 一起污染。修复方式是在 transform 端对 NaN 统计量做跳过判断，保留原值不做运算（007）。同类模式：`ContractDataset` 的全 NaN 列填 0 兜底（005 Bug 4）
+- **零方差同样要跳过归一化，不能只处理 NaN**：min-max 归一化在某 group 的 fit 集合只有单一取值时 `hi-lo=0`，若用 `max(hi-lo, eps)` 托底除数而不是跳过，eval 侧任何非零差值都会被放大 `1/eps` 倍，产出 1e9~1e13 量级的"有值但离谱"的数（区别于 NaN 传染，NaN 传染是把数据抹掉，这个是把数据放大到失真）。判定条件要从"仅 NaN"扩展成"NaN 或零方差"，两者统一走跳过路径（013，是 007 约定的直接延伸）
 - **标签精度分级**：数据集里不同数据源标签粒度不一致（case 级近似 vs endpoint 级精确）时，用 contract 层的显式列（如 `label_granularity`）标记精度，而不是靠数据源名字或已有的故障类型字段（如 `anomaly_level`）隐性判断——后者语义上不等价，未来数据源变化会静默失配（008）
 - **门控/条件融合类机制不足以单独构成创新点**：FiLM/GS-Fuse 已是成熟的"表征级门控条件融合"机制类别，套用到新场景不算创新；"service 级特征广播复制到 endpoint 行"这一问题定义本身也对应统计学 hierarchical/panel data 框架，非全新问题。融合类工作若要立论，需要论证"具体场景下的增量价值"而非机制新颖性本身，且消融设计要用参数量对齐 baseline 隔离贡献，避免 confounding variable（010）
 - **One-Class 评估集切分：时序切分优于 leave-service-out**：当 endpoint→service 接近 1:1 映射时，leave-service-out 会把"对未见 endpoint 的泛化能力"错误地测成"异常检测能力"，holdout 正常样本仅因训练时没见过该 endpoint 就被打高分。按时间窗时序切分（同一 case 内早窗训练、晚窗评估）既保证每个 endpoint 在训练/评估都出现，又能让 service 级广播特征的泄漏担忧成立（特征随时间变化，不是常量）——但前提是特征本身有时间变异性，若某场景的 service 级特征在整个观测窗内几乎不变，这条论证不成立，需重新评估（011，翻案 010 的遗留 TODO）

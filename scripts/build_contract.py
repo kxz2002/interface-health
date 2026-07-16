@@ -394,12 +394,13 @@ def main() -> None:
     for col in rate_feature_cols:
         skipped_groups = skipped.get(col)
         if skipped_groups:
-            # 该列在这些 group 上 Normal fit 集合全 NaN，transform 时跳过了归一化，
-            # 保留的是未归一化的原始量纲。裁剪到 [0,1] 的语义是"超过正常上界即完全异常"，
-            # 对未归一化的原始值不成立——裁剪前必须先提醒，而非静默按归一化语义处理。
+            # 该列在这些 group 上 Normal fit 集合退化（全 NaN 或零方差），transform 时
+            # 跳过了归一化，保留的是未归一化的原始量纲。裁剪到 [0,1] 的语义是"超过正常
+            # 上界即完全异常"，对未归一化的原始值不成立——裁剪前必须先提醒，而非静默按
+            # 归一化语义处理。
             LOG.warning(
-                "%s 在 group=%s 上因 Normal fit 全 NaN 跳过归一化，clip(0,1) 会按原始量纲裁剪，"
-                "可能误判正常原始值为完全异常",
+                "%s 在 group=%s 上因 Normal fit 退化（全 NaN 或零方差）跳过归一化，"
+                "clip(0,1) 会按原始量纲裁剪，可能误判正常原始值为完全异常",
                 col,
                 skipped_groups,
             )

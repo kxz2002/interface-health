@@ -181,7 +181,7 @@ pytest tests/
 - **eval NaN 填补用 train 均值**：`ContractDataset(fit_on_parquet=train.parquet)` 用训练集统计量填 eval 的 NaN，严禁用 eval 自身均值，否则 eval 统计泄漏到特征
 - **Log join 静默 NaN**：log 特征经 left join 接入，若某 service 在该时间窗口无日志（如 service 挂了），特征为 NaN，后续均值填补会静默抹掉这个"service 无响应"信号
 - **Drain3 输出是聚合统计量，不是 raw token**：LogPreprocessor 产出的是 event_rate/error_ratio/template_diversity 三列，template_id 只作为分组 key 计算多样性，不直接进入特征
-- **Normalizer 全 NaN group 不做归一化，保留原值**：某 group（或 global scope）在 fit 集合（仅 Normal）里全 NaN 时，`transform()` 必须跳过该 group 的归一化运算，不能把 `[nan, nan]` 统计量通过减法/除法应用到全量数据——会把其他数据完好的 case 一起污染成 NaN。跳过后保留原始量纲；若某列同时受 `RATE_COLUMNS` 的 `clip(0,1)` 约束，需确认原始量纲天然落在 `[0,1]`，否则 clip 会把正常值误判为异常
+- **Normalizer 退化 group（全 NaN 或零方差）不做归一化，保留原值**：某 group（或 global scope）在 fit 集合（仅 Normal）里全 NaN，或只出现过单一取值（`hi-lo=0`）时，`transform()` 必须跳过该 group 的归一化运算——全 NaN 会把 `[nan, nan]` 统计量通过减法/除法扩散污染其他数据完好的 case；零方差若不跳过、只是把除数下限到 `1e-9`，会把 eval 侧任何非零差值放大 1e9 倍，产出 1e9~1e13 量级的离谱数值（`endpoint_red__client_latency_p95`/`latency_divergence` 曾实际命中，2026-07-16 修复，见 history 013）。跳过后保留原始量纲；若某列同时受 `RATE_COLUMNS` 的 `clip(0,1)` 约束，需确认原始量纲天然落在 `[0,1]`，否则 clip 会把正常值误判为异常
 - **per-endpoint 标签精度**：contract pipeline 按 case 是否含 `target_endpoint`（`case_metadata.json`）产出 `label_granularity`（`"endpoint"` 精确 / `"case"` 近似 fallback）和 `is_endpoint_anomaly`（= `is_target_endpoint AND phase=='inject'`）。判定依据是 `target_endpoint` 字段是否存在，**不是** `anomaly_level`（那是故障类型描述，语义不等价，未来数据源变化会失配）。`is_anomaly`/`y_true` 语义不变（仍是 case 级）；`eval_baseline_v0.py` 的四层分层（overall/by_anomaly_type/by_anomaly_level/by_endpoint）统一用 `is_endpoint_anomaly`
 
 ## Git Commit Convention

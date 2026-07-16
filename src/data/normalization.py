@@ -16,6 +16,17 @@ _GROUP_COL: dict[Scope, str | None] = {
     "global": None,
 }
 
+# fit 集合该 group 只有单一取值（或更少）时 hi-lo 为 0，min-max 无法提供有效 scale。
+# 用这个容差判"零方差退化"而不是严格 == 0，同时也覆盖浮点误差下的近零 gap。
+_DEGENERATE_GAP_EPS = 1e-9
+
+
+def _is_degenerate(lo: float, hi: float) -> bool:
+    """lo/hi 为 NaN（fit 集合全 NaN）或 hi-lo≈0（fit 集合零方差）时，min-max 无法
+    提供有效 scale，两者都应跳过归一化、保留原值——否则 (value-lo)/(hi-lo) 在零方差
+    情形下会被除数下限（历史实现里的 1e-9 地板）放大出 1e9~1e13 量级的离谱数值。"""
+    return pd.isna(lo) or pd.isna(hi) or (hi - lo) < _DEGENERATE_GAP_EPS
+
 
 @dataclass
 class _Stats:
@@ -42,14 +53,15 @@ class Normalizer:
             self._stats[col] = _Stats(scope=scope, method=method, by_group=by_group)
 
     def skipped_groups(self) -> dict[str, list[str]]:
-        """返回 fit 阶段统计量全 NaN、transform 时被跳过归一化的 {列名: [group...]}。
+        """返回 fit 阶段统计量退化（全 NaN 或零方差）、transform 时被跳过归一化的
+        {列名: [group...]}。
 
         调用方（如 build_contract 的 RATE_COLUMNS clip 逻辑）需要知道哪些列在哪些
         group 上其实是未归一化的原始量纲，避免对原始量纲值做 [0,1] 语义的裁剪。
         """
         result: dict[str, list[str]] = {}
         for col, stats in self._stats.items():
-            groups = [g for g, (lo, hi) in stats.by_group.items() if pd.isna(lo) or pd.isna(hi)]
+            groups = [g for g, (lo, hi) in stats.by_group.items() if _is_degenerate(lo, hi)]
             if groups:
                 result[col] = groups
         return result
@@ -62,23 +74,26 @@ class Normalizer:
             group_col = _GROUP_COL[stats.scope]
             if group_col is None:
                 lo, hi = stats.by_group["__global__"]
-                if pd.isna(lo) or pd.isna(hi):
-                    # fit 集合该列全 NaN（如某模态在 Normal 上采集缺失）：lo/hi 本身是
-                    # NaN，(value - lo) 天然就是 NaN，会把所有 case（即便它们该列数据
-                    # 完好）都抹成 NaN。跳过归一化、保留原值，避免拿不到统计量就销毁数据。
+                if _is_degenerate(lo, hi):
+                    # fit 集合该列全 NaN（如某模态在 Normal 上采集缺失）或零方差（fit
+                    # 集合里只出现过单一取值）：前者 lo/hi 本身是 NaN，(value-lo) 天然
+                    # 就是 NaN；后者 hi-lo=0，若不跳过会走到下面的除法，被除数下限
+                    # （1e-9）放大成 1e9~1e13 量级的离谱数值——两种情形都是"min-max
+                    # 无法提供有效 scale"，统一跳过归一化、保留原值。
                     continue
-                out[col] = (out[col] - lo) / max(hi - lo, 1e-9)
+                out[col] = (out[col] - lo) / (hi - lo)
             else:
                 # 归一化结果是 float，整列先转 float 避免对 int 列做 mask 赋值触发 dtype 警告
                 out[col] = out[col].astype(float)
                 # 未知组（fit 时未见过的 group_col 值）保持原值
                 for g, (lo, hi) in stats.by_group.items():
-                    if pd.isna(lo) or pd.isna(hi):
-                        # 同上：该 group 在 fit 集合里全 NaN，跳过归一化保留原值，
-                        # 不让 nan 统计量通过减法/除法扩散到其他 case 里的真实数值
+                    if _is_degenerate(lo, hi):
+                        # 同上：该 group 在 fit 集合里退化（全 NaN 或零方差），跳过归
+                        # 一化保留原值，不让退化统计量通过减法/除法把其他 case 里的
+                        # 真实数值放大或抹成 NaN
                         continue
                     mask = out[group_col] == g
-                    out.loc[mask, col] = (out.loc[mask, col] - lo) / max(hi - lo, 1e-9)
+                    out.loc[mask, col] = (out.loc[mask, col] - lo) / (hi - lo)
         return out
 
     def save(self, path: str | Path) -> None:
