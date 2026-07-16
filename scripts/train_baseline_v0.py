@@ -66,6 +66,7 @@ def _train(
     epochs: int,
     optimizer: torch.optim.Optimizer,
 ) -> None:
+    fusion.train()
     svdd.train()
     for epoch in range(epochs):
         total = 0.0
@@ -87,6 +88,7 @@ def _infer(
     svdd: DeepSVDD,
     loader: DataLoader,
 ) -> dict[str, float]:
+    fusion.eval()
     svdd.eval()
     scores: dict[str, float] = {}
     for batch in loader:
@@ -130,9 +132,13 @@ def main(cfg: DictConfig) -> None:
     svdd.init_center(fusion({m: init_batch[m] for m in MODALITY_ORDER}))
 
     # instantiate 整份 optimizer config（lr + weight_decay 都来自 cfg.training.optimizer），
-    # 不手搓、不只挑 lr——避免 weight_decay 等字段静默丢失。svdd.parameters() 作为
-    # 运行时参数在 instantiate 时以 params= 补上（fusion 无可训练参数，只传 svdd）。
-    optimizer = hydra.utils.instantiate(cfg.training.optimizer, params=svdd.parameters())
+    # 不手搓、不只挑 lr——避免 weight_decay 等字段静默丢失。svdd.parameters() 与
+    # fusion.parameters() 都要传入：L0（EarlyConcatFusion）确实无可训练参数，但
+    # L1/L2 等融合机制引入了真实的 nn.Linear 层，遗漏会导致这些层永远停在随机初始化，
+    # 训练全程不更新——只优化 SVDD 会让融合模块的消融实验结果失去意义。
+    optimizer = hydra.utils.instantiate(
+        cfg.training.optimizer, params=list(svdd.parameters()) + list(fusion.parameters())
+    )
 
     train_loader = DataLoader(
         train_ds,
