@@ -140,6 +140,56 @@ def test_global_scope_zero_variance_in_fit_keeps_original_values():
     assert out["endpoint_red__trace_5xx_rate"].tolist() == [0.2, 0.9]
 
 
+def test_group_zero_variance_does_not_affect_other_groups():
+    """同一列里零方差 group 跳过归一化保留原值，同时数据完好的 group 仍正常归一化——
+    这是真实生产形态（部分低频 endpoint 在 fit 窗口内零方差退化，其余 endpoint 正常）。
+    对应 NaN 版 test_group_all_nan_in_fit_does_not_affect_other_groups 的零方差等价，
+    覆盖 transform() 里"跳过分支"与"除法分支"在同一次调用里共存的交互路径。
+    """
+    fit_df = pd.DataFrame(
+        {
+            "endpoint_key": ["ep-degenerate"] * 2 + ["ep-normal"] * 2,
+            "endpoint_red__client_latency_p95": [500.0, 500.0, 100.0, 300.0],
+        }
+    )
+    norm = Normalizer(rules={"endpoint_red__client_latency_p95": ("per_endpoint", "min_max")})
+    norm.fit(fit_df)
+
+    eval_df = pd.DataFrame(
+        {
+            "endpoint_key": ["ep-degenerate", "ep-normal", "ep-normal"],
+            "endpoint_red__client_latency_p95": [880.0, 100.0, 300.0],
+        }
+    )
+    out = norm.transform(eval_df)
+    vals = out["endpoint_red__client_latency_p95"]
+    # 零方差 group 保留原始量纲，不被 1e9 放大
+    assert vals.iloc[0] == pytest.approx(880.0)
+    # 正常 group 仍按 [100, 300] 的 min-max 归一化
+    assert vals.iloc[1] == pytest.approx(0.0)  # (100-100)/(300-100)
+    assert vals.iloc[2] == pytest.approx(1.0)  # (300-100)/(300-100)
+    assert norm.skipped_groups()["endpoint_red__client_latency_p95"] == ["ep-degenerate"]
+
+
+def test_group_narrow_but_nonzero_variance_still_normalizes():
+    """gap 极窄但非零（远大于 1e-9 阈值）的 group 不算退化，仍正常归一化——钉住阈值
+    边界，防止未来把"窄方差"误并入"零方差"跳过路径。"""
+    fit_df = pd.DataFrame(
+        {
+            "endpoint_key": ["ep"] * 2,
+            "endpoint_red__client_latency_p95": [100.0, 100.001],  # gap=1e-3，非退化
+        }
+    )
+    norm = Normalizer(rules={"endpoint_red__client_latency_p95": ("per_endpoint", "min_max")})
+    norm.fit(fit_df)
+
+    assert "endpoint_red__client_latency_p95" not in norm.skipped_groups()
+    out = norm.transform(fit_df)
+    vals = out["endpoint_red__client_latency_p95"]
+    assert vals.iloc[0] == pytest.approx(0.0)
+    assert vals.iloc[1] == pytest.approx(1.0)
+
+
 def test_group_partially_nan_in_fit_uses_non_nan_subset():
     """group 只是部分 NaN（非全 NaN）时，fit 用 pandas 默认 skipna 语义从非 NaN 子集
     算统计量，正常参与归一化——不同于全 NaN 时的跳过路径。这里显式钉住该行为，

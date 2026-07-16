@@ -16,15 +16,18 @@ _GROUP_COL: dict[Scope, str | None] = {
     "global": None,
 }
 
-# fit 集合该 group 只有单一取值（或更少）时 hi-lo 为 0，min-max 无法提供有效 scale。
-# 用这个容差判"零方差退化"而不是严格 == 0，同时也覆盖浮点误差下的近零 gap。
+# fit 集合该 group 只有单一取值时 hi-lo 为 0，min-max 无法提供有效 scale。用容差判
+# "零方差退化"而非严格 == 0：数值取 1e-9，沿用历史实现里 max(hi-lo, 1e-9) 的托底
+# 常量（角色从"除数下限"变为"退化判定阈值"，见 history 013），远大于 float 舍入误差，
+# 因此也会把极窄但非零的真实方差判为退化——在本数据上无此边界样本（最小真实 gap≈0.018）。
 _DEGENERATE_GAP_EPS = 1e-9
 
 
 def _is_degenerate(lo: float, hi: float) -> bool:
-    """lo/hi 为 NaN（fit 集合全 NaN）或 hi-lo≈0（fit 集合零方差）时，min-max 无法
-    提供有效 scale，两者都应跳过归一化、保留原值——否则 (value-lo)/(hi-lo) 在零方差
-    情形下会被除数下限（历史实现里的 1e-9 地板）放大出 1e9~1e13 量级的离谱数值。"""
+    """lo/hi 为 NaN（fit 集合全 NaN）或 hi-lo<eps（fit 集合零方差）时，min-max 无法
+    提供有效 scale，两者都应跳过归一化、保留原值——否则零方差组会走到 (value-lo)/(hi-lo)
+    的除零（inf/NaN）。历史实现用 max(hi-lo, 1e-9) 托底避免除零，反而把差值放大 1e9 倍
+    产出 1e9~1e13 量级离谱数值（history 013），故本次改为跳过而非托底。"""
     return pd.isna(lo) or pd.isna(hi) or (hi - lo) < _DEGENERATE_GAP_EPS
 
 
@@ -77,9 +80,9 @@ class Normalizer:
                 if _is_degenerate(lo, hi):
                     # fit 集合该列全 NaN（如某模态在 Normal 上采集缺失）或零方差（fit
                     # 集合里只出现过单一取值）：前者 lo/hi 本身是 NaN，(value-lo) 天然
-                    # 就是 NaN；后者 hi-lo=0，若不跳过会走到下面的除法，被除数下限
-                    # （1e-9）放大成 1e9~1e13 量级的离谱数值——两种情形都是"min-max
-                    # 无法提供有效 scale"，统一跳过归一化、保留原值。
+                    # 就是 NaN；后者 hi-lo=0，若不跳过会走到下面的除零（产出 inf/NaN，
+                    # 历史托底实现则放大成 1e9~1e13 离谱值）——两种情形都是"min-max 无法
+                    # 提供有效 scale"，统一跳过归一化、保留原值。
                     continue
                 out[col] = (out[col] - lo) / (hi - lo)
             else:
@@ -90,7 +93,7 @@ class Normalizer:
                     if _is_degenerate(lo, hi):
                         # 同上：该 group 在 fit 集合里退化（全 NaN 或零方差），跳过归
                         # 一化保留原值，不让退化统计量通过减法/除法把其他 case 里的
-                        # 真实数值放大或抹成 NaN
+                        # 真实数值抹成 NaN 或（零方差除零时）产出 inf/NaN
                         continue
                     mask = out[group_col] == g
                     out.loc[mask, col] = (out.loc[mask, col] - lo) / (hi - lo)
