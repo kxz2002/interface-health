@@ -38,6 +38,7 @@
 | [009](./entries/009-normal-v2-ingestion.md) | 2026-07-13 | Data | 30/60 分钟重采 Normal 数据接入 DVC pipeline | `configs/data/`, `dvc.yaml`, `dvc.lock`, `artifacts/`, `tests/fixtures/merged_v2_mini/`, `tests/test_dataset_config.py`, `tests/test_build_contract_multi_root.py`, `tests/test_e2e_smoke.py`, `CLAUDE.md` |
 | [010](./entries/010-gated-fusion-novelty-check.md) | 2026-07-14 | Docs | Gated Conditional Fusion 立项前 novelty-check 结论（暂缓门控实现，转向补基础设施） | `history/`, `src/fusion/`（后续实施方向） |
 | [011](./entries/011-fusion-ablation-infra.md) | 2026-07-15 | Feature/Refactor | Fusion 消融基础设施：Hydra 可插拔化 + Contract v1 时序切分 + 参数量对齐工具 | `src/fusion/`, `src/contracts/`, `src/utils/`, `configs/`, `scripts/train_baseline_v0.py`, `scripts/build_contract.py`, `dvc.yaml`, `CLAUDE.md` |
+| [012](./entries/012-fusion-l1-l2-gated-ablation.md) | 2026-07-15 | Experiment | L1/L2 融合消融：独立编码器 + 门控条件融合实测 | `src/fusion/`, `configs/fusion/`, `tests/` |
 
 ---
 
@@ -64,7 +65,7 @@
 | `pyproject.toml` | 002 |
 | `history/` + `skills-local/` | 004 |
 | `Makefile` | 002 (环境), 004 (install-skills) |
-| 多模态融合（`src/fusion/`） | 005, 010 |
+| 多模态融合（`src/fusion/`） | 005, 010, 012 |
 | 模型实现（`src/models/`） | 005 |
 | 数据 loader（`src/data/`） | 005 |
 | 评估指标细化（per-endpoint, phase 对齐） | 005 |
@@ -95,3 +96,4 @@
 - **标签精度分级**：数据集里不同数据源标签粒度不一致（case 级近似 vs endpoint 级精确）时，用 contract 层的显式列（如 `label_granularity`）标记精度，而不是靠数据源名字或已有的故障类型字段（如 `anomaly_level`）隐性判断——后者语义上不等价，未来数据源变化会静默失配（008）
 - **门控/条件融合类机制不足以单独构成创新点**：FiLM/GS-Fuse 已是成熟的"表征级门控条件融合"机制类别，套用到新场景不算创新；"service 级特征广播复制到 endpoint 行"这一问题定义本身也对应统计学 hierarchical/panel data 框架，非全新问题。融合类工作若要立论，需要论证"具体场景下的增量价值"而非机制新颖性本身，且消融设计要用参数量对齐 baseline 隔离贡献，避免 confounding variable（010）
 - **One-Class 评估集切分：时序切分优于 leave-service-out**：当 endpoint→service 接近 1:1 映射时，leave-service-out 会把"对未见 endpoint 的泛化能力"错误地测成"异常检测能力"，holdout 正常样本仅因训练时没见过该 endpoint 就被打高分。按时间窗时序切分（同一 case 内早窗训练、晚窗评估）既保证每个 endpoint 在训练/评估都出现，又能让 service 级广播特征的泄漏担忧成立（特征随时间变化，不是常量）——但前提是特征本身有时间变异性，若某场景的 service 级特征在整个观测窗内几乎不变，这条论证不成立，需重新评估（011，翻案 010 的遗留 TODO）
+- **简单门控条件融合的实测收益存在但有限**：Contract v1 实测 L0（裸拼接）AUROC=0.6169 → L1（独立 encoder 无门控）AUROC=0.6082（略降）→ L2（门控条件融合）AUROC=0.6316（略升）。说明单纯引入非线性容量（L0→L1）不带来提升，引入门控（L1→L2）才有正向增量，但幅度不大（相对 L0 仅 +0.0147 AUROC）。这提示简单 sigmoid 门控调制已接近该类机制在当前特征/数据规模下的天花板，后续设计新融合模型应把增量来源转向门控没有利用到的信息（如 endpoint×time-window 时序结构），而不是在门控公式本身继续做复杂变体（010 novelty-check 已指出机制本身不构成创新点，012 补充了"收益有限"的实测证据）
