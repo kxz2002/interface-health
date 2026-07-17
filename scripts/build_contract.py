@@ -108,6 +108,7 @@ def _process_one_case(
     api_pre: ApiPreprocessor,
     metric_pre: MetricPreprocessor,
     log_pre: LogPreprocessor,
+    endpoint_id_map: dict[str, int] | None = None,
 ) -> pd.DataFrame | None:
     """处理单个 case，返回未归一化的宽表（含标识/特征/标签列）。"""
     case_meta = _load_case_meta(case_dir)
@@ -138,6 +139,9 @@ def _process_one_case(
 
     _fill_missing_feature_cols(ep_df, cfg)
     _attach_identity_columns(ep_df, case_id)
+    if endpoint_id_map is not None:
+        # v1 专属列（None 表示 v0 调用方，保持 v0 产物列集合不变）。
+        ep_df["endpoint_id"] = ep_df["endpoint_key"].map(endpoint_id_map)
     _attach_label_columns(ep_df, case_meta)
     return ep_df
 
@@ -314,6 +318,9 @@ def main() -> None:
     intermediate_dir = out / "intermediate"
 
     ep_to_svc = yaml.safe_load(_EP_TO_SVC_PATH.read_text())
+    # 确定性 endpoint 字符串→整数映射，供 v1 的 EndpointBaselineStats 查表用。
+    # sorted() 保证映射跨运行/跨环境稳定，不依赖 dict 迭代顺序。
+    endpoint_id_map = {ep: i for i, ep in enumerate(sorted(ep_to_svc.keys()))}
 
     trace_pre = TracePreprocessor()
     api_pre = ApiPreprocessor()
@@ -339,7 +346,16 @@ def main() -> None:
     frames: list[pd.DataFrame] = []
     for case_dir in cases:
         LOG.info("处理 case: %s", case_dir.name)
-        df = _process_one_case(case_dir, cfg, ep_to_svc, trace_pre, api_pre, metric_pre, log_pre)
+        df = _process_one_case(
+            case_dir,
+            cfg,
+            ep_to_svc,
+            trace_pre,
+            api_pre,
+            metric_pre,
+            log_pre,
+            endpoint_id_map=endpoint_id_map if cfg.contract_version == "v1" else None,
+        )
         if df is not None:
             frames.append(df)
 
@@ -421,7 +437,7 @@ def main() -> None:
     validate_contract_df(full, args.config)
 
     if cfg.contract_version == "v1":
-        _write_v1(out, full, normal_mask, args.seed)
+        _write_v1(out, full, normal_mask, args.seed, fit_df)
     else:
         # v0：train=全部 Normal，eval_all=全部行（保持向后兼容，train ⊆ eval_all）
         full[normal_mask].reset_index(drop=True).to_parquet(out / "train.parquet", index=False)
@@ -432,8 +448,16 @@ def main() -> None:
     LOG.info("完成！版本=%s，总行数=%d", cfg.contract_version, len(full))
 
 
-def _write_v1(out: Path, full: pd.DataFrame, normal_mask: pd.Series, seed: int) -> None:
-    """v1：Normal 行按时间窗三路切分，eval_all 的 Normal 部分只取 holdout。"""
+def _write_v1(
+    out: Path, full: pd.DataFrame, normal_mask: pd.Series, seed: int, fit_df: pd.DataFrame
+) -> None:
+    """v1：Normal 行按时间窗三路切分，eval_all 的 Normal 部分只取 holdout。
+
+    fit_df 由调用方（main()）传入，是 normalizer.fit() 实际用过的那份 train_fit——
+    不在这里重新调用 split_normal_rows_temporal 再算一次。两次调用理论上应该确定性
+    产出同一份切分，但直接复用同一个 DataFrame 彻底消除"万一不一致"的可能性，
+    保证 EndpointBaselineStats 与 Normalizer 严格 fit 在同一批行上。
+    """
     normal_df = full[normal_mask].reset_index(drop=True)
     anomaly_df = full[~normal_mask].reset_index(drop=True)
     parts = split_normal_rows_temporal(normal_df, seed=seed)
@@ -456,6 +480,16 @@ def _write_v1(out: Path, full: pd.DataFrame, normal_mask: pd.Series, seed: int) 
         len(parts["eval_normal_holdout"]),
         len(eval_all),
     )
+
+    from src.data.endpoint_baseline_stats import EndpointBaselineStats
+
+    # 用调用方传入的 fit_df（而非上面本函数内部重新切分出的 parts["train_fit"]）来 fit，
+    # 见函数 docstring：避免两次 split_normal_rows_temporal 调用产生细微不一致。
+    red_cols = [c for c in fit_df.columns if c.startswith("endpoint_red__")]
+    svc_cols = [c for c in fit_df.columns if c.startswith(("service_metric__", "service_log__"))]
+    baseline_stats = EndpointBaselineStats(red_cols=red_cols, svc_cols=svc_cols)
+    baseline_stats.fit(fit_df)
+    baseline_stats.save(out / "endpoint_baseline_stats.json")
 
 
 def _write_schema(out: Path, cfg: ContractConfig) -> None:

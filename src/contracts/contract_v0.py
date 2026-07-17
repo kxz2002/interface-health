@@ -41,6 +41,10 @@ RATE_COLUMNS = [
     "service_log__error_ratio",
 ]
 
+# v1 专属：ReliabilityGatedFusion 查 EndpointBaselineStats 用的整数 endpoint 标识，
+# 不进 v0 校验（REQUIRED_ID_COLUMNS 保持不变，v0 产物无需这一列）。
+REQUIRED_ID_COLUMNS_V1_EXTRA = ["endpoint_id"]
+
 
 class ContractV0Error(ValueError):
     """Contract v0 校验失败时抛出。"""
