@@ -29,6 +29,13 @@ _DEGENERATE_STD_EPS = 1e-9
 # 链条走到底，用固定小正数而非 0/NaN——保证 z-score 除法永远有定义，该列本身
 # 无真实方差信号可言，epsilon 只是让下游计算不崩，不代表真实统计量。
 _FALLBACK_STD_EPSILON = 1e-9
+# global mean 在该列整个 fit 集合全 NaN（而非仅零方差）时同样是 NaN——std 的退化
+# 判定条件（NaN 或零方差）比 mean 的 NaN 条件更宽，覆盖了这种情形，但 std 兜底只
+# 处理了 std 自己，没处理 mean。若不单独截断，NaN mean 会随 g_mean 一路传给所有
+# 局部退化 endpoint（Task 7 e2e 冒烟测试实测命中：mini fixture 里某 service 从未
+# 命中过 log join，service_log__* 全局 NaN，NaN mean 传入 z-score 分子，
+# 直接产出 NaN loss）。0.0 只是让下游计算不崩的哨兵值，不代表真实统计量。
+_FALLBACK_MEAN_SENTINEL = 0.0
 
 
 @dataclass
@@ -73,6 +80,9 @@ class EndpointBaselineStats:
         }
         for branch, (g_mean, g_std) in global_stats.items():
             g_std[global_degenerate[branch]] = _FALLBACK_STD_EPSILON
+            # std 退化不代表 mean 也是 NaN（零方差但非 NaN 的常数列 mean 是有效值）；
+            # 只截断 mean 本身是 NaN 的情形（全 NaN 列），避免误伤零方差常数列的真实均值。
+            g_mean[np.isnan(g_mean)] = _FALLBACK_MEAN_SENTINEL
 
         self._stats = {}
         for ep, group in df.groupby("endpoint_key"):
