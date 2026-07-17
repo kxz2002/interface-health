@@ -250,7 +250,9 @@ def _attach_label_columns(ep_df: pd.DataFrame, case_meta: dict) -> None:
         ep_df["phase"] = "normal"
 
     ep_df["is_anomaly"] = ep_df["phase"] == "inject"
-    # is_train_eligible 标记 non-inject 窗口；train.parquet 目前只取 Normal case（更严格）
+    # is_train_eligible 标记 non-inject 窗口（baseline/recover/normal 均可）；
+    # 注意这与 train.parquet 实际吸收的行集合（仅 baseline，见 _write_v1）不是同一个
+    # 概念——这一列是逐行的粗粒度可训练性标记，不是训练池扩容逻辑的依据。
     ep_df["is_train_eligible"] = ~ep_df["is_anomaly"]
     ep_df["injection_start_ms"] = inject_start
     ep_df["injection_end_ms"] = inject_end
@@ -456,12 +458,15 @@ def main() -> None:
 def _write_v1(
     out: Path, full: pd.DataFrame, normal_mask: pd.Series, seed: int, fit_df: pd.DataFrame
 ) -> None:
-    """v1：Normal 行按时间窗三路切分，eval_all 的 Normal 部分只取 holdout。
+    """v1：Normal 行按时间窗三路切分；train.parquet 额外吸收故障 case 的 baseline
+    阶段行扩容训练池（不吸收 recover——系统未稳定回正常态，分布未验证，保守排除）；
+    eval_all 同步从这些被吸收的行里摘除，防止复现 v0 的 train⊆eval 泄漏。
 
     fit_df 由调用方（main()）传入，是 normalizer.fit() 实际用过的那份 train_fit——
     不在这里重新调用 split_normal_rows_temporal 再算一次。两次调用理论上应该确定性
     产出同一份切分，但直接复用同一个 DataFrame 彻底消除"万一不一致"的可能性，
-    保证 EndpointBaselineStats 与 Normalizer 严格 fit 在同一批行上。
+    保证 EndpointBaselineStats 与 Normalizer 严格 fit 在同一批行上（本任务不改这条
+    路径——训练池扩容只影响 train.parquet 装什么，不影响谁用来 fit 归一化/基线统计）。
     """
     normal_df = full[normal_mask].reset_index(drop=True)
     anomaly_df = full[~normal_mask].reset_index(drop=True)
@@ -471,18 +476,31 @@ def _write_v1(
     parts["train_val"].to_parquet(out / "train_val.parquet", index=False)
     parts["eval_normal_holdout"].to_parquet(out / "eval_normal_holdout.parquet", index=False)
 
-    # 冗余 train.parquet = train_fit，让 train_v1 stage 复用 Task 4 的训练脚本原样跑通
-    # （训练脚本消费 train_val 早停是下一轮工作，spec 已排除）。
-    parts["train_fit"].to_parquet(out / "train.parquet", index=False)
+    # 训练池扩容：train_fit（Normal，打标 normal_case）+ 故障 case 的 baseline
+    # 阶段行（打标 fault_baseline）。只吸收 baseline，不吸收 recover——系统未稳定
+    # 回正常态，分布未验证，保守排除。source_phase 可审计，未来可按需排除/降权。
+    train_fit_labeled = parts["train_fit"].copy()
+    train_fit_labeled["source_phase"] = "normal_case"
+    fault_baseline_df = anomaly_df[anomaly_df["phase"] == "baseline"].copy()
+    fault_baseline_df["source_phase"] = "fault_baseline"
+    train_pool = pd.concat([train_fit_labeled, fault_baseline_df], ignore_index=True)
+    train_pool.to_parquet(out / "train.parquet", index=False)
 
-    # eval_all = 故障 case 全部行 + 仅 holdout 的 Normal 行（修复 train ⊆ eval_all 重叠）
-    eval_all = pd.concat([anomaly_df, parts["eval_normal_holdout"]], ignore_index=True)
+    # eval_all：故障 case 的 inject/recover 行（baseline 已被吸收进训练池，摘除）
+    # + 仅 holdout 的 Normal 行。这一步是防泄漏强制要求（spec §3.4）：train_pool
+    # 吸收了什么，就必须从 eval_all 同步摘除，否则复现 v0 的 train ⊆ eval 泄漏 bug。
+    eval_all = pd.concat(
+        [anomaly_df[anomaly_df["phase"] != "baseline"], parts["eval_normal_holdout"]],
+        ignore_index=True,
+    )
     eval_all.to_parquet(out / "eval_all.parquet", index=False)
     LOG.info(
-        "v1 切分：train_fit=%d train_val=%d holdout=%d eval_all=%d",
+        "v1 切分：train_fit=%d train_val=%d holdout=%d fault_baseline=%d train_pool=%d eval_all=%d",
         len(parts["train_fit"]),
         len(parts["train_val"]),
         len(parts["eval_normal_holdout"]),
+        len(fault_baseline_df),
+        len(train_pool),
         len(eval_all),
     )
 
