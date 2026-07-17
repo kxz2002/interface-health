@@ -25,11 +25,13 @@ from pathlib import Path
 import hydra
 import pandas as pd
 import torch
+import yaml
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
 from src.contracts import validate_scores_df
 from src.data.contract_dataloader import ContractDataset
+from src.data.endpoint_baseline_stats import EndpointBaselineStats
 from src.fusion.base import MODALITY_ORDER, FusionModule
 from src.models.deep_svdd import DeepSVDD
 from src.utils.seed import set_seed
@@ -38,10 +40,17 @@ LOG = logging.getLogger(__name__)
 
 
 def _collate(batch: list[dict]) -> dict:
-    """聚合 ContractDataset point 样本：modality tensor 堆叠，meta/label 保持 list。"""
+    """聚合 ContractDataset point 样本：modality tensor 堆叠，meta/label 保持 list。
+
+    endpoint_id 仅在 v1 数据（含该列）时存在于 meta；v0 数据不产出这个 key，
+    batch 里也不会出现，此时 out 不含 "endpoint_id"，下游 fusion 调用走
+    endpoint_id=None 的默认参数路径（向后兼容）。
+    """
     out: dict = {m: torch.stack([s[m] for s in batch]) for m in MODALITY_ORDER}
     out["sample_id"] = [s["meta"]["sample_id"] for s in batch]
     out["is_anomaly"] = [s["label"]["is_anomaly"] for s in batch]
+    if "endpoint_id" in batch[0]["meta"]:
+        out["endpoint_id"] = torch.tensor([s["meta"]["endpoint_id"] for s in batch])
     return out
 
 
@@ -65,6 +74,7 @@ def _train(
     loader: DataLoader,
     epochs: int,
     optimizer: torch.optim.Optimizer,
+    is_reliability_gate: bool,
 ) -> None:
     fusion.train()
     svdd.train()
@@ -72,7 +82,10 @@ def _train(
         total = 0.0
         n_batches = 0
         for batch in loader:
-            x = fusion({m: batch[m] for m in MODALITY_ORDER})
+            # L0/L1/L2 的 forward() 不接受 endpoint_id 参数（未感知 per-endpoint
+            # 路由概念），无条件传入会报 TypeError；只有 ReliabilityGatedFusion 接受。
+            kwargs = {"endpoint_id": batch.get("endpoint_id")} if is_reliability_gate else {}
+            x = fusion({m: batch[m] for m in MODALITY_ORDER}, **kwargs)
             loss = svdd.svdd_loss(x)
             optimizer.zero_grad()
             loss.backward()
@@ -87,12 +100,15 @@ def _infer(
     fusion: FusionModule,
     svdd: DeepSVDD,
     loader: DataLoader,
+    is_reliability_gate: bool,
 ) -> dict[str, float]:
     fusion.eval()
     svdd.eval()
     scores: dict[str, float] = {}
     for batch in loader:
-        x = fusion({m: batch[m] for m in MODALITY_ORDER})
+        # 同 _train：L0/L1/L2 的 forward() 不接受 endpoint_id，无条件传会 TypeError。
+        kwargs = {"endpoint_id": batch.get("endpoint_id")} if is_reliability_gate else {}
+        x = fusion({m: batch[m] for m in MODALITY_ORDER}, **kwargs)
         s = svdd.score(x)
         for sid, val in zip(batch["sample_id"], s.tolist()):
             scores[sid] = val
@@ -117,7 +133,27 @@ def main(cfg: DictConfig) -> None:
     eval_ds = _make_dataset(eval_pq, schema_path, fit_on=train_pq)
 
     modality_dims = _modality_dims(schema)
-    fusion = hydra.utils.instantiate(cfg.fusion, modality_dims=modality_dims)
+    # ReliabilityGatedFusion 需要额外的运行时 kwargs（endpoint_baseline_stats /
+    # id_to_endpoint_key），这两个参数对 L0/L1/L2 是多余的——hydra.utils.instantiate
+    # 遇到目标类 __init__ 不接受的多余关键字参数会报 TypeError，不能无条件传。
+    # 按 _target_ 字符串分支是当前唯一需要特殊运行时参数的融合机制，YAGNI，
+    # 若未来出现第二个需要特殊参数的机制再抽象成 factory。
+    is_reliability_gate = (
+        cfg.fusion._target_ == "src.fusion.reliability_gate.ReliabilityGatedFusion"
+    )
+    fusion_kwargs = {"modality_dims": modality_dims}
+    if is_reliability_gate:
+        baseline_stats = EndpointBaselineStats.load(contract_dir / "endpoint_baseline_stats.json")
+        ep_to_svc = yaml.safe_load(
+            (Path(__file__).parents[1] / "configs/contract/endpoint_to_service.yaml").read_text()
+        )
+        # sorted() 必须和 build_contract.py 里 endpoint_id_map 的派生方式一致
+        # （同样对 ep_to_svc.keys() 排序后 enumerate）——这里是那份映射的逆映射，
+        # 顺序不一致会导致 endpoint_id 查到错的 endpoint_key，静默用错 baseline 统计量。
+        id_to_endpoint_key = {i: ep for i, ep in enumerate(sorted(ep_to_svc.keys()))}
+        fusion_kwargs["endpoint_baseline_stats"] = baseline_stats
+        fusion_kwargs["id_to_endpoint_key"] = id_to_endpoint_key
+    fusion = hydra.utils.instantiate(cfg.fusion, **fusion_kwargs)
     svdd = hydra.utils.instantiate(cfg.model, input_dim=fusion.output_dim)
 
     # 用全部 Normal 训练样本初始化超球心（One-Class：center 只见正常表征）
@@ -129,7 +165,8 @@ def main(cfg: DictConfig) -> None:
         )
     init_loader = DataLoader(train_ds, batch_size=len(train_ds), shuffle=False, collate_fn=_collate)
     init_batch = next(iter(init_loader))
-    svdd.init_center(fusion({m: init_batch[m] for m in MODALITY_ORDER}))
+    init_kwargs = {"endpoint_id": init_batch.get("endpoint_id")} if is_reliability_gate else {}
+    svdd.init_center(fusion({m: init_batch[m] for m in MODALITY_ORDER}, **init_kwargs))
 
     # instantiate 整份 optimizer config（lr + weight_decay 都来自 cfg.training.optimizer），
     # 不手搓、不只挑 lr——避免 weight_decay 等字段静默丢失。svdd.parameters() 与
@@ -147,7 +184,14 @@ def main(cfg: DictConfig) -> None:
         collate_fn=_collate,
         num_workers=cfg.training.num_workers,
     )
-    _train(fusion, svdd, train_loader, epochs=cfg.training.epochs, optimizer=optimizer)
+    _train(
+        fusion,
+        svdd,
+        train_loader,
+        epochs=cfg.training.epochs,
+        optimizer=optimizer,
+        is_reliability_gate=is_reliability_gate,
+    )
 
     eval_loader = DataLoader(
         eval_ds,
@@ -156,7 +200,7 @@ def main(cfg: DictConfig) -> None:
         collate_fn=_collate,
         num_workers=cfg.training.num_workers,
     )
-    score_map = _infer(fusion, svdd, eval_loader)
+    score_map = _infer(fusion, svdd, eval_loader, is_reliability_gate=is_reliability_gate)
 
     eval_df = pd.read_parquet(eval_pq)
     out_df = pd.DataFrame(

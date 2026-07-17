@@ -3,11 +3,39 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import torch
 
+from scripts.train_baseline_v0 import _collate
 from src.contracts import validate_scores_df
+from src.fusion.base import MODALITY_ORDER
 
 REPO_ROOT = Path(__file__).parents[1]
 MINI_DATA_ROOT = REPO_ROOT / "tests/fixtures/mini_data_root"
+
+
+def _fake_sample(sample_id: str, endpoint_id: int | None) -> dict:
+    sample = {m: torch.zeros(2) for m in MODALITY_ORDER}
+    sample["label"] = {"phase": "normal", "is_anomaly": False}
+    sample["meta"] = {"sample_id": sample_id, "endpoint_key": "epA"}
+    if endpoint_id is not None:
+        sample["meta"]["endpoint_id"] = endpoint_id
+    return sample
+
+
+def test_collate_stacks_endpoint_id_when_first_sample_has_it():
+    batch = [_fake_sample("s1", endpoint_id=0), _fake_sample("s2", endpoint_id=1)]
+    out = _collate(batch)
+    assert "endpoint_id" in out
+    assert out["endpoint_id"].tolist() == [0, 1]
+
+
+def test_collate_omits_endpoint_id_when_first_sample_lacks_it():
+    """v0 数据没有 endpoint_id 列，_row_to_sample 不产出该 key；_collate 只看第一个
+    样本判断整批（同一 parquet 内列集合一致，v0/v1 不混跑），输出里不应出现这个 key，
+    下游 fusion 调用走 endpoint_id=None 的默认参数路径。"""
+    batch = [_fake_sample("s1", endpoint_id=None), _fake_sample("s2", endpoint_id=None)]
+    out = _collate(batch)
+    assert "endpoint_id" not in out
 
 
 def _build_contract(contract_dir: Path, config: str = "configs/contract/v0.yaml") -> None:
