@@ -43,6 +43,9 @@ RATE_COLUMNS = [
 
 # v1 专属：ReliabilityGatedFusion 查 EndpointBaselineStats 用的整数 endpoint 标识，
 # 不进 v0 校验（REQUIRED_ID_COLUMNS 保持不变，v0 产物无需这一列）。
+# 故意不在 validate_contract_df 里校验这个常量——v0/v1 共用同一个校验函数，不引入
+# 版本分支逻辑；endpoint_id 的存在性校验由 tests/test_build_contract_v1_endpoint_id.py
+# 单独覆盖。这个常量本身仅用于文档化该约定，非死代码。
 REQUIRED_ID_COLUMNS_V1_EXTRA = ["endpoint_id"]
 
 

@@ -2,7 +2,7 @@
 
 供 ReliabilityGatedFusion 计算偏离量（z-score）使用。只在 train_fit 上 fit，
 拟合后固定、不参与 backprop——与 Normalizer 的防泄漏纪律一致（build_contract.py
-的 fit_df 收窄到 train_fit 约定，见该文件 L369-381 的注释）。
+的 fit_df 收窄到 train_fit 约定，见 main() 里 fit_df 计算处的注释）。
 
 退化处理与 src/data/normalization.py::_is_degenerate 同一哲学但落点不同：
 Normalizer 遇到零方差退化时"跳过归一化保留原值"；这里偏离量计算不允许 NaN
@@ -114,6 +114,10 @@ class EndpointBaselineStats:
             )
         s = self._stats[endpoint_key][branch]
         return s.mean, s.std
+
+    def fitted_endpoints(self) -> set[str]:
+        """fit 集合（train_fit）里实际出现过的 endpoint_key 全集。"""
+        return set(self._stats.keys())
 
     def degenerate_columns(self, branch: Branch) -> list[str]:
         """返回该分支在整个 fit 集合上全局退化（零方差/全 NaN）的列名，类比

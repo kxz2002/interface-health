@@ -25,6 +25,7 @@ from src.contracts.contract_config import ContractConfig, load_contract_config
 from src.contracts.contract_v0 import RATE_COLUMNS, validate_contract_df
 from src.contracts.split_v1 import split_normal_rows_temporal
 from src.data.dataset_config import load_dataset_config
+from src.data.endpoint_baseline_stats import EndpointBaselineStats
 from src.data.normalization import Method, Normalizer, Scope
 from src.preprocessors.api_preprocessor import ApiPreprocessor
 from src.preprocessors.log_preprocessor import LogPreprocessor
@@ -319,8 +320,12 @@ def main() -> None:
 
     ep_to_svc = yaml.safe_load(_EP_TO_SVC_PATH.read_text())
     # 确定性 endpoint 字符串→整数映射，供 v1 的 EndpointBaselineStats 查表用。
-    # sorted() 保证映射跨运行/跨环境稳定，不依赖 dict 迭代顺序。
-    endpoint_id_map = {ep: i for i, ep in enumerate(sorted(ep_to_svc.keys()))}
+    # sorted() 保证映射跨运行/跨环境稳定，不依赖 dict 迭代顺序。v0 不用，故只在 v1 时构造。
+    endpoint_id_map = (
+        {ep: i for i, ep in enumerate(sorted(ep_to_svc.keys()))}
+        if cfg.contract_version == "v1"
+        else None
+    )
 
     trace_pre = TracePreprocessor()
     api_pre = ApiPreprocessor()
@@ -354,7 +359,7 @@ def main() -> None:
             api_pre,
             metric_pre,
             log_pre,
-            endpoint_id_map=endpoint_id_map if cfg.contract_version == "v1" else None,
+            endpoint_id_map=endpoint_id_map,
         )
         if df is not None:
             frames.append(df)
@@ -481,10 +486,6 @@ def _write_v1(
         len(eval_all),
     )
 
-    from src.data.endpoint_baseline_stats import EndpointBaselineStats
-
-    # 用调用方传入的 fit_df（而非上面本函数内部重新切分出的 parts["train_fit"]）来 fit，
-    # 见函数 docstring：避免两次 split_normal_rows_temporal 调用产生细微不一致。
     red_cols = [c for c in fit_df.columns if c.startswith("endpoint_red__")]
     svc_cols = [c for c in fit_df.columns if c.startswith(("service_metric__", "service_log__"))]
     baseline_stats = EndpointBaselineStats(red_cols=red_cols, svc_cols=svc_cols)

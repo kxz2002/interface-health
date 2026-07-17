@@ -42,8 +42,7 @@ def test_endpoint_id_column_present_and_matches_sorted_mapping(tmp_path):
     for name in ("train_fit", "eval_all"):
         df = pd.read_parquet(out_dir / f"{name}.parquet")
         assert "endpoint_id" in df.columns
-        for _, row in df.iterrows():
-            assert row["endpoint_id"] == expected_mapping[row["endpoint_key"]]
+        assert df["endpoint_id"].equals(df["endpoint_key"].map(expected_mapping))
 
 
 def test_endpoint_baseline_stats_sidecar_written_and_loadable(tmp_path):
@@ -57,7 +56,7 @@ def test_endpoint_baseline_stats_sidecar_written_and_loadable(tmp_path):
     # sidecar 覆盖的 endpoint 必须是 train_fit 里实际出现过的 endpoint_key 子集
     train_fit = pd.read_parquet(out_dir / "train_fit.parquet")
     fit_endpoints = set(train_fit["endpoint_key"].unique())
-    assert set(stats._stats.keys()) == fit_endpoints
+    assert stats.fitted_endpoints() == fit_endpoints
 
 
 def test_endpoint_id_not_added_in_v0(tmp_path):
