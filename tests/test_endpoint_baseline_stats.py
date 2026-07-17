@@ -52,6 +52,46 @@ def test_degenerate_group_zero_std_falls_back_to_global_std():
     assert ep_std[idx] == pytest.approx(global_std, rel=1e-6)
 
 
+def test_globally_degenerate_column_falls_back_to_epsilon_not_zero():
+    """当某列在整个 fit 集合（跨所有 endpoint）都是零方差时，"退化到 global std"
+    这条兜底路径本身失效——global std 也是 0，直接复用会把 0 静默传播到
+    branch_stats()，下游 z-score = (raw-mean)/std 除零产出 inf/NaN。
+
+    这正是 history-013（Normalizer 零方差除零放大 bug）在这里的镜像场景：真实
+    数据里 trace_5xx_rate / net_rx_error_rate 等列在正常运行期间全局恒为 0，
+    但故障期间会跳变——这些恰恰是异常信号最强的列，绝不能因为兜底失效被
+    silently 破坏。二级兜底选固定小正数 epsilon（而非跳过或保留 0/NaN），
+    因为偏离量计算要求 std 永远非零、非 NaN（固定维度 dev 向量不允许缺失分量），
+    且该列本身无真实方差信号可言，epsilon 只是保证除法运算有定义。"""
+    df = _synth_df({"ep1": 50, "ep2": 30})
+    constant_col = RED_COLS[0]
+    df[constant_col] = 5.0  # 全局常数，std=0 覆盖所有 endpoint
+
+    stats = EndpointBaselineStats(red_cols=RED_COLS, svc_cols=SVC_COLS)
+    stats.fit(df)
+    idx = RED_COLS.index(constant_col)
+    for ep in ("ep1", "ep2"):
+        _, ep_std = stats.branch_stats(ep, "ep")
+        assert ep_std[idx] > 0
+        assert not np.isnan(ep_std[idx])
+
+
+def test_degenerate_columns_reports_globally_degenerate_column():
+    """degenerate_columns() 是退化列的可见性入口，类比 Normalizer.skipped_groups()——
+    调用方（build_contract.py / ReliabilityGatedFusion）需要知道哪些列的 std 是
+    epsilon 兜底而非真实统计量，否则会误以为该列在做正常的 z-score。"""
+    df = _synth_df({"ep1": 50, "ep2": 30})
+    constant_col = RED_COLS[0]
+    df[constant_col] = 5.0
+
+    stats = EndpointBaselineStats(red_cols=RED_COLS, svc_cols=SVC_COLS)
+    stats.fit(df)
+    assert constant_col in stats.degenerate_columns("ep")
+    for col in RED_COLS[1:]:
+        assert col not in stats.degenerate_columns("ep")
+    assert stats.degenerate_columns("svc") == []
+
+
 def test_shrinkage_pulls_sparse_endpoint_toward_global():
     """稀疏 endpoint（n 远小于 shrinkage_k）的 shrunk std 应比纯局部估计更接近
     global std——防止小样本方差估计噪声主导偏离量计算。
