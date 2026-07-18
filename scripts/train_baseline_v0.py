@@ -225,6 +225,12 @@ def main(cfg: DictConfig) -> None:
     out_df.to_parquet(out_path, index=False)
     LOG.info("写出 scores：%d 行 → %s", len(out_df), out_path)
 
+    if cfg.fusion_checkpoint is not None:
+        checkpoint_path = Path(cfg.fusion_checkpoint)
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(fusion.state_dict(), checkpoint_path)
+        LOG.info("写出 fusion checkpoint → %s", checkpoint_path)
+
 
 if __name__ == "__main__":
     main()

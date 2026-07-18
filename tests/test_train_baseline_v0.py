@@ -141,3 +141,41 @@ def test_train_baseline_v0_works_end_to_end_on_v1_contract(tmp_path):
     validate_scores_df(df)
     eval_all = pd.read_parquet(contract_dir / "eval_all.parquet")
     assert len(df) == len(eval_all)
+
+
+def test_train_baseline_v0_does_not_save_checkpoint_by_default(tmp_path):
+    """fusion_checkpoint 未指定时保持默认行为：不写任何权重文件。"""
+    contract_dir = tmp_path / "contract"
+    _build_contract(contract_dir)
+
+    out = tmp_path / "scores.parquet"
+    _train(contract_dir, out)
+
+    assert list(tmp_path.glob("*.pt")) == []
+
+
+def test_train_baseline_v0_saves_fusion_checkpoint_when_requested(tmp_path):
+    """analyze_gate_weights.py（Task 9）需要真实训练出的 fusion 权重而非随机初始化——
+    训练脚本需支持可选的 fusion_checkpoint override 落盘 state_dict。"""
+    contract_dir = tmp_path / "contract"
+    _build_contract(contract_dir)
+
+    out = tmp_path / "scores.parquet"
+    checkpoint = tmp_path / "fusion.pt"
+    subprocess.run(
+        [
+            sys.executable,
+            "scripts/train_baseline_v0.py",
+            f"contract_dir={contract_dir}",
+            f"out={out}",
+            "seed=42",
+            "training.epochs=2",
+            f"fusion_checkpoint={checkpoint}",
+        ],
+        check=True,
+        cwd=str(REPO_ROOT),
+    )
+
+    assert checkpoint.exists()
+    state_dict = torch.load(checkpoint)
+    assert isinstance(state_dict, dict) and len(state_dict) == 0  # concat 融合无可训练参数

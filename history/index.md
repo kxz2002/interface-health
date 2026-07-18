@@ -40,6 +40,7 @@
 | [011](./entries/011-fusion-ablation-infra.md) | 2026-07-15 | Feature/Refactor | Fusion 消融基础设施：Hydra 可插拔化 + Contract v1 时序切分 + 参数量对齐工具 | `src/fusion/`, `src/contracts/`, `src/utils/`, `configs/`, `scripts/train_baseline_v0.py`, `scripts/build_contract.py`, `dvc.yaml`, `CLAUDE.md` |
 | [012](./entries/012-fusion-l1-l2-gated-ablation.md) | 2026-07-15 | Experiment | L1/L2 融合消融：独立编码器 + 门控条件融合实测 | `src/fusion/`, `configs/fusion/`, `tests/` |
 | [013](./entries/013-fix-normalizer-zero-variance-explosion.md) | 2026-07-16 | Bugfix | 修复 Normalizer 零方差 group 除零放大 bug（endpoint_red latency 列 1e13 异常值） | `src/data/normalization.py`, `scripts/build_contract.py`, `tests/test_normalization.py`, `CLAUDE.md` |
+| [014](./entries/014-reliability-gate-fusion.md) | 2026-07-18 | Experiment | Reliability Gate Fusion：偏离量门控路由实测（多seed主对比+2x2训练池归因+路由消融+可解释性分析），门控坍缩与高方差问题如实记录 | `src/fusion/`, `src/data/endpoint_baseline_stats.py`, `src/contracts/`, `scripts/build_contract.py`, `scripts/train_baseline_v0.py`, `scripts/analyze_gate_weights.py`, `configs/fusion/` |
 
 ---
 
@@ -51,9 +52,9 @@
 |-------------|--------------|
 | `CLAUDE.md` | 001, 002, 003, 004, 009, 011 |
 | `data/` 组织与 DVC | 002 |
-| `configs/` (Hydra) | 002, 011（fusion/model config-group、base.yaml 必填字段） |
+| `configs/` (Hydra) | 002, 011（fusion/model config-group、base.yaml 必填字段）, 014（reliability_gate 路由消融配置、`fusion_checkpoint` 可选字段） |
 | `src/utils/` (seed, logger) | 002, 011（param_budget） |
-| `src/contracts/` | 003, 011（Contract v1 时序切分） |
+| `src/contracts/` | 003, 011（Contract v1 时序切分）, 014（`endpoint_id` 列、训练池扩容吸收 fault baseline 行） |
 | `scripts/` (train, eval) | 003, 011（train_baseline_v0.py 改 Hydra entrypoint） |
 | `scripts/lo2-scripts/` | 001 |
 | `docs/agent-docs/` | 001 |
@@ -66,9 +67,9 @@
 | `pyproject.toml` | 002 |
 | `history/` + `skills-local/` | 004 |
 | `Makefile` | 002 (环境), 004 (install-skills) |
-| 多模态融合（`src/fusion/`） | 005, 010, 012 |
+| 多模态融合（`src/fusion/`） | 005, 010, 012, 014（ReliabilityGatedFusion，偏离量门控路由） |
 | 模型实现（`src/models/`） | 005 |
-| 数据 loader（`src/data/`） | 005 |
+| 数据 loader（`src/data/`） | 005, 014（`endpoint_baseline_stats.py`, `endpoint_id` 全链路打通） |
 | 评估指标细化（per-endpoint, phase 对齐） | 005 |
 | `src/preprocessors/` | 005 |
 | `configs/contract/` | 005 |
@@ -77,8 +78,8 @@
 | `configs/contract/endpoint_to_service.yaml` | 006 |
 | `src/data/normalization.py`（Normalizer） | 007, 013（零方差 group 除零放大） |
 | `src/preprocessors/trace_preprocessor.py`（is_target_endpoint 传递） | 008 |
-| `scripts/build_contract.py`（label_granularity/is_endpoint_anomaly 标签路由，`_attach_label_columns`） | 006, 008 |
-| `scripts/train_baseline_v0.py`（out_df 显式字段字典，新增列需手动传递） | 008 |
+| `scripts/build_contract.py`（label_granularity/is_endpoint_anomaly 标签路由，`_attach_label_columns`） | 006, 008, 014（训练池扩容吸收 fault baseline 行） |
+| `scripts/train_baseline_v0.py`（out_df 显式字段字典，新增列需手动传递） | 008, 014（`endpoint_id` 传递给 fusion，`fusion_checkpoint` 可选落盘） |
 | `scripts/eval_baseline_v0.py`（by_endpoint 分层） | 008 |
 
 ---
@@ -98,4 +99,6 @@
 - **标签精度分级**：数据集里不同数据源标签粒度不一致（case 级近似 vs endpoint 级精确）时，用 contract 层的显式列（如 `label_granularity`）标记精度，而不是靠数据源名字或已有的故障类型字段（如 `anomaly_level`）隐性判断——后者语义上不等价，未来数据源变化会静默失配（008）
 - **门控/条件融合类机制不足以单独构成创新点**：FiLM/GS-Fuse 已是成熟的"表征级门控条件融合"机制类别，套用到新场景不算创新；"service 级特征广播复制到 endpoint 行"这一问题定义本身也对应统计学 hierarchical/panel data 框架，非全新问题。融合类工作若要立论，需要论证"具体场景下的增量价值"而非机制新颖性本身，且消融设计要用参数量对齐 baseline 隔离贡献，避免 confounding variable（010）
 - **One-Class 评估集切分：时序切分优于 leave-service-out**：当 endpoint→service 接近 1:1 映射时，leave-service-out 会把"对未见 endpoint 的泛化能力"错误地测成"异常检测能力"，holdout 正常样本仅因训练时没见过该 endpoint 就被打高分。按时间窗时序切分（同一 case 内早窗训练、晚窗评估）既保证每个 endpoint 在训练/评估都出现，又能让 service 级广播特征的泄漏担忧成立（特征随时间变化，不是常量）——但前提是特征本身有时间变异性，若某场景的 service 级特征在整个观测窗内几乎不变，这条论证不成立，需重新评估（011，翻案 010 的遗留 TODO）
-- **简单门控条件融合的实测收益存在但有限**：Contract v1 实测 L0（裸拼接）AUROC=0.6169 → L1（独立 encoder 无门控）AUROC=0.6082（略降）→ L2（门控条件融合）AUROC=0.6316（略升）。说明单纯引入非线性容量（L0→L1）不带来提升，引入门控（L1→L2）才有正向增量，但幅度不大（相对 L0 仅 +0.0147 AUROC）。这提示简单 sigmoid 门控调制已接近该类机制在当前特征/数据规模下的天花板，后续设计新融合模型应把增量来源转向门控没有利用到的信息（如 endpoint×time-window 时序结构），而不是在门控公式本身继续做复杂变体（010 novelty-check 已指出机制本身不构成创新点，012 补充了"收益有限"的实测证据）
+- **简单门控条件融合的实测收益存在但有限**：单纯引入非线性容量（L0→L1）不带来稳定提升，引入门控（L1→L2）才有正向增量，但幅度不大，且随训练池/eval 集合口径变化。**具体数字已两次被后续 contract_v1 重建取代，本行不再引用具体 AUROC 值，避免与最新实测脱节**——entry 012 首次发布的数字（n_samples=13632，L1 均值 AUROC=0.6103/AUPRC=0.3241，L2 均值 AUROC=0.6297/AUPRC=0.3354）已被 entry 014（n_samples=8221，Task 4/6 contract_v1 重建后）取代；本行早前写的 AUROC=0.6169/0.6082/0.6316 既不匹配 entry 012 单 seed 数字也不匹配其多 seed 均值，来源不明（疑似早期草稿遗留），已在本次（014）更正删除，具体数字以最新 history entry（当前为 014）的表格为准，不在本横切主题行里固化任何版本的具体数值。这提示简单 sigmoid/softmax 门控调制已接近该类机制在当前特征/数据规模下的天花板，后续设计新融合模型应把增量来源转向门控没有利用到的信息（如 endpoint×time-window 时序结构），而不是在门控公式本身继续做复杂变体（010 novelty-check 已指出机制本身不构成创新点，012/014 补充了"收益有限/不稳定"的实测证据）
+- **竞争性 softmax 门控比独立 sigmoid 更容易训练坍缩**：Reliability Gate Fusion 的路由消融显示，默认 `softmax`（权重和恒为1的二选一）训练后在全部 27 种故障类型上坍缩为几乎恒定的 `w_svc≈1.0`，未体现"按故障类型动态路由"的设计假设；而去掉竞争性归一化的 `independent_sigmoid`（两个门控开关独立取值，不强制和为1）反而 AUROC 更高（0.6598 vs 默认 0.6024）。提示：门控输入维度低、监督信号只能通过下游 loss 间接传导（如 One-Class SVDD 无监督门控）时，softmax 的强制竞争约束可能让训练更容易早期卡进某一端主导的鞍点；同类机制设计如需门控随输入变化，优先验证独立参数化（sigmoid）而非竞争归一化（softmax）是否更不容易坍缩，坍缩现象本身需要专项训练过程可视化才能定位根因，不能仅凭最终权重分布下结论（014）
+- **多 seed 方差本身就是证据，不是可忽略的噪声**：Reliability Gate Fusion 4 个 seed 的 AUROC 标准差（0.0792）达到 baseline 机制（L0/L1/L2，0.0161~0.0334）的 2.5~5 倍，且 seed 范围跨越了所有 baseline 均值区间（4 个 seed 里 2 个优于 L2 均值、2 个明显劣于全部 baseline）。单 seed 或均值对比若不同时报告方差，会掩盖"新机制训练不稳定"这一独立于"新机制是否更优"的问题；如实报告的正确姿态是承认"当前数据不支持方向性结论"，而不是挑一个有利 seed 或只报均值（014）
