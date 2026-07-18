@@ -118,3 +118,61 @@ def test_unknown_endpoint_id_in_batch_raises():
     }
     with pytest.raises(KeyError):
         fusion(batch, endpoint_id=torch.tensor([99]))
+
+
+def test_scalar_deviation_mode_uses_1d_input_to_gate():
+    """消融1：dev 换成'总偏离幅度标量'（去掉分支区分）——gate_mlp 输入应从 6 维
+    降到 2 维（每分支 1 个标量：总 z-score 范数），验证'该信哪个分支'这个能力
+    被移除后 gate_mlp 的实际输入维度确实变了（不是只加了个没用的开关）。"""
+    stats = _fitted_stats()
+    fusion = ReliabilityGatedFusion(
+        modality_dims=MODALITY_DIMS,
+        endpoint_baseline_stats=stats,
+        id_to_endpoint_key={0: "epA", 1: "epB"},
+        branch_dim=4,
+        deviation_mode="scalar",
+    )
+    assert fusion.gate_mlp[0].in_features == 2
+
+
+def test_independent_sigmoid_mode_weights_do_not_sum_to_one():
+    """消融2：softmax 换两个独立 sigmoid——权重和不再恒为1，验证'竞争性归一化'
+    确实被换成了'独立开关'语义（否则消融变体和原实现在数值上无法区分）。"""
+    stats = _fitted_stats()
+    fusion = ReliabilityGatedFusion(
+        modality_dims=MODALITY_DIMS,
+        endpoint_baseline_stats=stats,
+        id_to_endpoint_key={0: "epA", 1: "epB"},
+        branch_dim=4,
+        gate_normalization="independent_sigmoid",
+    )
+    batch = {
+        "endpoint_red": torch.randn(6, 3),
+        "service_metric": torch.randn(6, 2),
+        "service_log": torch.randn(6, 1),
+    }
+    endpoint_id = torch.tensor([0, 1, 0, 1, 0, 1])
+    w_ep, w_svc = fusion.gate_weights(batch, endpoint_id)
+    assert not torch.allclose(w_ep + w_svc, torch.ones(6))
+
+
+def test_fixed_uniform_gate_disables_learning():
+    """消融3：固定 [0.5, 0.5]（禁用门控）——下界对照，gate_mlp 应不存在
+    可训练参数参与该路径（权重恒定，与输入无关）。"""
+    stats = _fitted_stats()
+    fusion = ReliabilityGatedFusion(
+        modality_dims=MODALITY_DIMS,
+        endpoint_baseline_stats=stats,
+        id_to_endpoint_key={0: "epA", 1: "epB"},
+        branch_dim=4,
+        gate_normalization="fixed_uniform",
+    )
+    batch = {
+        "endpoint_red": torch.randn(4, 3) * 100,
+        "service_metric": torch.randn(4, 2) * 100,
+        "service_log": torch.randn(4, 1) * 100,
+    }
+    endpoint_id = torch.tensor([0, 1, 0, 1])
+    w_ep, w_svc = fusion.gate_weights(batch, endpoint_id)
+    torch.testing.assert_close(w_ep, torch.full((4,), 0.5))
+    torch.testing.assert_close(w_svc, torch.full((4,), 0.5))

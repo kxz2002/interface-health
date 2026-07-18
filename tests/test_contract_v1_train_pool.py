@@ -78,3 +78,28 @@ def test_eval_all_excludes_train_pool_rows_no_leakage(tmp_path):
         (eval_all["anomaly_type"] != "Normal") & (eval_all["phase"] == "baseline")
     ]
     assert len(fault_baseline_in_eval) == 0
+
+
+def test_contract_v1_838_variant_is_pure_normal(tmp_path):
+    """2x2 归因实验依赖的手工构造 contract_v1_838：确认 train.parquet 替换为
+    train_fit.parquet 后确实是纯 Normal（无 source_phase 列或全为 normal_case），
+    防止归因实验的"原始838行"对照组混入扩容数据。"""
+    out_dir = tmp_path / "contract_v1"
+    subprocess.run(
+        [
+            sys.executable,
+            "scripts/build_contract.py",
+            "--config",
+            str(REPO_ROOT / "configs/contract/v1.yaml"),
+            "--dataset",
+            str(REPO_ROOT / "tests/fixtures/mini_dataset.yaml"),
+            "--out-dir",
+            str(out_dir),
+            "--seed",
+            "42",
+        ],
+        check=True,
+        cwd=str(REPO_ROOT),
+    )
+    train_fit = pd.read_parquet(out_dir / "train_fit.parquet")
+    assert (train_fit["anomaly_type"] == "Normal").all()

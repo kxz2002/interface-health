@@ -9,6 +9,8 @@ e_ep + gate*value(e_svc)。详见 spec §2.2 对比表。
 
 from __future__ import annotations
 
+from typing import Literal
+
 import torch
 import torch.nn as nn
 
@@ -28,6 +30,8 @@ class ReliabilityGatedFusion(FusionModule):
         id_to_endpoint_key: dict[int, str],
         branch_dim: int = 16,
         dropout: float = 0.1,
+        deviation_mode: Literal["branch_aware", "scalar"] = "branch_aware",
+        gate_normalization: Literal["softmax", "independent_sigmoid", "fixed_uniform"] = "softmax",
     ):
         super().__init__()
         missing = set(MODALITY_ORDER) - set(modality_dims)
@@ -39,6 +43,8 @@ class ReliabilityGatedFusion(FusionModule):
         self._branch_dim = branch_dim
         self._baseline = endpoint_baseline_stats
         self._id_to_key = dict(id_to_endpoint_key)
+        self._deviation_mode = deviation_mode
+        self._gate_normalization = gate_normalization
         ep_dim = modality_dims["endpoint_red"]
         svc_dim = modality_dims["service_metric"] + modality_dims["service_log"]
 
@@ -46,9 +52,15 @@ class ReliabilityGatedFusion(FusionModule):
         self.svc_encoder = nn.Sequential(nn.Linear(svc_dim, branch_dim, bias=False), nn.ReLU())
         self.value_ep = nn.Linear(branch_dim, branch_dim)
         self.value_svc = nn.Linear(branch_dim, branch_dim)
-        # dev_ep(3) + dev_svc(3) = 6 维输入，输出 2 维 logits 供 softmax。
+        # branch_aware: dev_ep(3) + dev_svc(3) = 6 维输入；scalar 消融变体去掉
+        # 分支内部的 3 维细分（norm/max_abs/frac_exceed），每分支只留 1 个总偏离
+        # 范数标量，dev_ep(1) + dev_svc(1) = 2 维——验证"该信哪个分支"这个能力
+        # 被移除后确实反映在 gate_mlp 的输入维度上，不是只加了个没用的开关。
+        # gate_mlp 在 fixed_uniform 消融变体下不参与 forward（见 gate_weights），
+        # 但仍在此处构造，保持跨消融变体的模块结构统一。
+        gate_in_dim = 2 if deviation_mode == "scalar" else 6
         self.gate_mlp = nn.Sequential(
-            nn.Linear(6, branch_dim),
+            nn.Linear(gate_in_dim, branch_dim),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(branch_dim, 2),
@@ -59,6 +71,10 @@ class ReliabilityGatedFusion(FusionModule):
     ) -> torch.Tensor:
         z = (raw - mean) / std
         norm = z.norm(dim=-1)
+        if self._deviation_mode == "scalar":
+            # 消融1：只保留总偏离幅度标量，去掉 max_abs/frac_exceed 这两个
+            # "具体哪个特征偏离"的细分信息——门控看不到分支内部结构。
+            return norm.unsqueeze(-1)
         max_abs = z.abs().max(dim=-1).values
         frac_exceed = (z.abs() > _DEVIATION_THRESHOLD).float().mean(dim=-1)
         return torch.stack([norm, max_abs, frac_exceed], dim=-1)
@@ -67,7 +83,11 @@ class ReliabilityGatedFusion(FusionModule):
         self, modality_dict: dict[str, torch.Tensor], endpoint_id: torch.Tensor | None
     ) -> tuple[torch.Tensor, torch.Tensor]:
         batch_size = modality_dict["endpoint_red"].shape[0]
-        if endpoint_id is None:
+        # 两种情形都退化为均匀权重、跳过 dev 计算和 gate_mlp 前向，但触发原因不同：
+        # endpoint_id is None 是"没有 endpoint 信息可用"（L0/L1/L2 兼容调用路径）；
+        # fixed_uniform 是"消融3：故意禁用门控"（下界对照）。两者语义不同但代码
+        # 路径相同，合并成一个分支避免两份几乎相同的早退代码日后改一个漏改另一个。
+        if endpoint_id is None or self._gate_normalization == "fixed_uniform":
             half = torch.full((batch_size,), 0.5, device=modality_dict["endpoint_red"].device)
             return half, half
 
@@ -99,7 +119,13 @@ class ReliabilityGatedFusion(FusionModule):
                 )
             )
         dev = torch.cat([torch.stack(dev_eps), torch.stack(dev_svcs)], dim=-1)
-        w = torch.softmax(self.gate_mlp(dev), dim=-1)
+        logits = self.gate_mlp(dev)
+        if self._gate_normalization == "independent_sigmoid":
+            # 消融2：换成独立 sigmoid（对比 docstring 里 softmax 的"竞争性二选一"）——
+            # 权重和不再恒为1。
+            w = torch.sigmoid(logits)
+        else:
+            w = torch.softmax(logits, dim=-1)
         return w[:, 0], w[:, 1]
 
     def forward(
