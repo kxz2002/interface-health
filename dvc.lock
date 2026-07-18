@@ -190,8 +190,8 @@ stages:
       size: 647
     - path: scripts/build_contract.py
       hash: md5
-      md5: 1690def5fdc12e3a978072ecdeb1c952
-      size: 24348
+      md5: 346b56a8e702f1d8987b3bd6ec37cbe4
+      size: 24912
     - path: src/contracts/contract_v0.py
       hash: md5
       md5: ce9df5ffbe143294f8a7ab2dbf6e6202
@@ -220,8 +220,8 @@ stages:
     outs:
     - path: artifacts/contract_v1/endpoint_baseline_stats.json
       hash: md5
-      md5: cf0f35413316dae6febf4093a89279a3
-      size: 10293
+      md5: 78fe3a7335efe3cde09da07006b833ea
+      size: 10399
     - path: artifacts/contract_v1/eval_all.parquet
       hash: md5
       md5: 4eb2d9628bd5b44debfc317211871f92
@@ -338,8 +338,8 @@ stages:
     deps:
     - path: artifacts/contract_v1/endpoint_baseline_stats.json
       hash: md5
-      md5: cf0f35413316dae6febf4093a89279a3
-      size: 10293
+      md5: 78fe3a7335efe3cde09da07006b833ea
+      size: 10399
     - path: artifacts/contract_v1/eval_all.parquet
       hash: md5
       md5: 4eb2d9628bd5b44debfc317211871f92
@@ -399,8 +399,8 @@ stages:
     outs:
     - path: artifacts/baseline_v1_reliability_gate/scores.parquet
       hash: md5
-      md5: fe6841bad0d09d3d9419de4f64b45394
-      size: 158860
+      md5: 4f9db466a121a99c766765a6e6c7dc38
+      size: 160092
   eval_v1_reliability_gate:
     cmd: python scripts/eval_baseline_v0.py --scores
       artifacts/baseline_v1_reliability_gate/scores.parquet --out
@@ -408,8 +408,8 @@ stages:
     deps:
     - path: artifacts/baseline_v1_reliability_gate/scores.parquet
       hash: md5
-      md5: fe6841bad0d09d3d9419de4f64b45394
-      size: 158860
+      md5: 4f9db466a121a99c766765a6e6c7dc38
+      size: 160092
     - path: scripts/eval_baseline_v0.py
       hash: md5
       md5: 57d40b8c355e9280d6cd6117b0ed7d87
@@ -422,5 +422,5 @@ stages:
     outs:
     - path: artifacts/baseline_v1_reliability_gate/metrics.json
       hash: md5
-      md5: c87371218408fac2e98e10c3c051726e
-      size: 4545
+      md5: 26d07231e42957fc13450c70dc553bd9
+      size: 4555

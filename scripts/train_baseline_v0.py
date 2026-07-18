@@ -30,6 +30,7 @@ from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
 from src.contracts import validate_scores_df
+from src.contracts.endpoint_id_mapping import id_to_endpoint_key as _derive_id_to_endpoint_key
 from src.data.contract_dataloader import ContractDataset
 from src.data.endpoint_baseline_stats import EndpointBaselineStats
 from src.fusion.base import MODALITY_ORDER, FusionModule
@@ -147,10 +148,10 @@ def main(cfg: DictConfig) -> None:
         ep_to_svc = yaml.safe_load(
             (Path(__file__).parents[1] / "configs/contract/endpoint_to_service.yaml").read_text()
         )
-        # sorted() 必须和 build_contract.py 里 endpoint_id_map 的派生方式一致
-        # （同样对 ep_to_svc.keys() 排序后 enumerate）——这里是那份映射的逆映射，
+        # 必须和 build_contract.py 里 endpoint_id_map 的派生方式一致（同一份
+        # src/contracts/endpoint_id_mapping.py 源）——这里是那份映射的逆映射，
         # 顺序不一致会导致 endpoint_id 查到错的 endpoint_key，静默用错 baseline 统计量。
-        id_to_endpoint_key = {i: ep for i, ep in enumerate(sorted(ep_to_svc.keys()))}
+        id_to_endpoint_key = _derive_id_to_endpoint_key(ep_to_svc)
         fusion_kwargs["endpoint_baseline_stats"] = baseline_stats
         fusion_kwargs["id_to_endpoint_key"] = id_to_endpoint_key
     fusion = hydra.utils.instantiate(cfg.fusion, **fusion_kwargs)

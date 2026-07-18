@@ -22,7 +22,8 @@ import pandas as pd
 import yaml
 
 from src.contracts.contract_config import ContractConfig, load_contract_config
-from src.contracts.contract_v0 import RATE_COLUMNS, validate_contract_df
+from src.contracts.contract_v0 import RATE_COLUMNS, ContractV0Error, validate_contract_df
+from src.contracts.endpoint_id_mapping import endpoint_id_map as _derive_endpoint_id_map
 from src.contracts.split_v1 import split_normal_rows_temporal
 from src.data.dataset_config import load_dataset_config
 from src.data.endpoint_baseline_stats import EndpointBaselineStats
@@ -143,6 +144,19 @@ def _process_one_case(
     if endpoint_id_map is not None:
         # v1 专属列（None 表示 v0 调用方，保持 v0 产物列集合不变）。
         ep_df["endpoint_id"] = ep_df["endpoint_key"].map(endpoint_id_map)
+        # .map() 对不在 endpoint_id_map 里的 key 静默产出 NaN，而不是报错——若放任
+        # 这个 NaN 流下去，会一路传到 ReliabilityGatedFusion.gate_weights() 里的
+        # int(endpoint_id[i].item())，在离真正病灶（配置/数据不一致）很远的地方
+        # 抛出一个不知所云的 "cannot convert float NaN to integer"。在源头就地
+        # 报错，把 case_id 和具体缺失的 endpoint_key 都亮出来。
+        unmapped_mask = ep_df["endpoint_id"].isna()
+        if unmapped_mask.any():
+            unmapped_keys = sorted(ep_df.loc[unmapped_mask, "endpoint_key"].unique())
+            raise ContractV0Error(
+                f"case {case_id} 存在 endpoint_key 不在 endpoint_to_service.yaml 映射表中: "
+                f"{unmapped_keys}——多半是该 endpoint 缺失于 "
+                "configs/contract/endpoint_to_service.yaml，请补齐映射后重跑"
+            )
     _attach_label_columns(ep_df, case_meta)
     return ep_df
 
@@ -321,13 +335,11 @@ def main() -> None:
     intermediate_dir = out / "intermediate"
 
     ep_to_svc = yaml.safe_load(_EP_TO_SVC_PATH.read_text())
-    # 确定性 endpoint 字符串→整数映射，供 v1 的 EndpointBaselineStats 查表用。
-    # sorted() 保证映射跨运行/跨环境稳定，不依赖 dict 迭代顺序。v0 不用，故只在 v1 时构造。
-    endpoint_id_map = (
-        {ep: i for i, ep in enumerate(sorted(ep_to_svc.keys()))}
-        if cfg.contract_version == "v1"
-        else None
-    )
+    # 确定性 endpoint 字符串→整数映射，供 v1 的 EndpointBaselineStats 查表用。派生逻辑
+    # 收敛到 src/contracts/endpoint_id_mapping.py，train_baseline_v0.py 的
+    # id_to_endpoint_key（那份映射的逆映射）复用同一个模块，避免两处 sorted() 各写
+    # 一份、排序规则悄悄分叉。v0 不用，故只在 v1 时构造。
+    endpoint_id_map = _derive_endpoint_id_map(ep_to_svc) if cfg.contract_version == "v1" else None
 
     trace_pre = TracePreprocessor()
     api_pre = ApiPreprocessor()
@@ -444,7 +456,7 @@ def main() -> None:
     validate_contract_df(full, args.config)
 
     if cfg.contract_version == "v1":
-        _write_v1(out, full, normal_mask, args.seed, fit_df)
+        _write_v1(out, full, normal_mask, args.seed)
     else:
         # v0：train=全部 Normal，eval_all=全部行（保持向后兼容，train ⊆ eval_all）
         full[normal_mask].reset_index(drop=True).to_parquet(out / "train.parquet", index=False)
@@ -455,18 +467,17 @@ def main() -> None:
     LOG.info("完成！版本=%s，总行数=%d", cfg.contract_version, len(full))
 
 
-def _write_v1(
-    out: Path, full: pd.DataFrame, normal_mask: pd.Series, seed: int, fit_df: pd.DataFrame
-) -> None:
+def _write_v1(out: Path, full: pd.DataFrame, normal_mask: pd.Series, seed: int) -> None:
     """v1：Normal 行按时间窗三路切分；train.parquet 额外吸收故障 case 的 baseline
     阶段行扩容训练池（不吸收 recover——系统未稳定回正常态，分布未验证，保守排除）；
     eval_all 同步从这些被吸收的行里摘除，防止复现 v0 的 train⊆eval 泄漏。
 
-    fit_df 由调用方（main()）传入，是 normalizer.fit() 实际用过的那份 train_fit——
-    不在这里重新调用 split_normal_rows_temporal 再算一次。两次调用理论上应该确定性
-    产出同一份切分，但直接复用同一个 DataFrame 彻底消除"万一不一致"的可能性，
-    保证 EndpointBaselineStats 与 Normalizer 严格 fit 在同一批行上（本任务不改这条
-    路径——训练池扩容只影响 train.parquet 装什么，不影响谁用来 fit 归一化/基线统计）。
+    EndpointBaselineStats 必须 fit 在 parts["train_fit"]（归一化之后的尺度）上，
+    不能像 Normalizer 一样 fit 在归一化之前的 fit_df 上——门控推理时从 parquet
+    读到的特征已经是归一化后的尺度（main() 里 full[feature_cols] 被原地覆盖），
+    如果 baseline stats 的 mean/std 停留在原始尺度（如毫秒级 latency），
+    z-score 的分子分母尺度不一致，偏离量会被系统性放大/压缩到失真，
+    而不是真实反映"离正常基线有多远"。
     """
     normal_df = full[normal_mask].reset_index(drop=True)
     anomaly_df = full[~normal_mask].reset_index(drop=True)
@@ -504,10 +515,25 @@ def _write_v1(
         len(eval_all),
     )
 
-    red_cols = [c for c in fit_df.columns if c.startswith("endpoint_red__")]
-    svc_cols = [c for c in fit_df.columns if c.startswith(("service_metric__", "service_log__"))]
+    train_fit_normalized = parts["train_fit"]
+    red_cols = [c for c in train_fit_normalized.columns if c.startswith("endpoint_red__")]
+    svc_cols = [
+        c
+        for c in train_fit_normalized.columns
+        if c.startswith(("service_metric__", "service_log__"))
+    ]
     baseline_stats = EndpointBaselineStats(red_cols=red_cols, svc_cols=svc_cols)
-    baseline_stats.fit(fit_df)
+    baseline_stats.fit(train_fit_normalized)
+    for branch in ("ep", "svc"):
+        degenerate = baseline_stats.degenerate_columns(branch)
+        if degenerate:
+            LOG.warning(
+                "EndpointBaselineStats %s 分支在整个 fit 集合上退化（全 NaN/零方差），"
+                "std 兜底为 epsilon，偏离量 z-score 在该列上会被放大，"
+                "可能扭曲 ReliabilityGatedFusion 门控输入信号: %s",
+                branch,
+                degenerate,
+            )
     baseline_stats.save(out / "endpoint_baseline_stats.json")
 
 

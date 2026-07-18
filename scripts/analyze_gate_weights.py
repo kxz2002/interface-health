@@ -14,6 +14,7 @@ import pandas as pd
 import torch
 import yaml
 
+from src.contracts.endpoint_id_mapping import id_to_endpoint_key as _derive_id_to_endpoint_key
 from src.data.contract_dataloader import ContractDataset
 from src.data.endpoint_baseline_stats import EndpointBaselineStats
 from src.fusion.base import MODALITY_ORDER
@@ -31,7 +32,7 @@ def main() -> None:
     modality_dims = {n: len(g["columns"]) for n, g in schema["feature_groups"].items()}
     baseline_stats = EndpointBaselineStats.load(contract_dir / "endpoint_baseline_stats.json")
     ep_to_svc = yaml.safe_load(Path("configs/contract/endpoint_to_service.yaml").read_text())
-    id_to_key = {i: ep for i, ep in enumerate(sorted(ep_to_svc.keys()))}
+    id_to_key = _derive_id_to_endpoint_key(ep_to_svc)
 
     fusion = ReliabilityGatedFusion(
         modality_dims=modality_dims,

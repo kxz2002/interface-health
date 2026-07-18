@@ -9,6 +9,7 @@ contract 的核心目的是把"模型如何产生分数"和"评测如何计算�
 """
 
 from src.contracts.contract_v0 import ContractV0, ContractV0Error, validate_contract_df
+from src.contracts.endpoint_id_mapping import endpoint_id_map, id_to_endpoint_key
 from src.contracts.metrics_v0 import validate_metrics_dict
 from src.contracts.scores_v0 import ScoresV0, validate_scores_df
 
@@ -19,4 +20,6 @@ __all__ = [
     "validate_contract_df",
     "ContractV0Error",
     "ContractV0",
+    "endpoint_id_map",
+    "id_to_endpoint_key",
 ]

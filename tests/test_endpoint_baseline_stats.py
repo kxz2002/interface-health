@@ -2,7 +2,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.data.endpoint_baseline_stats import EndpointBaselineStats
+from src.data.endpoint_baseline_stats import (
+    _FALLBACK_MEAN_SENTINEL,
+    _FALLBACK_STD_EPSILON,
+    EndpointBaselineStats,
+)
 
 RED_COLS = [f"endpoint_red__f{i}" for i in range(3)]
 SVC_COLS = [f"service_metric__g{i}" for i in range(2)]
@@ -90,6 +94,81 @@ def test_degenerate_columns_reports_globally_degenerate_column():
     for col in RED_COLS[1:]:
         assert col not in stats.degenerate_columns("ep")
     assert stats.degenerate_columns("svc") == []
+
+
+def test_globally_all_nan_column_falls_back_to_sentinel_mean_and_epsilon_std():
+    """区别于 test_globally_degenerate_column_falls_back_to_epsilon_not_zero（该测试
+    用零方差但非 NaN 的常数列覆盖 std 的退化路径），这里构造一列在整个 fit 集合
+    （跨所有 endpoint 的所有行）全 NaN——这是模块 docstring 明确点名的真实生产
+    bug 场景（Task 7 e2e 冒烟测试实测命中：某 service 从未命中过 log join，
+    对应列全局 NaN，NaN mean 传入 z-score 分子直接产出 NaN loss）。
+
+    全 NaN 列同时触发两条独立的兜底截断：
+    - global std 是 NaN → 命中 fit() 里 `global_degenerate` 判定 → g_std 截断为
+      _FALLBACK_STD_EPSILON（第 82 行）
+    - global mean 是 NaN → 命中 `np.isnan(g_mean)` 判定 → g_mean 截断为
+      _FALLBACK_MEAN_SENTINEL（第 85 行），这条截断只看 mean 自己是否 NaN，
+      与 std 的退化判定是独立的两条逻辑
+
+    对每个 endpoint，该列局部 std 也必然是 NaN（全 NaN 列的任何子集统计量都是
+    NaN）→ 命中局部 `degenerate` 判定（第 96 行）→ std/mean 都直接赋值为已截断
+    的 global 值（第 103-106 行），且这一赋值发生在 shrinkage 混合之前，
+    shrinkage 只对 `non_degenerate` 索引生效（第 110-114 行）——因此不存在
+    "epsilon 被 shrinkage 稀释成别的值"的可能，退化列的最终值必须精确等于
+    _FALLBACK_STD_EPSILON 和 _FALLBACK_MEAN_SENTINEL，不是近似。
+    """
+    df = _synth_df({"ep1": 50, "ep2": 30})
+    nan_col = RED_COLS[0]
+    df[nan_col] = np.nan  # 全局全 NaN，而非常数
+
+    stats = EndpointBaselineStats(red_cols=RED_COLS, svc_cols=SVC_COLS)
+    stats.fit(df)
+    idx = RED_COLS.index(nan_col)
+    for ep in ("ep1", "ep2"):
+        ep_mean, ep_std = stats.branch_stats(ep, "ep")
+        assert ep_mean[idx] == pytest.approx(_FALLBACK_MEAN_SENTINEL)
+        assert ep_std[idx] == pytest.approx(_FALLBACK_STD_EPSILON)
+        assert ep_std[idx] > 0
+        assert not np.isnan(ep_std[idx])
+        assert not np.isnan(ep_mean[idx])
+    assert nan_col in stats.degenerate_columns("ep")
+
+
+def test_locally_nan_column_falls_back_to_well_defined_global_stats():
+    """区别于上一测试（全局也退化，兜底到 epsilon/sentinel），这里构造仅对
+    *某一个* endpoint 局部退化（该 endpoint 的列全 NaN），但另一个 endpoint
+    在同一列上有正常方差数据，使得 global std/mean 本身不退化——此时应该
+    退化到"有效的 global 统计量"，而不是掉到 epsilon/sentinel 兜底值。
+
+    这条路径对应 fit() 第 96/103-106 行：局部 degenerate 判定只看 local_std
+    是否 NaN/零方差，不管 global 是否也退化；global_stats 在这里因为
+    ep-has-data 贡献了非退化的行，不会触发第 73-85 行的 global 截断，
+    所以 g_mean/g_std 是 df 里非 NaN 子集算出的真实统计量。
+    """
+    df = _synth_df({"ep-nan": 20, "ep-has-data": 50}, seed=4)
+    nan_col = RED_COLS[0]
+    df.loc[df["endpoint_key"] == "ep-nan", nan_col] = np.nan
+
+    stats = EndpointBaselineStats(red_cols=RED_COLS, svc_cols=SVC_COLS)
+    stats.fit(df)
+    idx = RED_COLS.index(nan_col)
+
+    # global 统计量应基于整列（含 ep-nan 全 NaN 行，pandas 默认 skipna）算出，
+    # 等价于只用 ep-has-data 的行算出的均值/标准差
+    global_mean = df[nan_col].mean()
+    global_std = df[nan_col].std()
+    assert not np.isnan(global_mean)
+    assert not np.isnan(global_std)
+    assert global_std > _FALLBACK_STD_EPSILON
+
+    ep_mean, ep_std = stats.branch_stats("ep-nan", "ep")
+    # use_shrinkage 默认 True，但退化索引不参与 shrinkage 混合（第 110 行
+    # non_degenerate 过滤），所以 ep-nan 的取值应精确等于 global 统计量，
+    # 而不是 shrunk 之后的某个中间值
+    assert ep_mean[idx] == pytest.approx(global_mean, rel=1e-6)
+    assert ep_std[idx] == pytest.approx(global_std, rel=1e-6)
+    assert ep_std[idx] != pytest.approx(_FALLBACK_STD_EPSILON)
+    assert nan_col not in stats.degenerate_columns("ep")
 
 
 def test_shrinkage_pulls_sparse_endpoint_toward_global():

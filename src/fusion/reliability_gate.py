@@ -40,6 +40,20 @@ class ReliabilityGatedFusion(FusionModule):
             raise ValueError(
                 f"modality_dims keys {set(modality_dims)} must match MODALITY_ORDER {MODALITY_ORDER}"
             )
+        # Literal[...] 只是类型标注，Python 运行时不校验——typo（如
+        # "branch_awer"）会静默落入 deviation_mode == "scalar" 判断的 else
+        # 分支，被当成合法的 "branch_aware" 处理，没有任何提示，必须手动兜底。
+        valid_deviation_modes = ("branch_aware", "scalar")
+        if deviation_mode not in valid_deviation_modes:
+            raise ValueError(
+                f"deviation_mode must be one of {valid_deviation_modes}, got {deviation_mode!r}"
+            )
+        valid_gate_normalizations = ("softmax", "independent_sigmoid", "fixed_uniform")
+        if gate_normalization not in valid_gate_normalizations:
+            raise ValueError(
+                f"gate_normalization must be one of {valid_gate_normalizations}, "
+                f"got {gate_normalization!r}"
+            )
         self._branch_dim = branch_dim
         self._baseline = endpoint_baseline_stats
         self._id_to_key = dict(id_to_endpoint_key)
