@@ -1,0 +1,47 @@
+contract_version: "v1"
+window_size_s: 15
+# 训练池扩容（Task 6 行为）：train 额外吸收故障 case 的 baseline 阶段行
+# （838→~6249 行），eval_all 同步摘除这些行防泄漏。RG（ReliabilityGatedFusion）
+# 专属实验用这份配置；L0/L1/L2 等既有 baseline 对比继续用 v1.yaml（不扩容），
+# 保持与 entry 012 的既有数字可比。见 history/entries/014-reliability-gate-fusion.md。
+expand_train_pool: true
+
+modalities:
+  endpoint_red:
+    preprocessor: TracePreprocessor
+    preprocessor_version: v0
+    features:
+      - trace_request_count
+      - trace_latency_p50
+      - trace_latency_p95
+      - trace_error_rate
+      - trace_5xx_rate
+      - client_request_count
+      - client_latency_p95
+      - client_error_rate
+      - client_5xx_rate
+      - latency_divergence
+    normalization: per_endpoint_min_max
+    candidates_pool: []
+
+  service_metric:
+    preprocessor: MetricPreprocessor
+    preprocessor_version: v0
+    features:
+      - cpu_usage_rate
+      - memory_usage_ratio
+      - net_rx_error_rate
+      - net_tx_error_rate
+      - process_count
+    normalization: per_service_min_max
+    candidates_pool: []
+
+  service_log:
+    preprocessor: LogPreprocessor
+    preprocessor_version: v0
+    features:
+      - event_rate
+      - error_ratio
+      - template_diversity
+    normalization: per_service_min_max
+    candidates_pool: []

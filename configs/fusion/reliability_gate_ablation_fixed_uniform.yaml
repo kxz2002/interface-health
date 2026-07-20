@@ -1,0 +1,4 @@
+_target_: src.fusion.reliability_gate.ReliabilityGatedFusion
+branch_dim: 16
+dropout: 0.1
+gate_normalization: fixed_uniform

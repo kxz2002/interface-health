@@ -1,5 +1,9 @@
 contract_version: "v1"
 window_size_s: 15
+# 训练池不扩容（Task 6 之前的原始行为）：train=train_fit（纯 Normal），
+# eval_all=故障 case 全部阶段+holdout。与 entry 012 的既有实验数字可比。
+# RG 专属实验（需要扩容训练池）用 configs/contract/v1_expanded_pool.yaml。
+expand_train_pool: false
 
 modalities:
   endpoint_red:

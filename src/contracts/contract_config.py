@@ -34,6 +34,11 @@ class ContractConfig:
     contract_version: str
     window_size_s: int
     modalities: dict[str, ModalitySpec]
+    # v1 专属：是否把故障 case 的 baseline 阶段行吸收进训练池（838→~6249 行）。
+    # 默认 False 保持 Task 6 之前的行为（train=纯 train_fit，eval_all 含全部
+    # 故障阶段），与 entry 012 的既有实验数字可比；RG 专属实验用
+    # v1_expanded_pool.yaml 显式打开。v0 不消费此字段。
+    expand_train_pool: bool = False
 
 
 def load_contract_config(path: str | Path) -> ContractConfig:
@@ -54,4 +59,5 @@ def load_contract_config(path: str | Path) -> ContractConfig:
         contract_version=raw["contract_version"],
         window_size_s=raw["window_size_s"],
         modalities=modalities,
+        expand_train_pool=raw.get("expand_train_pool", False),
     )

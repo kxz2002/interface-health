@@ -14,3 +14,7 @@ output_dir: outputs/${now:%Y-%m-%d_%H-%M-%S}
 # Contract 数据目录与训练产物输出路径，替代原 argparse 的 --contract-dir/--out
 contract_dir: ???
 out: ???
+
+# 可选：训练完成后落盘 fusion.state_dict() 到此路径，供 analyze_gate_weights.py
+# 等分析脚本读取真实训练权重（而非随机初始化）。默认 null 不保存，不改变现有行为。
+fusion_checkpoint: null

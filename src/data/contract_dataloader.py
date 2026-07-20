@@ -111,6 +111,8 @@ class ContractDataset(Dataset):
             "is_anomaly": bool(row["is_anomaly"]),
         }
         meta = {"sample_id": row["sample_id"], "endpoint_key": row["endpoint_key"]}
+        if "endpoint_id" in row.index:
+            meta["endpoint_id"] = int(row["endpoint_id"])
         return {**tensors, "label": label, "meta": meta}
 
     def _rows_to_sequence_sample(self, rows: pd.DataFrame) -> dict:

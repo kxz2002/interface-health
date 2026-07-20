@@ -22,9 +22,11 @@ import pandas as pd
 import yaml
 
 from src.contracts.contract_config import ContractConfig, load_contract_config
-from src.contracts.contract_v0 import RATE_COLUMNS, validate_contract_df
+from src.contracts.contract_v0 import RATE_COLUMNS, ContractV0Error, validate_contract_df
+from src.contracts.endpoint_id_mapping import endpoint_id_map as _derive_endpoint_id_map
 from src.contracts.split_v1 import split_normal_rows_temporal
 from src.data.dataset_config import load_dataset_config
+from src.data.endpoint_baseline_stats import EndpointBaselineStats
 from src.data.normalization import Method, Normalizer, Scope
 from src.preprocessors.api_preprocessor import ApiPreprocessor
 from src.preprocessors.log_preprocessor import LogPreprocessor
@@ -108,6 +110,7 @@ def _process_one_case(
     api_pre: ApiPreprocessor,
     metric_pre: MetricPreprocessor,
     log_pre: LogPreprocessor,
+    endpoint_id_map: dict[str, int] | None = None,
 ) -> pd.DataFrame | None:
     """处理单个 case，返回未归一化的宽表（含标识/特征/标签列）。"""
     case_meta = _load_case_meta(case_dir)
@@ -138,6 +141,22 @@ def _process_one_case(
 
     _fill_missing_feature_cols(ep_df, cfg)
     _attach_identity_columns(ep_df, case_id)
+    if endpoint_id_map is not None:
+        # v1 专属列（None 表示 v0 调用方，保持 v0 产物列集合不变）。
+        ep_df["endpoint_id"] = ep_df["endpoint_key"].map(endpoint_id_map)
+        # .map() 对不在 endpoint_id_map 里的 key 静默产出 NaN，而不是报错——若放任
+        # 这个 NaN 流下去，会一路传到 ReliabilityGatedFusion.gate_weights() 里的
+        # int(endpoint_id[i].item())，在离真正病灶（配置/数据不一致）很远的地方
+        # 抛出一个不知所云的 "cannot convert float NaN to integer"。在源头就地
+        # 报错，把 case_id 和具体缺失的 endpoint_key 都亮出来。
+        unmapped_mask = ep_df["endpoint_id"].isna()
+        if unmapped_mask.any():
+            unmapped_keys = sorted(ep_df.loc[unmapped_mask, "endpoint_key"].unique())
+            raise ContractV0Error(
+                f"case {case_id} 存在 endpoint_key 不在 endpoint_to_service.yaml 映射表中: "
+                f"{unmapped_keys}——多半是该 endpoint 缺失于 "
+                "configs/contract/endpoint_to_service.yaml，请补齐映射后重跑"
+            )
     _attach_label_columns(ep_df, case_meta)
     return ep_df
 
@@ -245,7 +264,11 @@ def _attach_label_columns(ep_df: pd.DataFrame, case_meta: dict) -> None:
         ep_df["phase"] = "normal"
 
     ep_df["is_anomaly"] = ep_df["phase"] == "inject"
-    # is_train_eligible 标记 non-inject 窗口；train.parquet 目前只取 Normal case（更严格）
+    # is_train_eligible 标记 non-inject 窗口（baseline/recover/normal 均可）；
+    # 注意这与 train.parquet 实际吸收的行集合不是同一个概念——这一列是逐行的粗粒度
+    # 可训练性标记，不是训练池扩容逻辑的依据。train.parquet 实际吸收哪些行取决于
+    # expand_train_pool 开关（仅当 True 时含 baseline，默认 False 时不含任何故障
+    # 行），见 _write_v1。
     ep_df["is_train_eligible"] = ~ep_df["is_anomaly"]
     ep_df["injection_start_ms"] = inject_start
     ep_df["injection_end_ms"] = inject_end
@@ -314,6 +337,11 @@ def main() -> None:
     intermediate_dir = out / "intermediate"
 
     ep_to_svc = yaml.safe_load(_EP_TO_SVC_PATH.read_text())
+    # 确定性 endpoint 字符串→整数映射，供 v1 的 EndpointBaselineStats 查表用。派生逻辑
+    # 收敛到 src/contracts/endpoint_id_mapping.py，train_baseline_v0.py 的
+    # id_to_endpoint_key（那份映射的逆映射）复用同一个模块，避免两处 sorted() 各写
+    # 一份、排序规则悄悄分叉。v0 不用，故只在 v1 时构造。
+    endpoint_id_map = _derive_endpoint_id_map(ep_to_svc) if cfg.contract_version == "v1" else None
 
     trace_pre = TracePreprocessor()
     api_pre = ApiPreprocessor()
@@ -339,7 +367,16 @@ def main() -> None:
     frames: list[pd.DataFrame] = []
     for case_dir in cases:
         LOG.info("处理 case: %s", case_dir.name)
-        df = _process_one_case(case_dir, cfg, ep_to_svc, trace_pre, api_pre, metric_pre, log_pre)
+        df = _process_one_case(
+            case_dir,
+            cfg,
+            ep_to_svc,
+            trace_pre,
+            api_pre,
+            metric_pre,
+            log_pre,
+            endpoint_id_map=endpoint_id_map,
+        )
         if df is not None:
             frames.append(df)
 
@@ -421,7 +458,7 @@ def main() -> None:
     validate_contract_df(full, args.config)
 
     if cfg.contract_version == "v1":
-        _write_v1(out, full, normal_mask, args.seed)
+        _write_v1(out, full, normal_mask, args.seed, cfg.expand_train_pool)
     else:
         # v0：train=全部 Normal，eval_all=全部行（保持向后兼容，train ⊆ eval_all）
         full[normal_mask].reset_index(drop=True).to_parquet(out / "train.parquet", index=False)
@@ -432,8 +469,25 @@ def main() -> None:
     LOG.info("完成！版本=%s，总行数=%d", cfg.contract_version, len(full))
 
 
-def _write_v1(out: Path, full: pd.DataFrame, normal_mask: pd.Series, seed: int) -> None:
-    """v1：Normal 行按时间窗三路切分，eval_all 的 Normal 部分只取 holdout。"""
+def _write_v1(
+    out: Path, full: pd.DataFrame, normal_mask: pd.Series, seed: int, expand_train_pool: bool
+) -> None:
+    """v1：Normal 行按时间窗三路切分。`expand_train_pool=False`（默认，与 entry 012
+    既有实验数字可比）时 train.parquet=train_fit、eval_all=全部故障阶段+holdout，
+    这是 Task 6 训练池扩容之前的原始行为。`expand_train_pool=True`（RG 专属实验用
+    v1_expanded_pool.yaml 打开）时 train.parquet 额外吸收故障 case 的 baseline
+    阶段行扩容训练池（不吸收 recover——系统未稳定回正常态，分布未验证，保守排除），
+    eval_all 同步从这些被吸收的行里摘除，防止复现 v0 的 train⊆eval 泄漏。
+
+    EndpointBaselineStats 必须 fit 在 parts["train_fit"]（归一化之后的尺度）上，
+    不能像 Normalizer 一样 fit 在归一化之前的 fit_df 上——门控推理时从 parquet
+    读到的特征已经是归一化后的尺度（main() 里 full[feature_cols] 被原地覆盖），
+    如果 baseline stats 的 mean/std 停留在原始尺度（如毫秒级 latency），
+    z-score 的分子分母尺度不一致，偏离量会被系统性放大/压缩到失真，
+    而不是真实反映"离正常基线有多远"。fit 范围不随开关变化——两种模式下都只用
+    train_fit，不看 expand_train_pool 吸收的 fault_baseline 行（否则会破坏
+    "偏离基线"的定义：基线本身不能包含故障数据）。
+    """
     normal_df = full[normal_mask].reset_index(drop=True)
     anomaly_df = full[~normal_mask].reset_index(drop=True)
     parts = split_normal_rows_temporal(normal_df, seed=seed)
@@ -442,20 +496,70 @@ def _write_v1(out: Path, full: pd.DataFrame, normal_mask: pd.Series, seed: int) 
     parts["train_val"].to_parquet(out / "train_val.parquet", index=False)
     parts["eval_normal_holdout"].to_parquet(out / "eval_normal_holdout.parquet", index=False)
 
-    # 冗余 train.parquet = train_fit，让 train_v1 stage 复用 Task 4 的训练脚本原样跑通
-    # （训练脚本消费 train_val 早停是下一轮工作，spec 已排除）。
-    parts["train_fit"].to_parquet(out / "train.parquet", index=False)
+    if expand_train_pool:
+        # 训练池扩容：train_fit（Normal，打标 normal_case）+ 故障 case 的 baseline
+        # 阶段行（打标 fault_baseline）。只吸收 baseline，不吸收 recover——系统未
+        # 稳定回正常态，分布未验证，保守排除。source_phase 可审计，未来可按需排除/降权。
+        train_fit_labeled = parts["train_fit"].copy()
+        train_fit_labeled["source_phase"] = "normal_case"
+        fault_baseline_df = anomaly_df[anomaly_df["phase"] == "baseline"].copy()
+        fault_baseline_df["source_phase"] = "fault_baseline"
+        train_pool = pd.concat([train_fit_labeled, fault_baseline_df], ignore_index=True)
+        train_pool.to_parquet(out / "train.parquet", index=False)
 
-    # eval_all = 故障 case 全部行 + 仅 holdout 的 Normal 行（修复 train ⊆ eval_all 重叠）
-    eval_all = pd.concat([anomaly_df, parts["eval_normal_holdout"]], ignore_index=True)
-    eval_all.to_parquet(out / "eval_all.parquet", index=False)
-    LOG.info(
-        "v1 切分：train_fit=%d train_val=%d holdout=%d eval_all=%d",
-        len(parts["train_fit"]),
-        len(parts["train_val"]),
-        len(parts["eval_normal_holdout"]),
-        len(eval_all),
-    )
+        # eval_all：故障 case 的 inject/recover 行（baseline 已被吸收进训练池，摘除）
+        # + 仅 holdout 的 Normal 行。这一步是防泄漏强制要求（spec §3.4）：train_pool
+        # 吸收了什么，就必须从 eval_all 同步摘除，否则复现 v0 的 train ⊆ eval 泄漏 bug。
+        eval_all = pd.concat(
+            [anomaly_df[anomaly_df["phase"] != "baseline"], parts["eval_normal_holdout"]],
+            ignore_index=True,
+        )
+        eval_all.to_parquet(out / "eval_all.parquet", index=False)
+        LOG.info(
+            "v1 切分（训练池已扩容）：train_fit=%d train_val=%d holdout=%d "
+            "fault_baseline=%d train_pool=%d eval_all=%d",
+            len(parts["train_fit"]),
+            len(parts["train_val"]),
+            len(parts["eval_normal_holdout"]),
+            len(fault_baseline_df),
+            len(train_pool),
+            len(eval_all),
+        )
+    else:
+        # 原始行为（Task 6 之前）：train=train_fit，eval_all=故障 case 全部行
+        # （inject/baseline/recover）+ holdout。train⊆eval_all 不会发生，因为
+        # train_fit 是纯 Normal 的时序切分子集，与故障 case 无交集。
+        parts["train_fit"].to_parquet(out / "train.parquet", index=False)
+        eval_all = pd.concat([anomaly_df, parts["eval_normal_holdout"]], ignore_index=True)
+        eval_all.to_parquet(out / "eval_all.parquet", index=False)
+        LOG.info(
+            "v1 切分（训练池未扩容）：train_fit=%d train_val=%d holdout=%d eval_all=%d",
+            len(parts["train_fit"]),
+            len(parts["train_val"]),
+            len(parts["eval_normal_holdout"]),
+            len(eval_all),
+        )
+
+    train_fit_normalized = parts["train_fit"]
+    red_cols = [c for c in train_fit_normalized.columns if c.startswith("endpoint_red__")]
+    svc_cols = [
+        c
+        for c in train_fit_normalized.columns
+        if c.startswith(("service_metric__", "service_log__"))
+    ]
+    baseline_stats = EndpointBaselineStats(red_cols=red_cols, svc_cols=svc_cols)
+    baseline_stats.fit(train_fit_normalized)
+    for branch in ("ep", "svc"):
+        degenerate = baseline_stats.degenerate_columns(branch)
+        if degenerate:
+            LOG.warning(
+                "EndpointBaselineStats %s 分支在整个 fit 集合上退化（全 NaN/零方差），"
+                "std 兜底为 epsilon，偏离量 z-score 在该列上会被放大，"
+                "可能扭曲 ReliabilityGatedFusion 门控输入信号: %s",
+                branch,
+                degenerate,
+            )
+    baseline_stats.save(out / "endpoint_baseline_stats.json")
 
 
 def _write_schema(out: Path, cfg: ContractConfig) -> None:
