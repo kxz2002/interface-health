@@ -1,9 +1,10 @@
 contract_version: "v1"
 window_size_s: 15
-# 训练池不扩容（Task 6 之前的原始行为）：train=train_fit（纯 Normal），
-# eval_all=故障 case 全部阶段+holdout。与 entry 012 的既有实验数字可比。
-# RG 专属实验（需要扩容训练池）用 configs/contract/v1_expanded_pool.yaml。
-expand_train_pool: false
+# 训练池扩容（Task 6 行为）：train 额外吸收故障 case 的 baseline 阶段行
+# （838→~6249 行），eval_all 同步摘除这些行防泄漏。RG（ReliabilityGatedFusion）
+# 专属实验用这份配置；L0/L1/L2 等既有 baseline 对比继续用 v1.yaml（不扩容），
+# 保持与 entry 012 的既有数字可比。见 history/entries/014-reliability-gate-fusion.md。
+expand_train_pool: true
 
 modalities:
   endpoint_red:

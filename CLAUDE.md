@@ -106,6 +106,19 @@ python scripts/build_contract.py --config configs/contract/v1.yaml --dataset con
 python scripts/train_baseline_v0.py contract_dir=artifacts/contract_v1 out=artifacts/baseline_v1/scores.parquet seed=42 training.epochs=50 fusion=concat model=deep_svdd
 python scripts/eval_baseline_v0.py --scores artifacts/baseline_v1/scores.parquet --out artifacts/baseline_v1/metrics.json
 
+# === Contract v1 训练池扩容开关（expand_train_pool，RG 专属）===
+# v1.yaml 默认 expand_train_pool=false（train=train_fit 纯 Normal 838 行，eval_all=13632 行，
+# 与 entry 012 既有实验数字可比）。v1_expanded_pool.yaml 显式打开 expand_train_pool=true，
+# train 额外吸收故障 case 的 baseline 阶段行扩容训练池（838→6249 行），eval_all 同步摘除
+# 这些行防泄漏（13632→8221 行）。两者产物目录互相隔离（contract_v1 / contract_v1_expanded），
+# L0/L1/L2 对比基线只走前者，ReliabilityGatedFusion（RG）专属实验走后者，见 history/entries/014。
+dvc repro build_contract_v1_expanded train_v1_reliability_gate eval_v1_reliability_gate
+
+# 单独运行（不走 DVC 缓存）
+python scripts/build_contract.py --config configs/contract/v1_expanded_pool.yaml --dataset configs/data/merged_v2.yaml --out-dir artifacts/contract_v1_expanded --seed 42
+python scripts/train_baseline_v0.py contract_dir=artifacts/contract_v1_expanded out=artifacts/baseline_v1_reliability_gate/scores.parquet seed=42 training.epochs=50 fusion=reliability_gate model=deep_svdd
+python scripts/eval_baseline_v0.py --scores artifacts/baseline_v1_reliability_gate/scores.parquet --out artifacts/baseline_v1_reliability_gate/metrics.json
+
 # 运行测试
 pytest tests/
 ```
@@ -118,6 +131,7 @@ pytest tests/
 - 模型通过 `hydra.utils.instantiate(cfg.model)` 实例化，融合机制同理通过 `hydra.utils.instantiate(cfg.fusion)` 实例化，`_target_` 指向具体类
 - `train_baseline_v0.py` 是 `@hydra.main` 入口：`contract_dir`/`out` 是 `configs/base.yaml` 里的必填 Hydra 字段（`???`），不是 argparse flag，调用改用 `contract_dir=... out=...` override 语法
 - `configs/data/*.yaml` 声明数据集组成：`roots`（合并哪些数据源目录）+ `normal_source`（Normal 只取自哪个 root）。如 `merged_v1.yaml` = anomod_v1 + endpoint_raw2；`build_contract.py --dataset <该文件>` 消费
+- `configs/contract/v1.yaml` 新增 `expand_train_pool: bool` 字段（仅 v1 契约消费，v0 不识别该字段）：`false`（默认）=train 仅纯 Normal `train_fit`；`true`=train 额外吸收故障 case 的 `baseline` 阶段行（不含 `inject`/`recover`），eval_all 同步摘除防泄漏。两种取值分别对应 `configs/contract/v1.yaml` 与 `configs/contract/v1_expanded_pool.yaml`
 
 ## Data Rules
 - `data/anomod_v1/` 等数据集目录是 READ-ONLY，绝不修改原始数据
@@ -183,6 +197,7 @@ pytest tests/
 - **Drain3 输出是聚合统计量，不是 raw token**：LogPreprocessor 产出的是 event_rate/error_ratio/template_diversity 三列，template_id 只作为分组 key 计算多样性，不直接进入特征
 - **Normalizer 退化 group（全 NaN 或零方差）不做归一化，保留原值**：某 group（或 global scope）在 fit 集合（仅 Normal）里全 NaN，或只出现过单一取值（`hi-lo=0`）时，`transform()` 必须跳过该 group 的归一化运算——全 NaN 会把 `[nan, nan]` 统计量通过减法/除法扩散污染其他数据完好的 case；零方差若不跳过、只是把除数下限到 `1e-9`，会把 eval 侧任何非零差值放大 1e9 倍，产出 1e9~1e13 量级的离谱数值（`endpoint_red__client_latency_p95`/`latency_divergence` 曾实际命中，2026-07-16 修复，见 history 013）。跳过后保留原始量纲；若某列同时受 `RATE_COLUMNS` 的 `clip(0,1)` 约束，需确认原始量纲天然落在 `[0,1]`，否则 clip 会把正常值误判为异常
 - **per-endpoint 标签精度**：contract pipeline 按 case 是否含 `target_endpoint`（`case_metadata.json`）产出 `label_granularity`（`"endpoint"` 精确 / `"case"` 近似 fallback）和 `is_endpoint_anomaly`（= `is_target_endpoint AND phase=='inject'`）。判定依据是 `target_endpoint` 字段是否存在，**不是** `anomaly_level`（那是故障类型描述，语义不等价，未来数据源变化会失配）。`is_anomaly`/`y_true` 语义不变（仍是 case 级）；`eval_baseline_v0.py` 的四层分层（overall/by_anomaly_type/by_anomaly_level/by_endpoint）统一用 `is_endpoint_anomaly`
+- **`expand_train_pool` 开关会改变 eval_all 行数，不同取值的 AUROC 不可直接横向比较**：`false`（`contract_v1`）eval_all=13632 行，`true`（`contract_v1_expanded`）eval_all=8221 行——后者摘除了被吸收进训练池的故障 baseline 行。L0/L1/L2 与 RG 分别固定用其中一种取值（见上方 Commands 小节），不要把两者的 AUROC 直接摆在一张表里比大小，除非明确注明各自的 eval 样本数和口径差异。`EndpointBaselineStats`/`Normalizer` 的 fit 范围不受该开关影响，始终锁定纯 Normal 的 `train_fit`
 
 ## Git Commit Convention
 MUST: 撰写提交信息__必须__严格遵守提交格式。

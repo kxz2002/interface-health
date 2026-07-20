@@ -10,7 +10,9 @@ REPO_ROOT = Path(__file__).parents[1]
 
 
 def test_reliability_gate_e2e_on_mini_fixture(tmp_path):
-    # mini_dataset.yaml（Task 7 计划原始指定的 fixture）在 v1 训练池扩容后会把
+    # RG 生产链路用 v1_expanded_pool.yaml（expand_train_pool=true，见 dvc.yaml
+    # train_v1_reliability_gate stage），这里用同一份配置才能代表真实路径。
+    # mini_dataset.yaml（Task 7 计划原始指定的 fixture）在训练池扩容后会把
     # GET:.../assurances/types、POST:/api/v1/users/login 两个 endpoint 的
     # fault_baseline 行吸收进 train.parquet/eval_all，但这两个 endpoint 从未出现在
     # 该 fixture 的（单 Normal case、单 endpoint）train_fit 里——EndpointBaselineStats
@@ -24,7 +26,7 @@ def test_reliability_gate_e2e_on_mini_fixture(tmp_path):
             sys.executable,
             "scripts/build_contract.py",
             "--config",
-            str(REPO_ROOT / "configs/contract/v1.yaml"),
+            str(REPO_ROOT / "configs/contract/v1_expanded_pool.yaml"),
             "--dataset",
             str(REPO_ROOT / "tests/fixtures/nan_propagation_mini.yaml"),
             "--out-dir",

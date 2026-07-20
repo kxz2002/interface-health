@@ -7,13 +7,15 @@ import pandas as pd
 REPO_ROOT = Path(__file__).parents[1]
 
 
-def _run_v1_build(out_dir: Path) -> None:
+def _run_v1_build(out_dir: Path, config: str = "configs/contract/v1_expanded_pool.yaml") -> None:
+    # 这些测试专门验证训练池扩容行为，故默认走 v1_expanded_pool.yaml
+    # （expand_train_pool=true）；v1.yaml 现在默认不扩容（与 entry 012 数字可比）。
     subprocess.run(
         [
             sys.executable,
             "scripts/build_contract.py",
             "--config",
-            str(REPO_ROOT / "configs/contract/v1.yaml"),
+            str(REPO_ROOT / config),
             "--dataset",
             str(REPO_ROOT / "tests/fixtures/mini_dataset.yaml"),
             "--out-dir",
@@ -78,6 +80,28 @@ def test_eval_all_excludes_train_pool_rows_no_leakage(tmp_path):
         (eval_all["anomaly_type"] != "Normal") & (eval_all["phase"] == "baseline")
     ]
     assert len(fault_baseline_in_eval) == 0
+
+
+def test_default_v1_config_does_not_expand_train_pool(tmp_path):
+    """configs/contract/v1.yaml 默认 expand_train_pool=false（本次新增开关的
+    默认值），train.parquet 必须与 train_fit.parquet 完全一致（不吸收故障
+    baseline 行），eval_all 必须含故障 case 的全部阶段（baseline 不摘除）。
+    这是与 entry 012 既有实验数字保持可比的行为，必须锁住不被悄悄改回扩容。
+    """
+    out_dir = tmp_path / "contract_v1"
+    _run_v1_build(out_dir, config="configs/contract/v1.yaml")
+
+    train = pd.read_parquet(out_dir / "train.parquet")
+    train_fit = pd.read_parquet(out_dir / "train_fit.parquet")
+    assert set(train["sample_id"]) == set(train_fit["sample_id"])
+    assert "source_phase" not in train.columns
+
+    eval_all = pd.read_parquet(out_dir / "eval_all.parquet")
+    # mini fixture 含故障 case，baseline 阶段行必须仍留在 eval_all 里（未被摘除）
+    fault_baseline_in_eval = eval_all[
+        (eval_all["anomaly_type"] != "Normal") & (eval_all["phase"] == "baseline")
+    ]
+    assert len(fault_baseline_in_eval) > 0
 
 
 def test_contract_v1_838_variant_is_pure_normal(tmp_path):
