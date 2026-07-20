@@ -265,8 +265,10 @@ def _attach_label_columns(ep_df: pd.DataFrame, case_meta: dict) -> None:
 
     ep_df["is_anomaly"] = ep_df["phase"] == "inject"
     # is_train_eligible 标记 non-inject 窗口（baseline/recover/normal 均可）；
-    # 注意这与 train.parquet 实际吸收的行集合（仅 baseline，见 _write_v1）不是同一个
-    # 概念——这一列是逐行的粗粒度可训练性标记，不是训练池扩容逻辑的依据。
+    # 注意这与 train.parquet 实际吸收的行集合不是同一个概念——这一列是逐行的粗粒度
+    # 可训练性标记，不是训练池扩容逻辑的依据。train.parquet 实际吸收哪些行取决于
+    # expand_train_pool 开关（仅当 True 时含 baseline，默认 False 时不含任何故障
+    # 行），见 _write_v1。
     ep_df["is_train_eligible"] = ~ep_df["is_anomaly"]
     ep_df["injection_start_ms"] = inject_start
     ep_df["injection_end_ms"] = inject_end
