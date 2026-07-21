@@ -112,7 +112,9 @@ python scripts/eval_baseline_v0.py --scores artifacts/baseline_v1/scores.parquet
 # train 额外吸收故障 case 的 baseline 阶段行扩容训练池（838→6249 行），eval_all 同步摘除
 # 这些行防泄漏（13632→8221 行）。两者产物目录互相隔离（contract_v1 / contract_v1_expanded），
 # L0/L1/L2 对比基线只走前者，ReliabilityGatedFusion（RG）专属实验走后者，见 history/entries/014。
-dvc repro build_contract_v1_expanded train_v1_reliability_gate eval_v1_reliability_gate
+# RG 专属 pipeline 已隔离到 dvc_reliability_gate/dvc.yaml（见 history/entries/015），
+# 裸 dvc repro（无 target）不再触发这 3 个 stage。
+dvc repro dvc_reliability_gate/dvc.yaml
 
 # 单独运行（不走 DVC 缓存）
 python scripts/build_contract.py --config configs/contract/v1_expanded_pool.yaml --dataset configs/data/merged_v2.yaml --out-dir artifacts/contract_v1_expanded --seed 42
@@ -204,7 +206,7 @@ pytest tests/
 - **`expand_train_pool=true` 后 eval_all 正负比失衡（未修复）**：baseline 阶段行从 eval 移入 train 后，eval_all 正负样本比从 ~50:50 漂移至 ~84:16（inject 行相对比例上升）。AUPRC 在 expanded-pool 实验中的改善很可能是类比例变化的假象而非模型提升，见 history/entries/014。跨口径横向比较 AUPRC 时需注明各自的类比例
 - **RG softmax gate collapse**：`ReliabilityGatedFusion` 默认 `gate_normalization=softmax` 在所有 27 种故障类型下均收敛到 `w_svc≈1.0`（完全信任 service 分支，endpoint 分支权重归零）。根因：两分支初始偏差尺度 ~1.2× 不对称 + softmax 竞争归一化形成正反馈放大。`independent_sigmoid` 消融（`configs/fusion/reliability_gate_ablation_indep_sigmoid.yaml`）可规避此问题，AUROC 0.6598 vs softmax 0.6024
 - **组合模型 optimizer 必须覆盖全部子模块**：`instantiate(optimizer_cfg, params=svdd.parameters())` 只传 SVDD 参数时，fusion encoder 层永远停在随机初始化——L1/L2 在 entry 012 实际命中此 bug（消融结果与 L0 无差异直到修复）。任何新增 fusion+model 组合上线前须验证 optimizer 参数集覆盖所有 `nn.Module`
-- **RG coupling tech debt（3 处，待下一 PR 清理）**：① `scripts/train_baseline_v0.py:142-156` 字符串匹配 `cfg.fusion._target_` 做 RG 专属 kwargs 注入，需抽象进 `FusionModule` 接口；② `scripts/build_contract.py:342` 无条件 fit `EndpointBaselineStats`（L0/L1/L2 不消费）；③ `dvc.yaml` RG 专属 stage 在默认 DAG 中，裸 `dvc repro` 会触发 ~20min 不必要的 rebuild
+- **RG coupling 已收束（见 history/entries/015）**：① fusion 构造改为 `FusionModule.from_contract` 钩子，RG 覆写自行加载 `EndpointBaselineStats`+派生 `id_to_endpoint_key`，`train_baseline_v0.py` 不再按 `_target_` 字符串分支；② `EndpointBaselineStats` fit/save 与 `endpoint_id` 列派生改由 `ContractConfig.fit_endpoint_baseline_stats` 开关门控（v1.yaml=false / v1_expanded_pool.yaml=true），不再无条件 fit；③ 3 个 RG 专属 stage 隔离到 `dvc_reliability_gate/dvc.yaml`，裸 `dvc repro` 不再触发。`scripts/analyze_gate_weights.py`（一次性分析脚本）维持直接构造 RG 的用法，不在收束范围内。
 
 ## Git Commit Convention
 MUST: 撰写提交信息__必须__严格遵守提交格式。

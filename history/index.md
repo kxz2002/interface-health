@@ -41,6 +41,7 @@
 | [012](./entries/012-fusion-l1-l2-gated-ablation.md) | 2026-07-15 | Experiment | L1/L2 融合消融：独立编码器 + 门控条件融合实测 | `src/fusion/`, `configs/fusion/`, `tests/` |
 | [013](./entries/013-fix-normalizer-zero-variance-explosion.md) | 2026-07-16 | Bugfix | 修复 Normalizer 零方差 group 除零放大 bug（endpoint_red latency 列 1e13 异常值） | `src/data/normalization.py`, `scripts/build_contract.py`, `tests/test_normalization.py`, `CLAUDE.md` |
 | [014](./entries/014-reliability-gate-fusion.md) | 2026-07-19 | Experiment | Reliability Gate Fusion：偏离量门控路由实测（多seed主对比+2x2训练池归因+路由消融+可解释性分析+坍缩根因定位+训练池扩容影响归因），门控坍缩与高方差问题如实记录；`expand_train_pool` 开关落地隔离 RG 与 L0/L1/L2 的 eval 集合；决定合入 master 但 RG 保持非默认、耦合债务留给下一个 PR | `src/fusion/`, `src/data/endpoint_baseline_stats.py`, `src/contracts/`, `scripts/build_contract.py`, `scripts/train_baseline_v0.py`, `scripts/analyze_gate_weights.py`, `configs/fusion/`, `configs/contract/`, `artifacts/contract_v1*` |
+| [015](./entries/015-rg-coupling-containment.md) | 2026-07-21 | Refactor | RG 耦合收束：`is_reliability_gate` 分支消除，改用 `FusionModule.from_contract` 钩子 + `fit_endpoint_baseline_stats` 开关 + `dvc_reliability_gate/dvc.yaml` 隔离，不改动 RG 门控算法本身 | `src/fusion/`, `scripts/build_contract.py`, `scripts/train_baseline_v0.py`, `src/contracts/contract_config.py`, `configs/contract/`, `dvc.yaml`, `dvc_reliability_gate/`, `CLAUDE.md` |
 
 ---
 
@@ -50,7 +51,7 @@
 
 | 目录 / 主题 | 相关 entries |
 |-------------|--------------|
-| `CLAUDE.md` | 001, 002, 003, 004, 009, 011 |
+| `CLAUDE.md` | 001, 002, 003, 004, 009, 011, 015 |
 | `data/` 组织与 DVC | 002 |
 | `configs/` (Hydra) | 002, 011（fusion/model config-group、base.yaml 必填字段）, 014（reliability_gate 路由消融配置、`fusion_checkpoint` 可选字段） |
 | `src/utils/` (seed, logger) | 002, 011（param_budget） |
@@ -60,14 +61,14 @@
 | `docs/agent-docs/` | 001 |
 | `docs/plans/` | 001 |
 | `artifacts/` | 003 |
-| `dvc.yaml` / DVC pipeline | 002 (初始化), 003 (定义 stage), 009 (切换 merged_v2), 011 (新增 build_contract_v1/train_v1/eval_v1) |
+| `dvc.yaml` / DVC pipeline | 002 (初始化), 003 (定义 stage), 009 (切换 merged_v2), 011 (新增 build_contract_v1/train_v1/eval_v1), 015（RG 专属 stage 隔离到 dvc_reliability_gate/dvc.yaml） |
 | `environment.yml` / `Makefile` | 002 |
 | `.github/workflows/ci.yml` | 002, 004 |
 | `tests/` | 002 (占位), 003 (契约/e2e), 009 (merged_v2_mini fixture + 归档排除/多 root 测试) |
 | `pyproject.toml` | 002 |
 | `history/` + `skills-local/` | 004 |
 | `Makefile` | 002 (环境), 004 (install-skills) |
-| 多模态融合（`src/fusion/`） | 005, 010, 012, 014（ReliabilityGatedFusion，偏离量门控路由） |
+| 多模态融合（`src/fusion/`） | 005, 010, 012, 014（ReliabilityGatedFusion，偏离量门控路由）, 015（from_contract 钩子解耦） |
 | 模型实现（`src/models/`） | 005 |
 | 数据 loader（`src/data/`） | 005, 014（`endpoint_baseline_stats.py`, `endpoint_id` 全链路打通） |
 | 评估指标细化（per-endpoint, phase 对齐） | 005 |
@@ -78,8 +79,8 @@
 | `configs/contract/endpoint_to_service.yaml` | 006 |
 | `src/data/normalization.py`（Normalizer） | 007, 013（零方差 group 除零放大） |
 | `src/preprocessors/trace_preprocessor.py`（is_target_endpoint 传递） | 008 |
-| `scripts/build_contract.py`（label_granularity/is_endpoint_anomaly 标签路由，`_attach_label_columns`） | 006, 008, 014（训练池扩容吸收 fault baseline 行） |
-| `scripts/train_baseline_v0.py`（out_df 显式字段字典，新增列需手动传递） | 008, 014（`endpoint_id` 传递给 fusion，`fusion_checkpoint` 可选落盘） |
+| `scripts/build_contract.py`（label_granularity/is_endpoint_anomaly 标签路由，`_attach_label_columns`） | 006, 008, 014（训练池扩容吸收 fault baseline 行）, 015（fit_endpoint_baseline_stats 开关取代 contract_version 判据） |
+| `scripts/train_baseline_v0.py`（out_df 显式字段字典，新增列需手动传递） | 008, 014（`endpoint_id` 传递给 fusion，`fusion_checkpoint` 可选落盘）, 015（is_reliability_gate 分支移除） |
 | `scripts/eval_baseline_v0.py`（by_endpoint 分层） | 008 |
 
 ---
