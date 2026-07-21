@@ -39,6 +39,12 @@ class ContractConfig:
     # 故障阶段），与 entry 012 的既有实验数字可比；RG 专属实验用
     # v1_expanded_pool.yaml 显式打开。v0 不消费此字段。
     expand_train_pool: bool = False
+    # v1 专属(RG 消费):是否 fit 并落盘 per-endpoint 双分支(ep/svc)normal-only
+    # 基线统计量(endpoint_baseline_stats.json)，并同步产出 endpoint_id 列。默认
+    # False——L0/L1/L2 对比基线不需要这份统计量，不产出可避免 build_contract_v1
+    # 无谓多算一遍并少一个产物依赖。ReliabilityGatedFusion 用 v1_expanded_pool.yaml
+    # 显式打开。v0 不消费此字段(走默认 False)。取值与 expand_train_pool 相互独立。
+    fit_endpoint_baseline_stats: bool = False
 
 
 def load_contract_config(path: str | Path) -> ContractConfig:
@@ -60,4 +66,5 @@ def load_contract_config(path: str | Path) -> ContractConfig:
         window_size_s=raw["window_size_s"],
         modalities=modalities,
         expand_train_pool=raw.get("expand_train_pool", False),
+        fit_endpoint_baseline_stats=raw.get("fit_endpoint_baseline_stats", False),
     )

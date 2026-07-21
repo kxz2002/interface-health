@@ -19,12 +19,16 @@ REPO_ROOT = Path(__file__).parents[1]
 
 
 def _run_v1_build(out_dir: Path) -> None:
+    # 这些测试验证"开启 fit_endpoint_baseline_stats 时产出 endpoint_id 列与
+    # endpoint_baseline_stats.json"。该开关现由 config 声明，v1_expanded_pool.yaml
+    # 打开它；v1.yaml 关闭(见 test_v1_without_flag_omits_endpoint_stats)。train_fit
+    # 的构成不受 expand_train_pool 影响，故 sidecar 数值重算断言仍成立。
     subprocess.run(
         [
             sys.executable,
             "scripts/build_contract.py",
             "--config",
-            str(REPO_ROOT / "configs/contract/v1.yaml"),
+            str(REPO_ROOT / "configs/contract/v1_expanded_pool.yaml"),
             "--dataset",
             str(REPO_ROOT / "tests/fixtures/mini_dataset.yaml"),
             "--out-dir",
@@ -201,4 +205,32 @@ def test_endpoint_id_not_added_in_v0(tmp_path):
     )
     train = pd.read_parquet(out_dir / "train.parquet")
     assert "endpoint_id" not in train.columns
+    assert not (out_dir / "endpoint_baseline_stats.json").exists()
+
+
+def test_v1_without_flag_omits_endpoint_stats(tmp_path):
+    """v1.yaml 现在 fit_endpoint_baseline_stats=false:不产出 endpoint_id 列，
+    也不产出 endpoint_baseline_stats.json。这是把"是否产出 RG 统计量"从
+    contract_version=="v1" 解耦成显式开关后的核心不变量——L0/L1/L2 基线
+    (走 v1.yaml)不再无谓 fit 一份没人消费的统计量。"""
+    out_dir = tmp_path / "contract_v1_noflag"
+    subprocess.run(
+        [
+            sys.executable,
+            "scripts/build_contract.py",
+            "--config",
+            str(REPO_ROOT / "configs/contract/v1.yaml"),
+            "--dataset",
+            str(REPO_ROOT / "tests/fixtures/mini_dataset.yaml"),
+            "--out-dir",
+            str(out_dir),
+            "--seed",
+            "42",
+        ],
+        check=True,
+        cwd=str(REPO_ROOT),
+    )
+    for name in ("train_fit", "eval_all"):
+        df = pd.read_parquet(out_dir / f"{name}.parquet")
+        assert "endpoint_id" not in df.columns
     assert not (out_dir / "endpoint_baseline_stats.json").exists()
