@@ -29,7 +29,10 @@ class IndependentConcatFusion(FusionModule):
         self.ep_encoder = nn.Sequential(nn.Linear(ep_dim, branch_dim, bias=False), nn.ReLU())
         self.svc_encoder = nn.Sequential(nn.Linear(svc_dim, branch_dim, bias=False), nn.ReLU())
 
-    def forward(self, modality_dict: dict[str, torch.Tensor]) -> torch.Tensor:
+    def forward(
+        self, modality_dict: dict[str, torch.Tensor], endpoint_id: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        # endpoint_id 接受即忽略(见 EarlyConcatFusion.forward 注释)。
         ep = self.ep_encoder(modality_dict["endpoint_red"])
         svc_in = torch.cat([modality_dict["service_metric"], modality_dict["service_log"]], dim=-1)
         svc = self.svc_encoder(svc_in)

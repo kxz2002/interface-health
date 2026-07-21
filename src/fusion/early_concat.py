@@ -22,7 +22,11 @@ class EarlyConcatFusion(FusionModule):
             )
         self._dims = modality_dims
 
-    def forward(self, modality_dict: dict[str, torch.Tensor]) -> torch.Tensor:
+    def forward(
+        self, modality_dict: dict[str, torch.Tensor], endpoint_id: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        # endpoint_id 被接受但忽略：L0 无 per-endpoint 路由概念，仅为统一 FusionModule
+        # 接口以便训练脚本无条件传参。
         return torch.cat([modality_dict[m] for m in MODALITY_ORDER], dim=-1)
 
     @property

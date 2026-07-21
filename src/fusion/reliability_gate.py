@@ -9,17 +9,28 @@ e_ep + gate*value(e_svc)。详见 spec §2.2 对比表。
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Literal
 
+import hydra
 import torch
 import torch.nn as nn
+import yaml
+from omegaconf import DictConfig
 
+from src.contracts.endpoint_id_mapping import id_to_endpoint_key as _derive_id_to_endpoint_key
 from src.data.endpoint_baseline_stats import EndpointBaselineStats
 from src.fusion.base import MODALITY_ORDER, FusionModule
 
 # |z|>此阈值算作"该特征显著偏离"，用于 dev 向量第3维（偏离特征占比）。
 # 2.0 对应约 95% 正态分位数，无强理论依据，是消融维度。
 _DEVIATION_THRESHOLD = 2.0
+
+# endpoint_to_service.yaml 是 id_to_endpoint_key 反查表的唯一权威来源，必须与
+# build_contract.py 派生 endpoint_id 列时用的同一份 sorted() 逻辑一致
+# (src/contracts/endpoint_id_mapping.py)，否则整数 id 在两处指向不同 endpoint_key，
+# 门控静默查错基线统计量。reliability_gate.py 在 src/fusion/ 下，parents[2] 为 repo 根。
+_EP_TO_SVC_PATH = Path(__file__).resolve().parents[2] / "configs/contract/endpoint_to_service.yaml"
 
 
 class ReliabilityGatedFusion(FusionModule):
@@ -156,3 +167,21 @@ class ReliabilityGatedFusion(FusionModule):
     @property
     def output_dim(self) -> int:
         return self._branch_dim
+
+    @classmethod
+    def from_contract(cls, cfg: DictConfig, *, contract_dir, modality_dims):
+        """RG 专属构造：从 contract_dir 加载 per-endpoint 基线统计量，并派生
+        id_to_endpoint_key 反查表，再交给 hydra.utils.instantiate 注入这两个运行时对象。
+        这段逻辑原先散落在 train_baseline_v0.py 的 is_reliability_gate 分支里，现收进
+        RG 自己模块——训练脚本对"RG 需要什么"一无所知即可正确构造。"""
+        baseline_stats = EndpointBaselineStats.load(
+            Path(contract_dir) / "endpoint_baseline_stats.json"
+        )
+        ep_to_svc = yaml.safe_load(_EP_TO_SVC_PATH.read_text())
+        id_to_key = _derive_id_to_endpoint_key(ep_to_svc)
+        return hydra.utils.instantiate(
+            cfg,
+            modality_dims=modality_dims,
+            endpoint_baseline_stats=baseline_stats,
+            id_to_endpoint_key=id_to_key,
+        )

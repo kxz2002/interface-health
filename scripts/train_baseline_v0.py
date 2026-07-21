@@ -25,14 +25,11 @@ from pathlib import Path
 import hydra
 import pandas as pd
 import torch
-import yaml
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
 from src.contracts import validate_scores_df
-from src.contracts.endpoint_id_mapping import id_to_endpoint_key as _derive_id_to_endpoint_key
 from src.data.contract_dataloader import ContractDataset
-from src.data.endpoint_baseline_stats import EndpointBaselineStats
 from src.fusion.base import MODALITY_ORDER, FusionModule
 from src.models.deep_svdd import DeepSVDD
 from src.utils.seed import set_seed
@@ -75,7 +72,6 @@ def _train(
     loader: DataLoader,
     epochs: int,
     optimizer: torch.optim.Optimizer,
-    is_reliability_gate: bool,
 ) -> None:
     fusion.train()
     svdd.train()
@@ -83,10 +79,9 @@ def _train(
         total = 0.0
         n_batches = 0
         for batch in loader:
-            # L0/L1/L2 的 forward() 不接受 endpoint_id 参数（未感知 per-endpoint
-            # 路由概念），无条件传入会报 TypeError；只有 ReliabilityGatedFusion 接受。
-            kwargs = {"endpoint_id": batch.get("endpoint_id")} if is_reliability_gate else {}
-            x = fusion({m: batch[m] for m in MODALITY_ORDER}, **kwargs)
+            # 所有融合机制的 forward 现在统一接受 endpoint_id(L0/L1/L2 忽略，
+            # RG 使用)；v0/L0 的 batch 无该 key 时 .get() 返回 None，走默认路径。
+            x = fusion({m: batch[m] for m in MODALITY_ORDER}, endpoint_id=batch.get("endpoint_id"))
             loss = svdd.svdd_loss(x)
             optimizer.zero_grad()
             loss.backward()
@@ -101,15 +96,12 @@ def _infer(
     fusion: FusionModule,
     svdd: DeepSVDD,
     loader: DataLoader,
-    is_reliability_gate: bool,
 ) -> dict[str, float]:
     fusion.eval()
     svdd.eval()
     scores: dict[str, float] = {}
     for batch in loader:
-        # 同 _train：L0/L1/L2 的 forward() 不接受 endpoint_id，无条件传会 TypeError。
-        kwargs = {"endpoint_id": batch.get("endpoint_id")} if is_reliability_gate else {}
-        x = fusion({m: batch[m] for m in MODALITY_ORDER}, **kwargs)
+        x = fusion({m: batch[m] for m in MODALITY_ORDER}, endpoint_id=batch.get("endpoint_id"))
         s = svdd.score(x)
         for sid, val in zip(batch["sample_id"], s.tolist()):
             scores[sid] = val
@@ -134,27 +126,12 @@ def main(cfg: DictConfig) -> None:
     eval_ds = _make_dataset(eval_pq, schema_path, fit_on=train_pq)
 
     modality_dims = _modality_dims(schema)
-    # ReliabilityGatedFusion 需要额外的运行时 kwargs（endpoint_baseline_stats /
-    # id_to_endpoint_key），这两个参数对 L0/L1/L2 是多余的——hydra.utils.instantiate
-    # 遇到目标类 __init__ 不接受的多余关键字参数会报 TypeError，不能无条件传。
-    # 按 _target_ 字符串分支是当前唯一需要特殊运行时参数的融合机制，YAGNI，
-    # 若未来出现第二个需要特殊参数的机制再抽象成 factory。
-    is_reliability_gate = (
-        cfg.fusion._target_ == "src.fusion.reliability_gate.ReliabilityGatedFusion"
+    # 融合机制自己声明如何从 contract 产物构造:L0/L1/L2 走 FusionModule.from_contract
+    # 的默认实现(等价 hydra.instantiate)，RG 覆写它自行加载 endpoint_baseline_stats
+    # 并派生 id_to_endpoint_key。训练脚本不再按 _target_ 字符串分支注入 RG 专属 kwargs。
+    fusion = hydra.utils.get_class(cfg.fusion._target_).from_contract(
+        cfg.fusion, contract_dir=contract_dir, modality_dims=modality_dims
     )
-    fusion_kwargs = {"modality_dims": modality_dims}
-    if is_reliability_gate:
-        baseline_stats = EndpointBaselineStats.load(contract_dir / "endpoint_baseline_stats.json")
-        ep_to_svc = yaml.safe_load(
-            (Path(__file__).parents[1] / "configs/contract/endpoint_to_service.yaml").read_text()
-        )
-        # 必须和 build_contract.py 里 endpoint_id_map 的派生方式一致（同一份
-        # src/contracts/endpoint_id_mapping.py 源）——这里是那份映射的逆映射，
-        # 顺序不一致会导致 endpoint_id 查到错的 endpoint_key，静默用错 baseline 统计量。
-        id_to_endpoint_key = _derive_id_to_endpoint_key(ep_to_svc)
-        fusion_kwargs["endpoint_baseline_stats"] = baseline_stats
-        fusion_kwargs["id_to_endpoint_key"] = id_to_endpoint_key
-    fusion = hydra.utils.instantiate(cfg.fusion, **fusion_kwargs)
     svdd = hydra.utils.instantiate(cfg.model, input_dim=fusion.output_dim)
 
     # 用全部 Normal 训练样本初始化超球心（One-Class：center 只见正常表征）
@@ -166,8 +143,11 @@ def main(cfg: DictConfig) -> None:
         )
     init_loader = DataLoader(train_ds, batch_size=len(train_ds), shuffle=False, collate_fn=_collate)
     init_batch = next(iter(init_loader))
-    init_kwargs = {"endpoint_id": init_batch.get("endpoint_id")} if is_reliability_gate else {}
-    svdd.init_center(fusion({m: init_batch[m] for m in MODALITY_ORDER}, **init_kwargs))
+    svdd.init_center(
+        fusion(
+            {m: init_batch[m] for m in MODALITY_ORDER}, endpoint_id=init_batch.get("endpoint_id")
+        )
+    )
 
     # instantiate 整份 optimizer config（lr + weight_decay 都来自 cfg.training.optimizer），
     # 不手搓、不只挑 lr——避免 weight_decay 等字段静默丢失。svdd.parameters() 与
@@ -185,14 +165,7 @@ def main(cfg: DictConfig) -> None:
         collate_fn=_collate,
         num_workers=cfg.training.num_workers,
     )
-    _train(
-        fusion,
-        svdd,
-        train_loader,
-        epochs=cfg.training.epochs,
-        optimizer=optimizer,
-        is_reliability_gate=is_reliability_gate,
-    )
+    _train(fusion, svdd, train_loader, epochs=cfg.training.epochs, optimizer=optimizer)
 
     eval_loader = DataLoader(
         eval_ds,
@@ -201,7 +174,7 @@ def main(cfg: DictConfig) -> None:
         collate_fn=_collate,
         num_workers=cfg.training.num_workers,
     )
-    score_map = _infer(fusion, svdd, eval_loader, is_reliability_gate=is_reliability_gate)
+    score_map = _infer(fusion, svdd, eval_loader)
 
     eval_df = pd.read_parquet(eval_pq)
     out_df = pd.DataFrame(
