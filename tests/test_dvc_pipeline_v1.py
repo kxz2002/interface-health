@@ -39,10 +39,9 @@ def test_build_contract_v1_uses_non_expanded_config():
 
 
 def test_build_contract_v1_expanded_uses_expanded_config():
-    """build_contract_v1_expanded（RG 专属）必须指向 v1_expanded_pool.yaml，
-    且该 config 的 expand_train_pool 必须为 True。
-    """
-    pipeline = yaml.safe_load((REPO_ROOT / "dvc.yaml").read_text())
+    """build_contract_v1_expanded(RG 专属)已隔离到 dvc_reliability_gate/dvc.yaml,
+    必须指向 v1_expanded_pool.yaml 且 expand_train_pool=true。"""
+    pipeline = yaml.safe_load((REPO_ROOT / "dvc_reliability_gate/dvc.yaml").read_text())
     stage = pipeline["stages"]["build_contract_v1_expanded"]
 
     config_path = _stage_config_path(stage)
@@ -51,6 +50,7 @@ def test_build_contract_v1_expanded_uses_expanded_config():
 
     cfg = yaml.safe_load((REPO_ROOT / config_path).read_text())
     assert cfg.get("expand_train_pool", False) is True
+    assert cfg.get("fit_endpoint_baseline_stats", False) is True
 
 
 def test_train_v1_reliability_gate_reads_expanded_contract_dir():
@@ -58,7 +58,7 @@ def test_train_v1_reliability_gate_reads_expanded_contract_dir():
     （contract_v1_expanded/），不能悄悄指回 contract_v1/（未扩容），
     否则 RG 会训练在与 L0/L1/L2 相同的小样本上，失去扩容训练池的意义。
     """
-    pipeline = yaml.safe_load((REPO_ROOT / "dvc.yaml").read_text())
+    pipeline = yaml.safe_load((REPO_ROOT / "dvc_reliability_gate/dvc.yaml").read_text())
     stage = pipeline["stages"]["train_v1_reliability_gate"]
 
     cmd = stage["cmd"]
@@ -84,3 +84,19 @@ def test_v1_and_v1_expanded_configs_share_identical_modalities():
     assert v1["contract_version"] == v1_expanded["contract_version"]
     assert v1["expand_train_pool"] is False
     assert v1_expanded["expand_train_pool"] is True
+
+
+def test_root_dvc_excludes_rg_stages_and_stale_sidecar_output():
+    """3 个 RG 专属 stage 必须从根 dvc.yaml 移除(裸 dvc repro 不再触发它们);
+    build_contract_v1 的 outs 不再声明 endpoint_baseline_stats.json
+    (v1.yaml flag=false 后不再产出该文件)。"""
+    pipeline = yaml.safe_load((REPO_ROOT / "dvc.yaml").read_text())
+    stages = pipeline["stages"]
+    for rg_stage in (
+        "build_contract_v1_expanded",
+        "train_v1_reliability_gate",
+        "eval_v1_reliability_gate",
+    ):
+        assert rg_stage not in stages
+    outs = stages["build_contract_v1"].get("outs", [])
+    assert "artifacts/contract_v1/endpoint_baseline_stats.json" not in outs
