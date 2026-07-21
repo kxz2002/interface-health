@@ -59,8 +59,8 @@ src/                   # 核心源码
 ├── preprocessors/     # 各模态预处理器（trace/api/log/metric → 特征 DataFrame）
 ├── models/            # 模型定义 (融合模块, 检测器, 预测器)
 ├── fusion/            # 多模态融合层 (L1-L4 层级实现)
-├── training/          # 训练逻辑 (trainer, callback, scheduler)
-├── evaluation/        # 评估指标与可视化
+├── training/          # 训练逻辑占位（当前为空 stub，trainer 逻辑实际在 scripts/train_baseline_v0.py）
+├── evaluation/        # 评估指标占位（当前为空 stub，评估逻辑实际在 scripts/eval_baseline_v0.py）
 └── utils/             # 通用工具 (seed, logging, io)
 
 artifacts/             # DVC pipeline 产物（scores.parquet, metrics.json，大文件 gitignore）
@@ -118,6 +118,9 @@ dvc repro build_contract_v1_expanded train_v1_reliability_gate eval_v1_reliabili
 python scripts/build_contract.py --config configs/contract/v1_expanded_pool.yaml --dataset configs/data/merged_v2.yaml --out-dir artifacts/contract_v1_expanded --seed 42
 python scripts/train_baseline_v0.py contract_dir=artifacts/contract_v1_expanded out=artifacts/baseline_v1_reliability_gate/scores.parquet seed=42 training.epochs=50 fusion=reliability_gate model=deep_svdd
 python scripts/eval_baseline_v0.py --scores artifacts/baseline_v1_reliability_gate/scores.parquet --out artifacts/baseline_v1_reliability_gate/metrics.json
+
+# 查看 RG gate 权重分布（实验后分析用）
+python scripts/analyze_gate_weights.py --scores artifacts/rg_seed42/scores.parquet
 
 # 运行测试
 pytest tests/
@@ -198,9 +201,14 @@ pytest tests/
 - **Normalizer 退化 group（全 NaN 或零方差）不做归一化，保留原值**：某 group（或 global scope）在 fit 集合（仅 Normal）里全 NaN，或只出现过单一取值（`hi-lo=0`）时，`transform()` 必须跳过该 group 的归一化运算——全 NaN 会把 `[nan, nan]` 统计量通过减法/除法扩散污染其他数据完好的 case；零方差若不跳过、只是把除数下限到 `1e-9`，会把 eval 侧任何非零差值放大 1e9 倍，产出 1e9~1e13 量级的离谱数值（`endpoint_red__client_latency_p95`/`latency_divergence` 曾实际命中，2026-07-16 修复，见 history 013）。跳过后保留原始量纲；若某列同时受 `RATE_COLUMNS` 的 `clip(0,1)` 约束，需确认原始量纲天然落在 `[0,1]`，否则 clip 会把正常值误判为异常
 - **per-endpoint 标签精度**：contract pipeline 按 case 是否含 `target_endpoint`（`case_metadata.json`）产出 `label_granularity`（`"endpoint"` 精确 / `"case"` 近似 fallback）和 `is_endpoint_anomaly`（= `is_target_endpoint AND phase=='inject'`）。判定依据是 `target_endpoint` 字段是否存在，**不是** `anomaly_level`（那是故障类型描述，语义不等价，未来数据源变化会失配）。`is_anomaly`/`y_true` 语义不变（仍是 case 级）；`eval_baseline_v0.py` 的四层分层（overall/by_anomaly_type/by_anomaly_level/by_endpoint）统一用 `is_endpoint_anomaly`
 - **`expand_train_pool` 开关会改变 eval_all 行数，不同取值的 AUROC 不可直接横向比较**：`false`（`contract_v1`）eval_all=13632 行，`true`（`contract_v1_expanded`）eval_all=8221 行——后者摘除了被吸收进训练池的故障 baseline 行。L0/L1/L2 与 RG 分别固定用其中一种取值（见上方 Commands 小节），不要把两者的 AUROC 直接摆在一张表里比大小，除非明确注明各自的 eval 样本数和口径差异。`EndpointBaselineStats`/`Normalizer` 的 fit 范围不受该开关影响，始终锁定纯 Normal 的 `train_fit`
+- **`expand_train_pool=true` 后 eval_all 正负比失衡（未修复）**：baseline 阶段行从 eval 移入 train 后，eval_all 正负样本比从 ~50:50 漂移至 ~84:16（inject 行相对比例上升）。AUPRC 在 expanded-pool 实验中的改善很可能是类比例变化的假象而非模型提升，见 history/entries/014。跨口径横向比较 AUPRC 时需注明各自的类比例
+- **RG softmax gate collapse**：`ReliabilityGatedFusion` 默认 `gate_normalization=softmax` 在所有 27 种故障类型下均收敛到 `w_svc≈1.0`（完全信任 service 分支，endpoint 分支权重归零）。根因：两分支初始偏差尺度 ~1.2× 不对称 + softmax 竞争归一化形成正反馈放大。`independent_sigmoid` 消融（`configs/fusion/reliability_gate_ablation_indep_sigmoid.yaml`）可规避此问题，AUROC 0.6598 vs softmax 0.6024
+- **组合模型 optimizer 必须覆盖全部子模块**：`instantiate(optimizer_cfg, params=svdd.parameters())` 只传 SVDD 参数时，fusion encoder 层永远停在随机初始化——L1/L2 在 entry 012 实际命中此 bug（消融结果与 L0 无差异直到修复）。任何新增 fusion+model 组合上线前须验证 optimizer 参数集覆盖所有 `nn.Module`
+- **RG coupling tech debt（3 处，待下一 PR 清理）**：① `scripts/train_baseline_v0.py:142-156` 字符串匹配 `cfg.fusion._target_` 做 RG 专属 kwargs 注入，需抽象进 `FusionModule` 接口；② `scripts/build_contract.py:342` 无条件 fit `EndpointBaselineStats`（L0/L1/L2 不消费）；③ `dvc.yaml` RG 专属 stage 在默认 DAG 中，裸 `dvc repro` 会触发 ~20min 不必要的 rebuild
 
 ## Git Commit Convention
 MUST: 撰写提交信息__必须__严格遵守提交格式。
+MUST: 撰写PR信息的标题__必须__在开头带上type信息
 ```
 <type>: <description>
 
@@ -218,6 +226,20 @@ Types:
 - `[Chore]`: 构建/工具/环境配置
 
 > Commit attribution 已全局禁用，无需添加 Co-Authored-By 行。
+
+## Agent skills
+
+### Issue tracker
+
+Issues tracked in GitHub Issues (kxz2002/interface-health), via `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five canonical roles (needs-triage / needs-info / ready-for-agent / ready-for-human / wontfix). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout: root `CONTEXT.md` + `docs/adr/`. See `docs/agents/domain.md`.
 <!-- ARIS:BEGIN -->
 ## ARIS Skill Scope
 ARIS skills installed in this project: 81 entries.
