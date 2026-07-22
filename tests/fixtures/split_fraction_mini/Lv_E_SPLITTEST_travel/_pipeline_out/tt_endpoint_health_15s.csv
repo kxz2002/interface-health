@@ -1,0 +1,9 @@
+case_id,anomaly_type,timestamp_window,endpoint_key,request_count,error_rate,latency_mean,latency_p50,latency_p95,latency_p99,status_2xx_rate,status_4xx_rate,status_5xx_rate,method,normalized_path
+Lv_E_SPLITTEST_travel,Lv_E_SPLITTEST_travel,2026-11-18T11:06:40Z,POST:/api/v1/travelservice/trips/left,8,0.0,23000.0,22800.0,46000.0,46000.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Lv_E_SPLITTEST_travel,Lv_E_SPLITTEST_travel,2026-11-18T11:06:55Z,POST:/api/v1/travelservice/trips/left,10,0.0,21500.0,21000.0,43000.0,43000.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Lv_E_SPLITTEST_travel,Lv_E_SPLITTEST_travel,2026-11-18T11:07:10Z,POST:/api/v1/travelservice/trips/left,6,0.0,23500.0,22500.0,47000.0,47000.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Lv_E_SPLITTEST_travel,Lv_E_SPLITTEST_travel,2026-11-18T11:07:25Z,POST:/api/v1/travelservice/trips/left,9,0.0,22000.0,21500.0,44000.0,44000.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Lv_E_SPLITTEST_travel,Lv_E_SPLITTEST_travel,2026-11-18T11:07:40Z,POST:/api/v1/travelservice/trips/left,7,0.0,24000.0,23000.0,48000.0,48000.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Lv_E_SPLITTEST_travel,Lv_E_SPLITTEST_travel,2026-11-18T11:07:55Z,POST:/api/v1/travelservice/trips/left,12,0.4,58000.0,56000.0,99000.0,100000.0,0.6,0.0,0.4,POST,/api/v1/travelservice/trips/left
+Lv_E_SPLITTEST_travel,Lv_E_SPLITTEST_travel,2026-11-18T11:08:10Z,POST:/api/v1/travelservice/trips/left,8,0.0,23000.0,22500.0,46000.0,46000.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Lv_E_SPLITTEST_travel,Lv_E_SPLITTEST_travel,2026-11-18T11:08:25Z,POST:/api/v1/travelservice/trips/left,9,0.0,22500.0,22000.0,45000.0,45000.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left

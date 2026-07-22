@@ -1,0 +1,8 @@
+{
+  "case_id": "Normal",
+  "anomaly_type": "Normal",
+  "anomaly_level": "none",
+  "target_service": null,
+  "inject_start_ms": null,
+  "inject_end_ms": null
+}

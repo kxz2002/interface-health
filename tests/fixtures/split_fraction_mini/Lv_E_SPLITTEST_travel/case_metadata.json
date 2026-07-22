@@ -1,0 +1,9 @@
+{
+  "case_id": "Lv_E_SPLITTEST_travel",
+  "anomaly_type": "Lv_E_SPLITTEST_travel",
+  "anomaly_level": "endpoint",
+  "target_service": "ts-travel-service",
+  "target_endpoint": "POST:/api/v1/travelservice/trips/left",
+  "inject_start_ms": 1795000075000,
+  "inject_end_ms": 1795000075000
+}
