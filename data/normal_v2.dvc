@@ -1,0 +1,6 @@
+outs:
+- md5: fd1f31783ad542983f4f284ae8c14ab6.dir
+  size: 1784119624
+  nfiles: 118
+  hash: md5
+  path: normal_v2

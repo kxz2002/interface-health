@@ -1,0 +1,6 @@
+outs:
+- md5: 24bdd975d35410b701890f03b2eaa8d0.dir
+  size: 68436437275
+  nfiles: 848
+  hash: md5
+  path: endpoint_raw2
