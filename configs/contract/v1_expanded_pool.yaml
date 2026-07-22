@@ -5,6 +5,8 @@ window_size_s: 15
 # 专属实验用这份配置；L0/L1/L2 等既有 baseline 对比继续用 v1.yaml（不扩容），
 # 保持与 entry 012 的既有数字可比。见 history/entries/014-reliability-gate-fusion.md。
 expand_train_pool: true
+# RG(ReliabilityGatedFusion)消费 per-endpoint 基线统计量做偏离量门控，必须产出。
+fit_endpoint_baseline_stats: true
 
 modalities:
   endpoint_red:

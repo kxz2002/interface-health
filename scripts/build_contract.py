@@ -332,16 +332,26 @@ def main() -> None:
     set_seed(args.seed)
 
     cfg = load_contract_config(args.config)
+    if cfg.fit_endpoint_baseline_stats and cfg.contract_version != "v1":
+        raise ValueError(
+            "fit_endpoint_baseline_stats=true 只在 contract_version='v1' 下有意义"
+            f"（当前 contract_version={cfg.contract_version!r}）——RG 专属统计量依赖 v1 的"
+            "train_fit 时序切分，v0 无此切分概念"
+        )
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
     intermediate_dir = out / "intermediate"
 
     ep_to_svc = yaml.safe_load(_EP_TO_SVC_PATH.read_text())
-    # 确定性 endpoint 字符串→整数映射，供 v1 的 EndpointBaselineStats 查表用。派生逻辑
+    # 确定性 endpoint 字符串→整数映射，供 EndpointBaselineStats 查表用。派生逻辑
     # 收敛到 src/contracts/endpoint_id_mapping.py，train_baseline_v0.py 的
     # id_to_endpoint_key（那份映射的逆映射）复用同一个模块，避免两处 sorted() 各写
-    # 一份、排序规则悄悄分叉。v0 不用，故只在 v1 时构造。
-    endpoint_id_map = _derive_endpoint_id_map(ep_to_svc) if cfg.contract_version == "v1" else None
+    # 一份、排序规则悄悄分叉。endpoint_id 列只在需要 fit per-endpoint 基线统计量时才
+    # 产出(RG 专属)。用契约版本号(v0/v1)当代理判据语义不准——v1 不等于"需要 RG
+    # 统计量"。改由 cfg 显式声明。
+    endpoint_id_map = (
+        _derive_endpoint_id_map(ep_to_svc) if cfg.fit_endpoint_baseline_stats else None
+    )
 
     trace_pre = TracePreprocessor()
     api_pre = ApiPreprocessor()
@@ -458,7 +468,14 @@ def main() -> None:
     validate_contract_df(full, args.config)
 
     if cfg.contract_version == "v1":
-        _write_v1(out, full, normal_mask, args.seed, cfg.expand_train_pool)
+        _write_v1(
+            out,
+            full,
+            normal_mask,
+            args.seed,
+            cfg.expand_train_pool,
+            cfg.fit_endpoint_baseline_stats,
+        )
     else:
         # v0：train=全部 Normal，eval_all=全部行（保持向后兼容，train ⊆ eval_all）
         full[normal_mask].reset_index(drop=True).to_parquet(out / "train.parquet", index=False)
@@ -470,7 +487,12 @@ def main() -> None:
 
 
 def _write_v1(
-    out: Path, full: pd.DataFrame, normal_mask: pd.Series, seed: int, expand_train_pool: bool
+    out: Path,
+    full: pd.DataFrame,
+    normal_mask: pd.Series,
+    seed: int,
+    expand_train_pool: bool,
+    fit_endpoint_baseline_stats: bool,
 ) -> None:
     """v1：Normal 行按时间窗三路切分。`expand_train_pool=False`（默认，与 entry 012
     既有实验数字可比）时 train.parquet=train_fit、eval_all=全部故障阶段+holdout，
@@ -486,7 +508,9 @@ def _write_v1(
     z-score 的分子分母尺度不一致，偏离量会被系统性放大/压缩到失真，
     而不是真实反映"离正常基线有多远"。fit 范围不随开关变化——两种模式下都只用
     train_fit，不看 expand_train_pool 吸收的 fault_baseline 行（否则会破坏
-    "偏离基线"的定义：基线本身不能包含故障数据）。
+    "偏离基线"的定义：基线本身不能包含故障数据）。`fit_endpoint_baseline_stats`
+    门控是否执行这次 fit/save（RG 专属，L0/L1/L2 基线不需要），与
+    `expand_train_pool` 相互独立。
     """
     normal_df = full[normal_mask].reset_index(drop=True)
     anomaly_df = full[~normal_mask].reset_index(drop=True)
@@ -539,6 +563,9 @@ def _write_v1(
             len(parts["eval_normal_holdout"]),
             len(eval_all),
         )
+
+    if not fit_endpoint_baseline_stats:
+        return
 
     train_fit_normalized = parts["train_fit"]
     red_cols = [c for c in train_fit_normalized.columns if c.startswith("endpoint_red__")]

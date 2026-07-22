@@ -55,3 +55,38 @@ def test_invalid_normalization_raises():
             features=("feat_a",),
             normalization="unknown_norm",
         )
+
+
+def test_fit_endpoint_baseline_stats_defaults_false(tmp_path):
+    """新增开关默认 False(与 expand_train_pool 同款模式):config 不写该字段时,
+    build 不产出 endpoint_id 列与 endpoint_baseline_stats.json。"""
+    cfg_path = tmp_path / "c.yaml"
+    cfg_path.write_text(
+        "contract_version: v1\n"
+        "window_size_s: 15\n"
+        "modalities:\n"
+        "  endpoint_red:\n"
+        "    preprocessor: TracePreprocessor\n"
+        "    preprocessor_version: v0\n"
+        "    features: [trace_request_count]\n"
+        "    normalization: per_endpoint_min_max\n"
+    )
+    cfg = load_contract_config(cfg_path)
+    assert cfg.fit_endpoint_baseline_stats is False
+
+
+def test_fit_endpoint_baseline_stats_override_true(tmp_path):
+    cfg_path = tmp_path / "c.yaml"
+    cfg_path.write_text(
+        "contract_version: v1\n"
+        "window_size_s: 15\n"
+        "fit_endpoint_baseline_stats: true\n"
+        "modalities:\n"
+        "  endpoint_red:\n"
+        "    preprocessor: TracePreprocessor\n"
+        "    preprocessor_version: v0\n"
+        "    features: [trace_request_count]\n"
+        "    normalization: per_endpoint_min_max\n"
+    )
+    cfg = load_contract_config(cfg_path)
+    assert cfg.fit_endpoint_baseline_stats is True
