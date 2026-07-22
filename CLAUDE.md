@@ -119,8 +119,8 @@ python scripts/build_contract.py --config configs/contract/v1_expanded_pool.yaml
 python scripts/train_baseline_v0.py contract_dir=artifacts/contract_v1_expanded out=artifacts/baseline_v1_reliability_gate/scores.parquet seed=42 training.epochs=50 fusion=reliability_gate model=deep_svdd
 python scripts/eval_baseline_v0.py --scores artifacts/baseline_v1_reliability_gate/scores.parquet --out artifacts/baseline_v1_reliability_gate/metrics.json
 
-# 查看 RG gate 权重分布（实验后分析用）
-python scripts/analyze_gate_weights.py --scores artifacts/rg_seed42/scores.parquet
+# 查看 RG gate 权重分布（实验后分析用；--checkpoint 可选，若训练时用 fusion_checkpoint= 落盘则传入）
+python scripts/analyze_gate_weights.py --contract-dir artifacts/contract_v1_expanded --checkpoint <path-to-fusion.pt>
 
 # 运行测试
 pytest tests/
