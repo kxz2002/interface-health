@@ -24,6 +24,7 @@ import yaml
 from src.contracts.contract_config import ContractConfig, load_contract_config
 from src.contracts.contract_v0 import RATE_COLUMNS, ContractV0Error, validate_contract_df
 from src.contracts.endpoint_id_mapping import endpoint_id_map as _derive_endpoint_id_map
+from src.contracts.split_fault_baseline import split_fault_baseline_temporal
 from src.contracts.split_v1 import split_normal_rows_temporal
 from src.data.dataset_config import load_dataset_config
 from src.data.endpoint_baseline_stats import EndpointBaselineStats
@@ -475,6 +476,7 @@ def main() -> None:
             args.seed,
             cfg.expand_train_pool,
             cfg.fit_endpoint_baseline_stats,
+            cfg.fault_baseline_train_fraction,
         )
     else:
         # v0：train=全部 Normal，eval_all=全部行（保持向后兼容，train ⊆ eval_all）
@@ -493,13 +495,18 @@ def _write_v1(
     seed: int,
     expand_train_pool: bool,
     fit_endpoint_baseline_stats: bool,
+    fault_baseline_train_fraction: float,
 ) -> None:
     """v1：Normal 行按时间窗三路切分。`expand_train_pool=False`（默认，与 entry 012
     既有实验数字可比）时 train.parquet=train_fit、eval_all=全部故障阶段+holdout，
     这是 Task 6 训练池扩容之前的原始行为。`expand_train_pool=True`（RG 专属实验用
     v1_expanded_pool.yaml 打开）时 train.parquet 额外吸收故障 case 的 baseline
-    阶段行扩容训练池（不吸收 recover——系统未稳定回正常态，分布未验证，保守排除），
-    eval_all 同步从这些被吸收的行里摘除，防止复现 v0 的 train⊆eval 泄漏。
+    阶段行——不是整段搬移，而是按 `fault_baseline_train_fraction` 时序切分：每个
+    故障 case 内最早 fraction 比例的时间窗进训练池，其余窗留在 eval_all（不吸收
+    recover——系统未稳定回正常态，分布未验证，保守排除）。eval_all 只摘除被切给
+    train 的那部分窗，其余 baseline 窗仍保留在 eval_all 里维持负样本类别平衡
+    （修复 issue #16：整段搬移会把 eval_all 正负比拉到 ~84:16），防止复现 v0 的
+    train⊆eval 泄漏。
 
     EndpointBaselineStats 必须 fit 在 parts["train_fit"]（归一化之后的尺度）上，
     不能像 Normalizer 一样 fit 在归一化之前的 fit_df 上——门控推理时从 parquet
@@ -521,31 +528,47 @@ def _write_v1(
     parts["eval_normal_holdout"].to_parquet(out / "eval_normal_holdout.parquet", index=False)
 
     if expand_train_pool:
-        # 训练池扩容：train_fit（Normal，打标 normal_case）+ 故障 case 的 baseline
-        # 阶段行（打标 fault_baseline）。只吸收 baseline，不吸收 recover——系统未
-        # 稳定回正常态，分布未验证，保守排除。source_phase 可审计，未来可按需排除/降权。
+        # 训练池扩容：train_fit（Normal，打标 normal_case）+ 故障 case baseline 阶段行
+        # 的最早 fault_baseline_train_fraction 比例窗口（打标 fault_baseline）。
+        # 只吸收 baseline，不吸收 recover——系统未稳定回正常态，分布未验证，保守排除。
         train_fit_labeled = parts["train_fit"].copy()
         train_fit_labeled["source_phase"] = "normal_case"
+
         fault_baseline_df = anomaly_df[anomaly_df["phase"] == "baseline"].copy()
-        fault_baseline_df["source_phase"] = "fault_baseline"
-        train_pool = pd.concat([train_fit_labeled, fault_baseline_df], ignore_index=True)
+        # issue #16 修复：baseline 行不再整段进训练池、整段摘出 eval，而是按时间窗时序
+        # 切分——最早 fraction 比例的窗口进训练池，其余留在 eval_all 维持负样本类别平衡。
+        # 唯一硬约束是 train/eval 的 sample_id 互斥（split 按整窗切分天然保证：同一窗不会
+        # 既在 train 又在 eval），由 test_contract_v1_train_pool 的防泄漏断言锁定。
+        fault_baseline_train, fault_baseline_eval = split_fault_baseline_temporal(
+            fault_baseline_df, fraction=fault_baseline_train_fraction
+        )
+        fault_baseline_train["source_phase"] = "fault_baseline"
+
+        train_pool = pd.concat([train_fit_labeled, fault_baseline_train], ignore_index=True)
         train_pool.to_parquet(out / "train.parquet", index=False)
 
-        # eval_all：故障 case 的 inject/recover 行（baseline 已被吸收进训练池，摘除）
-        # + 仅 holdout 的 Normal 行。这一步是防泄漏强制要求（spec §3.4）：train_pool
-        # 吸收了什么，就必须从 eval_all 同步摘除，否则复现 v0 的 train ⊆ eval 泄漏 bug。
+        # eval_all：故障 case 的 inject/recover 行（全保留）+ 未被吸收进训练池的 baseline
+        # 窗口（fault_baseline_eval）+ Normal holdout。inject/recover 用 phase 过滤，
+        # baseline 用 split 摘出的 eval 部分，两者不重叠且并集为故障 case 全部非训练行。
         eval_all = pd.concat(
-            [anomaly_df[anomaly_df["phase"] != "baseline"], parts["eval_normal_holdout"]],
+            [
+                anomaly_df[anomaly_df["phase"] != "baseline"],
+                fault_baseline_eval,
+                parts["eval_normal_holdout"],
+            ],
             ignore_index=True,
         )
         eval_all.to_parquet(out / "eval_all.parquet", index=False)
         LOG.info(
-            "v1 切分（训练池已扩容）：train_fit=%d train_val=%d holdout=%d "
-            "fault_baseline=%d train_pool=%d eval_all=%d",
+            "v1 切分（训练池已扩容，fraction=%.3f）：train_fit=%d holdout=%d "
+            "fault_baseline_total=%d fault_baseline_to_train=%d fault_baseline_to_eval=%d "
+            "train_pool=%d eval_all=%d",
+            fault_baseline_train_fraction,
             len(parts["train_fit"]),
-            len(parts["train_val"]),
             len(parts["eval_normal_holdout"]),
             len(fault_baseline_df),
+            len(fault_baseline_train),
+            len(fault_baseline_eval),
             len(train_pool),
             len(eval_all),
         )

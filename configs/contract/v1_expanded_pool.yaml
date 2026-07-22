@@ -7,6 +7,10 @@ window_size_s: 15
 expand_train_pool: true
 # RG(ReliabilityGatedFusion)消费 per-endpoint 基线统计量做偏离量门控，必须产出。
 fit_endpoint_baseline_stats: true
+# 故障 case 的 baseline 阶段行按时间窗时序切分：最早 20% 窗口进训练池扩容训练，
+# 其余 80% 留在 eval_all 维持负样本类别平衡（修复 issue #16 的 ~84:16 失衡）。
+# 后续扩充 Normal 数据集后可再调此值。见 history/entries/016。
+fault_baseline_train_fraction: 0.2
 
 modalities:
   endpoint_red:
