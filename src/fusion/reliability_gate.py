@@ -169,14 +169,22 @@ class ReliabilityGatedFusion(FusionModule):
         return self._branch_dim
 
     @classmethod
-    def from_contract(cls, cfg: DictConfig, *, contract_dir, modality_dims):
+    def from_contract(
+        cls, cfg: DictConfig, *, contract_dir: Path, modality_dims: dict[str, int]
+    ) -> "ReliabilityGatedFusion":
         """RG 专属构造：从 contract_dir 加载 per-endpoint 基线统计量，并派生
         id_to_endpoint_key 反查表，再交给 hydra.utils.instantiate 注入这两个运行时对象。
         这段逻辑原先散落在 train_baseline_v0.py 的 is_reliability_gate 分支里，现收进
         RG 自己模块——训练脚本对"RG 需要什么"一无所知即可正确构造。"""
-        baseline_stats = EndpointBaselineStats.load(
-            Path(contract_dir) / "endpoint_baseline_stats.json"
-        )
+        sidecar = Path(contract_dir) / "endpoint_baseline_stats.json"
+        if not sidecar.exists():
+            raise FileNotFoundError(
+                f"{sidecar} 不存在——ReliabilityGatedFusion 需要 contract 构建时开启"
+                " fit_endpoint_baseline_stats=true（见 configs/contract/v1_expanded_pool.yaml），"
+                f"检查 {contract_dir} 是否是用 fit_endpoint_baseline_stats=false 的配置"
+                "（如 v1.yaml）构建的"
+            )
+        baseline_stats = EndpointBaselineStats.load(sidecar)
         ep_to_svc = yaml.safe_load(_EP_TO_SVC_PATH.read_text())
         id_to_key = _derive_id_to_endpoint_key(ep_to_svc)
         return hydra.utils.instantiate(

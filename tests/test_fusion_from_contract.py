@@ -5,6 +5,7 @@ RG 覆写自行加载 endpoint_baseline_stats + 派生 id_to_endpoint_key。同�
 from pathlib import Path
 
 import pandas as pd
+import pytest
 import torch
 import yaml
 from omegaconf import OmegaConf
@@ -85,3 +86,19 @@ def test_reliability_gate_from_contract_loads_baseline_stats(tmp_path):
     assert fusion.output_dim == 16
     assert fusion._id_to_key == _derive_id_to_key(ep_to_svc)
     assert key in fusion._baseline.fitted_endpoints()
+
+
+def test_reliability_gate_from_contract_missing_sidecar_raises_clear_error(tmp_path):
+    """fit_endpoint_baseline_stats 与 fusion 选型解耦后,两者不再靠 contract_version
+    绑定一致——contract_dir 若是用 flag=false 的配置(如 v1.yaml)构建的,缺 sidecar
+    文件,必须 fail fast 且报错信息指向"检查 contract 构建时的 flag 取值",而不是
+    裸 FileNotFoundError 只报路径。"""
+    cfg = OmegaConf.create(
+        {
+            "_target_": "src.fusion.reliability_gate.ReliabilityGatedFusion",
+            "branch_dim": 16,
+            "dropout": 0.1,
+        }
+    )
+    with pytest.raises(FileNotFoundError, match="fit_endpoint_baseline_stats"):
+        ReliabilityGatedFusion.from_contract(cfg, contract_dir=tmp_path, modality_dims=_DIMS)

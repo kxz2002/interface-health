@@ -332,6 +332,12 @@ def main() -> None:
     set_seed(args.seed)
 
     cfg = load_contract_config(args.config)
+    if cfg.fit_endpoint_baseline_stats and cfg.contract_version != "v1":
+        raise ValueError(
+            "fit_endpoint_baseline_stats=true 只在 contract_version='v1' 下有意义"
+            f"（当前 contract_version={cfg.contract_version!r}）——RG 专属统计量依赖 v1 的"
+            "train_fit 时序切分，v0 无此切分概念"
+        )
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
     intermediate_dir = out / "intermediate"
