@@ -537,12 +537,20 @@ def _write_v1(
         fault_baseline_df = anomaly_df[anomaly_df["phase"] == "baseline"].copy()
         # issue #16 修复：baseline 行不再整段进训练池、整段摘出 eval，而是按时间窗时序
         # 切分——最早 fraction 比例的窗口进训练池，其余留在 eval_all 维持负样本类别平衡。
-        # 唯一硬约束是 train/eval 的 sample_id 互斥（split 按整窗切分天然保证：同一窗不会
-        # 既在 train 又在 eval），由 test_contract_v1_train_pool 的防泄漏断言锁定。
+        # 唯一硬约束是 train/eval 的 sample_id 互斥——split 按整窗切分天然保证（同一窗
+        # 不会既在 train 又在 eval）。
         fault_baseline_train, fault_baseline_eval = split_fault_baseline_temporal(
             fault_baseline_df, fraction=fault_baseline_train_fraction
         )
         fault_baseline_train["source_phase"] = "fault_baseline"
+        if len(fault_baseline_train) == 0 and len(fault_baseline_df) > 0:
+            LOG.warning(
+                "expand_train_pool=true 但 fault_baseline_train_fraction=%.3f 对全部 %d "
+                "行故障 baseline 贡献了 0 行进训练池——训练池扩容实际未生效，请检查 "
+                "fraction 是否过小或故障 case 窗口数是否过少",
+                fault_baseline_train_fraction,
+                len(fault_baseline_df),
+            )
 
         train_pool = pd.concat([train_fit_labeled, fault_baseline_train], ignore_index=True)
         train_pool.to_parquet(out / "train.parquet", index=False)

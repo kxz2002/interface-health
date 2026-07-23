@@ -124,6 +124,36 @@ def test_default_v1_config_does_not_expand_train_pool(tmp_path):
     assert len(fault_baseline_in_eval) > 0
 
 
+def test_fault_baseline_train_fraction_is_noop_when_expand_train_pool_false(tmp_path):
+    """fault_baseline_train_fraction 只在 expand_train_pool=true 时被 _write_v1 消费
+    （见 contract_config.py 里该字段的注释）。这条测试把该假设钉死为可执行断言：
+    expand_train_pool=false 时，即便 fraction 显式设成远离默认值 0.2 的 0.9，
+    输出也必须与 v1.yaml（默认 fraction）完全一致——train.parquet 恒等于
+    train_fit.parquet，不吸收任何故障 baseline 行。若未来重构 _write_v1 把两个
+    分支合并，这条测试能防止 fraction 在 expand_train_pool=false 时被意外消费。"""
+    cfg_path = tmp_path / "v1_noop_check.yaml"
+    cfg_path.write_text(
+        (REPO_ROOT / "configs/contract/v1.yaml").read_text()
+        + "fault_baseline_train_fraction: 0.9\n"
+    )
+
+    out_dir = tmp_path / "contract_v1"
+    _run_v1_build(out_dir, config=str(cfg_path))
+
+    train = pd.read_parquet(out_dir / "train.parquet")
+    train_fit = pd.read_parquet(out_dir / "train_fit.parquet")
+    assert set(train["sample_id"]) == set(train_fit["sample_id"])
+    assert "source_phase" not in train.columns
+
+    eval_all = pd.read_parquet(out_dir / "eval_all.parquet")
+    fault_baseline_in_eval = eval_all[
+        (eval_all["anomaly_type"] != "Normal") & (eval_all["phase"] == "baseline")
+    ]
+    assert (
+        len(fault_baseline_in_eval) > 0
+    ), "fraction=0.9 若被意外消费，会把大部分 baseline 吸收进 train"
+
+
 def test_contract_v1_838_variant_is_pure_normal(tmp_path):
     """2x2 归因实验依赖的手工构造 contract_v1_838：确认 train.parquet 替换为
     train_fit.parquet 后确实是纯 Normal（无 source_phase 列或全为 normal_case），
