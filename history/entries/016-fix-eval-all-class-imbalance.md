@@ -1,7 +1,7 @@
 # 016 · 修复 `expand_train_pool` 导致的 eval_all 类别失衡（issue #16）
 
 - **日期**: 2026-07-23
-- **PR**: 待开 PR（branch: `bugfix/eval-all-class-imbalance`）· **Commit**: `096114a..0c36cc3`（8 commit：2 `[Feature]` + 2 `[Test]` + 1 `[Bugfix]` + 1 `[Experiment]` 重跑 + 2 `[Chore]` 收尾，不含本次文档同步 commit）
+- **PR**: 待开 PR（branch: `bugfix/eval-all-class-imbalance`）· **Commit**: `096114a^..0c36cc3`（8 commit，含起点 `096114a`：2 `[Feature]` + 2 `[Test]` + 1 `[Bugfix]` + 1 `[Experiment]` 重跑 + 2 `[Chore]` 收尾，不含本次文档同步 commit）
 - **类型**: Bugfix
 - **影响域**: `src/contracts/split_fault_baseline.py`, `src/contracts/contract_config.py`, `scripts/build_contract.py`, `configs/contract/v1_expanded_pool.yaml`, `dvc_reliability_gate/dvc.yaml`, `tests/`, `CLAUDE.md`
 
