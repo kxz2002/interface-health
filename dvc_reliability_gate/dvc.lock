@@ -176,5 +176,5 @@ stages:
     outs:
     - path: artifacts/baseline_v1_reliability_gate/metrics.json
       hash: md5
-      md5: 776cc14fcab990935983256c920a9589
-      size: 4673
+      md5: fe336dcb4e37be49b51b7eb3a001ab64
+      size: 4674
