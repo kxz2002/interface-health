@@ -1,0 +1,5 @@
+name: split_fraction_mini
+roots:
+  - tests/fixtures/split_fraction_mini
+normal_source: tests/fixtures/split_fraction_mini
+fused_window: 15s

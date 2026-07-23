@@ -90,3 +90,97 @@ def test_fit_endpoint_baseline_stats_override_true(tmp_path):
     )
     cfg = load_contract_config(cfg_path)
     assert cfg.fit_endpoint_baseline_stats is True
+
+
+def test_fault_baseline_train_fraction_defaults_to_0_2(tmp_path):
+    """新增开关默认 0.2：config 不写该字段时取默认值。默认值只在
+    expand_train_pool=true 时被 _write_v1 消费，但默认值本身必须稳定。"""
+    cfg_path = tmp_path / "c.yaml"
+    cfg_path.write_text(
+        "contract_version: v1\n"
+        "window_size_s: 15\n"
+        "modalities:\n"
+        "  endpoint_red:\n"
+        "    preprocessor: TracePreprocessor\n"
+        "    preprocessor_version: v0\n"
+        "    features: [trace_request_count]\n"
+        "    normalization: per_endpoint_min_max\n"
+    )
+    cfg = load_contract_config(cfg_path)
+    assert cfg.fault_baseline_train_fraction == 0.2
+
+
+def test_fault_baseline_train_fraction_override(tmp_path):
+    cfg_path = tmp_path / "c.yaml"
+    cfg_path.write_text(
+        "contract_version: v1\n"
+        "window_size_s: 15\n"
+        "fault_baseline_train_fraction: 0.35\n"
+        "modalities:\n"
+        "  endpoint_red:\n"
+        "    preprocessor: TracePreprocessor\n"
+        "    preprocessor_version: v0\n"
+        "    features: [trace_request_count]\n"
+        "    normalization: per_endpoint_min_max\n"
+    )
+    cfg = load_contract_config(cfg_path)
+    assert cfg.fault_baseline_train_fraction == 0.35
+
+
+def test_fault_baseline_train_fraction_out_of_range_raises(tmp_path):
+    """越界值（<0 或 >1）必须在加载时报错，而不是悄悄产出空/全量切分污染实验。"""
+    for bad in ("2.0", "-0.1"):
+        cfg_path = tmp_path / f"c_{bad}.yaml"
+        cfg_path.write_text(
+            "contract_version: v1\n"
+            "window_size_s: 15\n"
+            f"fault_baseline_train_fraction: {bad}\n"
+            "modalities:\n"
+            "  endpoint_red:\n"
+            "    preprocessor: TracePreprocessor\n"
+            "    preprocessor_version: v0\n"
+            "    features: [trace_request_count]\n"
+            "    normalization: per_endpoint_min_max\n"
+        )
+        with pytest.raises(ValueError, match="fault_baseline_train_fraction"):
+            load_contract_config(cfg_path)
+
+
+def test_fault_baseline_train_fraction_boundary_values_valid(tmp_path):
+    """0.0 和 1.0 是闭区间的合法边界值，必须能正常加载而不报错。
+    校验用的是 <=/>=（闭区间），这条测试防止未来手滑改成 </>（开区间）而不被发现。"""
+    for boundary in (0.0, 1.0):
+        cfg_path = tmp_path / f"c_{boundary}.yaml"
+        cfg_path.write_text(
+            "contract_version: v1\n"
+            "window_size_s: 15\n"
+            f"fault_baseline_train_fraction: {boundary}\n"
+            "modalities:\n"
+            "  endpoint_red:\n"
+            "    preprocessor: TracePreprocessor\n"
+            "    preprocessor_version: v0\n"
+            "    features: [trace_request_count]\n"
+            "    normalization: per_endpoint_min_max\n"
+        )
+        cfg = load_contract_config(cfg_path)
+        assert cfg.fault_baseline_train_fraction == boundary
+
+
+def test_fault_baseline_train_fraction_quoted_string_raises(tmp_path):
+    """YAML 里给数值字段加引号会让 yaml.safe_load 解析成 str 而非 float，
+    此时范围比较（float <= str）会抛无关的 TypeError；必须在类型检查处先堵住，
+    抛出可读的 ValueError 而不是让调用方看到一个不知所云的 TypeError。"""
+    cfg_path = tmp_path / "c_quoted.yaml"
+    cfg_path.write_text(
+        "contract_version: v1\n"
+        "window_size_s: 15\n"
+        'fault_baseline_train_fraction: "0.5"\n'
+        "modalities:\n"
+        "  endpoint_red:\n"
+        "    preprocessor: TracePreprocessor\n"
+        "    preprocessor_version: v0\n"
+        "    features: [trace_request_count]\n"
+        "    normalization: per_endpoint_min_max\n"
+    )
+    with pytest.raises(ValueError, match="fault_baseline_train_fraction"):
+        load_contract_config(cfg_path)

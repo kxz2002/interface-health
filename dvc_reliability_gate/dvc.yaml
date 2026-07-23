@@ -6,9 +6,11 @@
 stages:
   build_contract_v1_expanded:
     wdir: ..
-    # RG（ReliabilityGatedFusion）专属：训练池扩容（吸收故障 case baseline 阶段行，
-    # 838→~6249 行），与 L0/L1/L2 用的 build_contract_v1（不扩容）分开，避免主对比
-    # baseline 的 eval 集合被悄悄改变。见 history/entries/014-reliability-gate-fusion.md。
+    # RG（ReliabilityGatedFusion）专属：训练池扩容（吸收故障 case baseline 阶段行中
+    # 最早 fault_baseline_train_fraction 比例的时间窗，默认 838→~1787 行，其余 baseline
+    # 窗口留在 eval_all 维持负样本类别平衡，见 history/entries/016），与 L0/L1/L2 用的
+    # build_contract_v1（不扩容）分开，避免主对比 baseline 的 eval 集合被悄悄改变。
+    # 见 history/entries/014-reliability-gate-fusion.md。
     cmd: python scripts/build_contract.py --config configs/contract/v1_expanded_pool.yaml
       --dataset configs/data/merged_v2.yaml --out-dir artifacts/contract_v1_expanded --seed 42
     deps:
@@ -16,6 +18,7 @@ stages:
       - src/preprocessors
       - src/contracts/contract_v0.py
       - src/contracts/split_v1.py
+      - src/contracts/split_fault_baseline.py
       - src/data/normalization.py
       - src/data/dataset_config.py
       - src/data/endpoint_baseline_stats.py
