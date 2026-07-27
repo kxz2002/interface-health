@@ -56,7 +56,7 @@
 |-------------|--------------|
 | `CLAUDE.md` | 001, 002, 003, 004, 009, 011, 015, 016 |
 | `data/` 组织与 DVC | 002 |
-| `configs/` (Hydra) | 002, 011（fusion/model config-group、base.yaml 必填字段）, 014（reliability_gate 路由消融配置、`fusion_checkpoint` 可选字段） |
+| `configs/` (Hydra) | 002, 011（fusion/model config-group、base.yaml 必填字段）, 014（reliability_gate 路由消融配置、`fusion_checkpoint` 可选字段）, 018（`configs/fusion/deviation_weighted.yaml`） |
 | `src/utils/` (seed, logger) | 002, 011（param_budget） |
 | `src/contracts/` | 003, 011（Contract v1 时序切分）, 014（`endpoint_id` 列、训练池扩容吸收 fault baseline 行）, 016（`split_fault_baseline_temporal` 两路时序切分） |
 | `scripts/` (train, eval) | 003, 011（train_baseline_v0.py 改 Hydra entrypoint） |
