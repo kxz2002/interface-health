@@ -2,6 +2,7 @@
 RG 覆写自行加载 endpoint_baseline_stats + 派生 id_to_endpoint_key。同时验证
 基类 forward 新增的 endpoint_id 参数对 L0/L1/L2 是接受即忽略(不改变输出)。"""
 
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -12,6 +13,7 @@ from omegaconf import OmegaConf
 
 from src.contracts.endpoint_id_mapping import id_to_endpoint_key as _derive_id_to_key
 from src.data.endpoint_baseline_stats import EndpointBaselineStats
+from src.fusion.deviation_weighted import DeviationWeightedFusion
 from src.fusion.early_concat import EarlyConcatFusion
 from src.fusion.gated import GatedFusion
 from src.fusion.independent_concat import IndependentConcatFusion
@@ -102,3 +104,59 @@ def test_reliability_gate_from_contract_missing_sidecar_raises_clear_error(tmp_p
     )
     with pytest.raises(FileNotFoundError, match="fit_endpoint_baseline_stats"):
         ReliabilityGatedFusion.from_contract(cfg, contract_dir=tmp_path, modality_dims=_DIMS)
+
+
+def test_deviation_weighted_from_contract_loads_baseline_stats_and_schema(tmp_path):
+    """DeviationWeightedFusion 覆写 from_contract:从 contract_dir 读
+    endpoint_baseline_stats.json + schema.json(后者提供逐列列名,RG 不需要这份,
+    因为 RG 只算分支级偏离摘要,不需要知道单列名字;本设计需要把 degenerate_columns()
+    返回的列名映射到张量位置,schema.json 的 feature_groups 是列顺序的权威来源)。"""
+    ep_to_svc = yaml.safe_load(
+        (REPO_ROOT / "configs/contract/endpoint_to_service.yaml").read_text()
+    )
+    key = sorted(ep_to_svc)[0]
+    dims = {"endpoint_red": 2, "service_metric": 1, "service_log": 1}
+    schema = {
+        "feature_groups": {
+            "endpoint_red": {"columns": ["endpoint_red__a", "endpoint_red__b"]},
+            "service_metric": {"columns": ["service_metric__c"]},
+            "service_log": {"columns": ["service_log__d"]},
+        }
+    }
+    (tmp_path / "schema.json").write_text(json.dumps(schema))
+
+    df = pd.DataFrame(
+        {
+            "endpoint_key": [key, key],
+            "endpoint_red__a": [0.1, 0.2],
+            "endpoint_red__b": [0.3, 0.5],
+            "service_metric__c": [0.4, 0.6],
+            "service_log__d": [0.2, 0.3],
+        }
+    )
+    stats = EndpointBaselineStats(
+        red_cols=["endpoint_red__a", "endpoint_red__b"],
+        svc_cols=["service_metric__c", "service_log__d"],
+    )
+    stats.fit(df)
+    stats.save(tmp_path / "endpoint_baseline_stats.json")
+
+    cfg = OmegaConf.create(
+        {"_target_": "src.fusion.deviation_weighted.DeviationWeightedFusion", "threshold": 2.0}
+    )
+    fusion = DeviationWeightedFusion.from_contract(cfg, contract_dir=tmp_path, modality_dims=dims)
+    assert isinstance(fusion, DeviationWeightedFusion)
+    assert fusion.output_dim == 4
+    assert fusion._id_to_key == _derive_id_to_key(ep_to_svc)
+    assert key in fusion._baseline.fitted_endpoints()
+
+
+def test_deviation_weighted_from_contract_missing_sidecar_raises_clear_error(tmp_path):
+    """与 RG 同款约定:sidecar 缺失必须 fail fast 且报错信息指向
+    fit_endpoint_baseline_stats 配置项,不是裸 FileNotFoundError 只报路径。
+    sidecar 检查在读 schema.json 之前,contract_dir 空目录即可触发。"""
+    cfg = OmegaConf.create(
+        {"_target_": "src.fusion.deviation_weighted.DeviationWeightedFusion", "threshold": 2.0}
+    )
+    with pytest.raises(FileNotFoundError, match="fit_endpoint_baseline_stats"):
+        DeviationWeightedFusion.from_contract(cfg, contract_dir=tmp_path, modality_dims=_DIMS)

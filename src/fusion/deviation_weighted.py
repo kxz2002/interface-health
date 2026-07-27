@@ -12,8 +12,15 @@ ep/svc 分支共享一个标量权重）。forward 输出直接是加权后的�
 
 from __future__ import annotations
 
-import torch
+import json
+from pathlib import Path
 
+import hydra
+import torch
+import yaml
+from omegaconf import DictConfig
+
+from src.contracts.endpoint_id_mapping import id_to_endpoint_key as _derive_id_to_endpoint_key
 from src.data.endpoint_baseline_stats import EndpointBaselineStats
 from src.fusion.base import MODALITY_ORDER, FusionModule
 
@@ -21,6 +28,11 @@ from src.fusion.base import MODALITY_ORDER, FusionModule
 # reliability_gate.py::_DEVIATION_THRESHOLD），非分支级门控输入而是
 # 直接作用于逐特征权重公式 sigmoid(|z|-threshold)。
 _DEFAULT_THRESHOLD = 2.0
+
+# endpoint_to_service.yaml 是 id_to_endpoint_key 反查表的唯一权威来源，必须与
+# build_contract.py 派生 endpoint_id 列时用的同一份 sorted() 逻辑一致
+# (src/contracts/endpoint_id_mapping.py)，与 reliability_gate.py 同款路径计算。
+_EP_TO_SVC_PATH = Path(__file__).resolve().parents[2] / "configs/contract/endpoint_to_service.yaml"
 
 
 class DeviationWeightedFusion(FusionModule):
@@ -133,3 +145,37 @@ class DeviationWeightedFusion(FusionModule):
     @property
     def output_dim(self) -> int:
         return self._ep_dim + self._svc_dim
+
+    @classmethod
+    def from_contract(
+        cls, cfg: DictConfig, *, contract_dir: Path, modality_dims: dict[str, int]
+    ) -> "DeviationWeightedFusion":
+        """从 contract_dir 加载 per-endpoint 基线统计量 + schema 列名，派生
+        id_to_endpoint_key 反查表，交给 hydra.utils.instantiate 注入这些运行时对象。
+        与 ReliabilityGatedFusion.from_contract 同一模式（entry 015 收束的
+        构造解耦），训练脚本对"本类需要什么"一无所知即可正确构造。"""
+        sidecar = Path(contract_dir) / "endpoint_baseline_stats.json"
+        if not sidecar.exists():
+            raise FileNotFoundError(
+                f"{sidecar} 不存在——DeviationWeightedFusion 需要 contract 构建时开启"
+                " fit_endpoint_baseline_stats=true（见 configs/contract/v1_expanded_pool.yaml），"
+                f"检查 {contract_dir} 是否是用 fit_endpoint_baseline_stats=false 的配置"
+                "（如 v1.yaml）构建的"
+            )
+        baseline_stats = EndpointBaselineStats.load(sidecar)
+        schema = json.loads((Path(contract_dir) / "schema.json").read_text())
+        red_cols = schema["feature_groups"]["endpoint_red"]["columns"]
+        svc_cols = (
+            schema["feature_groups"]["service_metric"]["columns"]
+            + schema["feature_groups"]["service_log"]["columns"]
+        )
+        ep_to_svc = yaml.safe_load(_EP_TO_SVC_PATH.read_text())
+        id_to_key = _derive_id_to_endpoint_key(ep_to_svc)
+        return hydra.utils.instantiate(
+            cfg,
+            modality_dims=modality_dims,
+            endpoint_baseline_stats=baseline_stats,
+            id_to_endpoint_key=id_to_key,
+            red_cols=red_cols,
+            svc_cols=svc_cols,
+        )
