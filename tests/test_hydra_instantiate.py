@@ -72,3 +72,31 @@ def test_fusion_reliability_gate_instantiate_returns_reliability_gated_fusion():
     )
     assert isinstance(fusion, ReliabilityGatedFusion)
     assert fusion.output_dim == 16  # yaml 里 branch_dim 默认值
+
+
+def test_fusion_deviation_weighted_instantiate_returns_deviation_weighted_fusion():
+    import pandas as pd
+
+    from src.data.endpoint_baseline_stats import EndpointBaselineStats
+    from src.fusion.deviation_weighted import DeviationWeightedFusion
+
+    red_cols = [f"endpoint_red__f{i}" for i in range(10)]
+    svc_cols = [f"service_metric__g{i}" for i in range(5)] + [
+        f"service_log__h{i}" for i in range(3)
+    ]
+    stats = EndpointBaselineStats(red_cols=red_cols, svc_cols=svc_cols)
+    rows = [{"endpoint_key": "epA", **{c: 1.0 for c in red_cols + svc_cols}} for _ in range(20)]
+    stats.fit(pd.DataFrame(rows))
+
+    with initialize_config_dir(config_dir=CONFIGS_DIR, version_base=None):
+        cfg = compose(config_name="fusion/deviation_weighted")
+    fusion = hydra.utils.instantiate(
+        cfg.fusion,
+        modality_dims={"endpoint_red": 10, "service_metric": 5, "service_log": 3},
+        endpoint_baseline_stats=stats,
+        id_to_endpoint_key={0: "epA"},
+        red_cols=red_cols,
+        svc_cols=svc_cols,
+    )
+    assert isinstance(fusion, DeviationWeightedFusion)
+    assert fusion.output_dim == 18

@@ -1,0 +1,2 @@
+_target_: src.fusion.deviation_weighted.DeviationWeightedFusion
+threshold: 2.0
