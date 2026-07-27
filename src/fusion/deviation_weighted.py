@@ -46,6 +46,21 @@ class DeviationWeightedFusion(FusionModule):
         self._ep_dim = modality_dims["endpoint_red"]
         self._svc_dim = modality_dims["service_metric"] + modality_dims["service_log"]
 
+        # branch_stats() 返回的 mean/std 向量按 stats 对象内部 fit 顺序排列，
+        # 而退化列 mask 是按 red_cols/svc_cols 的位置顺序构建——两者长度不一致时
+        # （调用方传错列表，或未来 schema.json 列序与 fit 顺序漂移）会静默错位，
+        # 只在 forward 里 torch.where 广播失败时才报出无意义的 shape 错误。
+        # 在构造时就 fail fast，同项目历史上 Normalizer 零方差错位 bug 同类教训。
+        if len(red_cols) != self._ep_dim:
+            raise ValueError(
+                f"len(red_cols)={len(red_cols)} must equal modality_dims['endpoint_red']={self._ep_dim}"
+            )
+        if len(svc_cols) != self._svc_dim:
+            raise ValueError(
+                f"len(svc_cols)={len(svc_cols)} must equal "
+                f"modality_dims['service_metric']+modality_dims['service_log']={self._svc_dim}"
+            )
+
         # 退化列（EndpointBaselineStats 全局 fallback 到 1e-9 std 的列）的权重必须
         # 固定为1，不能走 sigmoid(|z|-threshold) 公式——否则一个从未真正偏离过的
         # 常数列，只因分母被兜底成 1e-9 而在 z 计算里引入数值噪声，被误判为需要

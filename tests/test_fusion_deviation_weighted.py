@@ -38,6 +38,14 @@ def _fusion(endpoints=("epA", "epB"), **kwargs) -> DeviationWeightedFusion:
     )
 
 
+def test_zero_learnable_parameters():
+    """零可学习参数是本类相对 L0 的唯一自变量（module docstring / spec §2.2 /
+    plan 背景说明）——若未来有人误加 nn.Linear/gate_mlp，必须在这里立刻报错，
+    而不是让实验结果悄悄失去单变量对比的有效性。"""
+    fusion = _fusion()
+    assert sum(p.numel() for p in fusion.parameters()) == 0
+
+
 def test_output_dim_equals_ep_plus_svc_dim():
     fusion = _fusion()
     assert fusion.output_dim == 6  # 3(ep) + 2(svc_metric) + 1(svc_log)
