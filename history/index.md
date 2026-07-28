@@ -45,6 +45,7 @@
 | [016](./entries/016-fix-eval-all-class-imbalance.md) | 2026-07-23 | Bugfix | 修复 expand_train_pool 导致的 eval_all 类别失衡（baseline 按 fraction 时序切分，issue #16） | `src/contracts/split_fault_baseline.py`, `src/contracts/contract_config.py`, `scripts/build_contract.py`, `configs/contract/`, `dvc_reliability_gate/`, `tests/`, `CLAUDE.md` |
 | [017](./entries/017-phase0-shortcut-refuted-reframe.md) | 2026-07-23 | Docs | Phase 0 诊断证伪 per-endpoint shortcut（HTTP 故障不污染共享特征：metric 0.02σ/log 0.15σ），转向 "Reliability ≠ Observability"；双轮 novelty-check + 采集审计；决定先做 C（service-only vs endpoint-only 验证），re-collection 暂缓 | 研究方向/论文 framing, `artifacts/contract_v1/`（只读诊断）, `.aris/traces/novelty-check/`, 后续 `scripts/`（C 实现） |
 | [018](./entries/018-deviation-weighted-fusion.md) | 2026-07-27 | Experiment | DeviationWeightedFusion：逐特征偏离量加权融合最小改动验证——零可学习参数，ABORT/REPLACE 宏平均 AUROC 0.632/0.538，与 RG 基本无差异（REPLACE 更差），判定不达标，不做后续深化 | `src/fusion/deviation_weighted.py`, `configs/fusion/`, `dvc_deviation_weighted/`, `tests/` |
+| [019](./entries/019-new-ep1-oom-fix-and-first-eval.md) | 2026-07-27 | Bugfix + Experiment | new_ep1 OOM 修复（LogPreprocessor 整文件读入→流式读取）+ fraction 推到 12.24:87.76 数值上限 + 首次训练评估（DWF vs L0，ABORT 退步/REPLACE 进步/PATCH 分数反转诊断为 fraction=1.0 训练池污染，与融合机制无关） | `src/preprocessors/log_preprocessor.py`, `configs/contract/v1_new_ep1.yaml`, `configs/data/new_ep1.yaml`, `artifacts/contract_new_ep1_expanded/` |
 
 ---
 
@@ -75,9 +76,9 @@
 | 模型实现（`src/models/`） | 005 |
 | 数据 loader（`src/data/`） | 005, 014（`endpoint_baseline_stats.py`, `endpoint_id` 全链路打通） |
 | 评估指标细化（per-endpoint, phase 对齐） | 005 |
-| `src/preprocessors/` | 005 |
-| `configs/contract/` | 005, 016 |
-| `configs/data/`（多数据源配置） | 006, 009 |
+| `src/preprocessors/` | 005, 019（LogPreprocessor 整文件读入→流式读取，修复超大日志文件 OOM） |
+| `configs/contract/` | 005, 016, 019（`v1_new_ep1.yaml`，`fault_baseline_train_fraction` 推到数值上限 12.24:87.76） |
+| `configs/data/`（多数据源配置） | 006, 009, 019（`new_ep1.yaml`，独立数据集不与其他 root 合并） |
 | `src/data/dataset_config.py` | 006 |
 | `configs/contract/endpoint_to_service.yaml` | 006 |
 | `src/data/normalization.py`（Normalizer） | 007, 013（零方差 group 除零放大） |

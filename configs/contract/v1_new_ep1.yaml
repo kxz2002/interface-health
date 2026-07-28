@@ -1,0 +1,61 @@
+contract_version: "v1"
+window_size_s: 15
+# 训练池扩容：train 额外吸收故障 case baseline 阶段行中最早
+# fault_baseline_train_fraction 比例的时间窗，其余留在 eval_all 维持负样本
+# 类别平衡（修复 issue #16，见 history/entries/016）。
+expand_train_pool: true
+# RG(ReliabilityGatedFusion)/DeviationWeightedFusion 消费 per-endpoint 基线统计量做
+# 偏离量门控/加权，必须产出。
+fit_endpoint_baseline_stats: true
+# new_ep1 实测（seed=42, expand_train_pool=true）：eval_all 正负比（is_endpoint_anomaly）
+# 由 4 部分负样本构成——inject 窗口内非目标 endpoint 的 fan-out 残留（2546 行，8
+# endpoint/窗口里 7 个非目标，完全不受本参数影响）+ recover（446 行，不受本参数
+# 影响）+ Normal holdout（176 行，不受本参数影响）+ baseline（唯一受本参数调节的
+# 部分）。正样本（442 行）同样不受本参数影响。fraction=0.84 时 baseline 仍贡献
+# 1311 行负样本，比例被拉到 8.98:91.02，明显偏离 1:1。fan-out 残留是三者中最大的
+# 一项且无法通过本参数消除——即使 fraction=1.0（baseline 阶段行全部进训练池，
+# eval 侧一条 baseline 负样本都不留），负样本下限仍是 2546+446+176=3168，
+# 最优比例封顶在约 12.24:87.76，达不到 1:1。这是 endpoint 级 fan-out 的结构性
+# 稀释，本参数只能推到数值上限，不能真正解决——如需更接近 1:1，需要改变 eval_all
+# 的构成定义（如是否把同窗非目标 endpoint 行计入负样本），不是本参数的调节范围。
+fault_baseline_train_fraction: 1.0
+
+modalities:
+  endpoint_red:
+    preprocessor: TracePreprocessor
+    preprocessor_version: v0
+    features:
+      - trace_request_count
+      - trace_latency_p50
+      - trace_latency_p95
+      - trace_error_rate
+      - trace_5xx_rate
+      - client_request_count
+      - client_latency_p95
+      - client_error_rate
+      - client_5xx_rate
+      - latency_divergence
+    normalization: per_endpoint_min_max
+    candidates_pool: []
+
+  service_metric:
+    preprocessor: MetricPreprocessor
+    preprocessor_version: v0
+    features:
+      - cpu_usage_rate
+      - memory_usage_ratio
+      - net_rx_error_rate
+      - net_tx_error_rate
+      - process_count
+    normalization: per_service_min_max
+    candidates_pool: []
+
+  service_log:
+    preprocessor: LogPreprocessor
+    preprocessor_version: v0
+    features:
+      - event_rate
+      - error_ratio
+      - template_diversity
+    normalization: per_service_min_max
+    candidates_pool: []

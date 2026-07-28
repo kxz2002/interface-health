@@ -82,6 +82,17 @@ def test_find_service_dirs_nested_layout(tmp_path):
     assert result == [svc_dir]
 
 
+def test_parse_line_truncates_overlong_content():
+    """超长单行（如整段业务对象 dump）喂给 Drain3 前应被截断，避免 tokenize 爆炸。"""
+    log_pre = LogPreprocessor()
+    huge_payload = "x" * 1_000_000
+    line = f"2026-06-09 10:41:43.491  INFO 1 --- [thread] logger : {huge_payload}"
+    result = log_pre._parse_line(line)
+    assert result is not None
+    _, _, content = result
+    assert len(content) == LogPreprocessor.MAX_CONTENT_CHARS
+
+
 def test_parse_line_timezone_converts_to_utc():
     """CST 10:41:43 → UTC 02:41:43（差 8h），验证 epoch ms 对应 UTC 时间。"""
     import pandas as pd
