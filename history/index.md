@@ -47,6 +47,7 @@
 | [018](./entries/018-deviation-weighted-fusion.md) | 2026-07-27 | Experiment | DeviationWeightedFusion：逐特征偏离量加权融合最小改动验证——零可学习参数，ABORT/REPLACE 宏平均 AUROC 0.632/0.538，与 RG 基本无差异（REPLACE 更差），判定不达标，不做后续深化 | `src/fusion/deviation_weighted.py`, `configs/fusion/`, `dvc_deviation_weighted/`, `tests/` |
 | [019](./entries/019-new-ep1-oom-fix-and-first-eval.md) | 2026-07-27 | Bugfix + Experiment | new_ep1 OOM 修复（LogPreprocessor 整文件读入→流式读取）+ fraction 推到 12.24:87.76 数值上限 + 首次训练评估（DWF vs L0，ABORT 退步/REPLACE 进步/PATCH 分数反转诊断为 fraction=1.0 训练池污染，与融合机制无关） | `src/preprocessors/log_preprocessor.py`, `configs/contract/v1_new_ep1.yaml`, `configs/data/new_ep1.yaml`, `artifacts/contract_new_ep1_expanded/` |
 | [020](./entries/020-log-truncation-impact-quantified.md) | 2026-07-28 | Docs | MAX_CONTENT_CHARS 截断实测：短行 template_id 100% 不变/超长行 100% 变化，template_diversity 60% 窗口受影响（均偏 0.017）；阈值-耗时曲线显示 2000→20000 仅 2.3x，不截断达 80x；2000→3000 几乎零 CPU 代价但损耗改善仅 ~14%，未改代码 | `src/preprocessors/log_preprocessor.py`（注释准确性） |
+| [021](./entries/021-baseline-rerun-waived-recollection-pending.md) | 2026-07-29 | Docs | MAX_CONTENT_CHARS 是本分支新引入（master 无此常量），v0/v1/RG 三条既有 contract 管线因此 drift；决定不重跑——PATCH 类故障对现有数据集所有 RED 特征隐形（entry 017），需重采补 api_response 响应体才有价值，旧数据集即将被替换，重跑无意义；并纠正 entry 019 "两次连续同源 OOM/上一轮已修"的不准确叙事（实为同一 commit 一起首次引入） | `artifacts/baseline_v0|v1|v1_reliability_gate/`（决定维持现状） |
 
 ---
 
