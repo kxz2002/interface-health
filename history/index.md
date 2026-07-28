@@ -43,6 +43,11 @@
 | [014](./entries/014-reliability-gate-fusion.md) | 2026-07-19 | Experiment | Reliability Gate Fusion：偏离量门控路由实测（多seed主对比+2x2训练池归因+路由消融+可解释性分析+坍缩根因定位+训练池扩容影响归因），门控坍缩与高方差问题如实记录；`expand_train_pool` 开关落地隔离 RG 与 L0/L1/L2 的 eval 集合；决定合入 master 但 RG 保持非默认、耦合债务留给下一个 PR | `src/fusion/`, `src/data/endpoint_baseline_stats.py`, `src/contracts/`, `scripts/build_contract.py`, `scripts/train_baseline_v0.py`, `scripts/analyze_gate_weights.py`, `configs/fusion/`, `configs/contract/`, `artifacts/contract_v1*` |
 | [015](./entries/015-rg-coupling-containment.md) | 2026-07-21 | Refactor | RG 耦合收束：`is_reliability_gate` 分支消除，改用 `FusionModule.from_contract` 钩子 + `fit_endpoint_baseline_stats` 开关 + `dvc_reliability_gate/dvc.yaml` 隔离，不改动 RG 门控算法本身 | `src/fusion/`, `scripts/build_contract.py`, `scripts/train_baseline_v0.py`, `src/contracts/contract_config.py`, `configs/contract/`, `dvc.yaml`, `dvc_reliability_gate/`, `CLAUDE.md` |
 | [016](./entries/016-fix-eval-all-class-imbalance.md) | 2026-07-23 | Bugfix | 修复 expand_train_pool 导致的 eval_all 类别失衡（baseline 按 fraction 时序切分，issue #16） | `src/contracts/split_fault_baseline.py`, `src/contracts/contract_config.py`, `scripts/build_contract.py`, `configs/contract/`, `dvc_reliability_gate/`, `tests/`, `CLAUDE.md` |
+| [017](./entries/017-phase0-shortcut-refuted-reframe.md) | 2026-07-23 | Docs | Phase 0 诊断证伪 per-endpoint shortcut（HTTP 故障不污染共享特征：metric 0.02σ/log 0.15σ），转向 "Reliability ≠ Observability"；双轮 novelty-check + 采集审计；决定先做 C（service-only vs endpoint-only 验证），re-collection 暂缓 | 研究方向/论文 framing, `artifacts/contract_v1/`（只读诊断）, `.aris/traces/novelty-check/`, 后续 `scripts/`（C 实现） |
+| [018](./entries/018-deviation-weighted-fusion.md) | 2026-07-27 | Experiment | DeviationWeightedFusion：逐特征偏离量加权融合最小改动验证——零可学习参数，ABORT/REPLACE 宏平均 AUROC 0.632/0.538，与 RG 基本无差异（REPLACE 更差），判定不达标，不做后续深化 | `src/fusion/deviation_weighted.py`, `configs/fusion/`, `dvc_deviation_weighted/`, `tests/` |
+| [019](./entries/019-new-ep1-oom-fix-and-first-eval.md) | 2026-07-27 | Bugfix + Experiment | new_ep1 OOM 修复（LogPreprocessor 整文件读入→流式读取）+ fraction 推到 12.24:87.76 数值上限 + 首次训练评估（DWF vs L0，ABORT 退步/REPLACE 进步/PATCH 分数反转诊断为 fraction=1.0 训练池污染，与融合机制无关） | `src/preprocessors/log_preprocessor.py`, `configs/contract/v1_new_ep1.yaml`, `configs/data/new_ep1.yaml`, `artifacts/contract_new_ep1_expanded/`, `dvc_new_ep1/` |
+| [020](./entries/020-log-truncation-impact-quantified.md) | 2026-07-28 | Docs | MAX_CONTENT_CHARS 截断实测：短行 template_id 100% 不变/超长行 100% 变化，template_diversity 60% 窗口受影响（均偏 0.017）；阈值-耗时曲线显示 2000→20000 仅 2.3x，不截断达 80x；2000→3000 几乎零 CPU 代价但损耗改善仅 ~14%，未改代码 | `src/preprocessors/log_preprocessor.py`（注释准确性） |
+| [021](./entries/021-baseline-rerun-waived-recollection-pending.md) | 2026-07-29 | Docs | MAX_CONTENT_CHARS 是本分支新引入（master 无此常量），v0/v1/RG 三条既有 contract 管线因此 drift；决定不重跑——PATCH 类故障对现有数据集所有 RED 特征隐形（entry 017），需重采补 api_response 响应体才有价值，旧数据集即将被替换，重跑无意义；并纠正 entry 019 "两次连续同源 OOM/上一轮已修"的不准确叙事（实为同一 commit 一起首次引入） | `artifacts/baseline_v0|v1|v1_reliability_gate/`（决定维持现状） |
 
 ---
 
@@ -54,7 +59,7 @@
 |-------------|--------------|
 | `CLAUDE.md` | 001, 002, 003, 004, 009, 011, 015, 016 |
 | `data/` 组织与 DVC | 002 |
-| `configs/` (Hydra) | 002, 011（fusion/model config-group、base.yaml 必填字段）, 014（reliability_gate 路由消融配置、`fusion_checkpoint` 可选字段） |
+| `configs/` (Hydra) | 002, 011（fusion/model config-group、base.yaml 必填字段）, 014（reliability_gate 路由消融配置、`fusion_checkpoint` 可选字段）, 018（`configs/fusion/deviation_weighted.yaml`） |
 | `src/utils/` (seed, logger) | 002, 011（param_budget） |
 | `src/contracts/` | 003, 011（Contract v1 时序切分）, 014（`endpoint_id` 列、训练池扩容吸收 fault baseline 行）, 016（`split_fault_baseline_temporal` 两路时序切分） |
 | `scripts/` (train, eval) | 003, 011（train_baseline_v0.py 改 Hydra entrypoint） |
@@ -62,20 +67,20 @@
 | `docs/agent-docs/` | 001 |
 | `docs/plans/` | 001 |
 | `artifacts/` | 003 |
-| `dvc.yaml` / DVC pipeline | 002 (初始化), 003 (定义 stage), 009 (切换 merged_v2), 011 (新增 build_contract_v1/train_v1/eval_v1), 015（RG 专属 stage 隔离到 dvc_reliability_gate/dvc.yaml） |
+| `dvc.yaml` / DVC pipeline | 002 (初始化), 003 (定义 stage), 009 (切换 merged_v2), 011 (新增 build_contract_v1/train_v1/eval_v1), 015（RG 专属 stage 隔离到 dvc_reliability_gate/dvc.yaml）, 018（dvc_deviation_weighted/dvc.yaml，跨文件依赖复用 RG 已产出的 contract_v1_expanded） |
 | `environment.yml` / `Makefile` | 002 |
 | `.github/workflows/ci.yml` | 002, 004 |
 | `tests/` | 002 (占位), 003 (契约/e2e), 009 (merged_v2_mini fixture + 归档排除/多 root 测试) |
 | `pyproject.toml` | 002 |
 | `history/` + `skills-local/` | 004 |
 | `Makefile` | 002 (环境), 004 (install-skills) |
-| 多模态融合（`src/fusion/`） | 005, 010, 012, 014（ReliabilityGatedFusion，偏离量门控路由）, 015（from_contract 钩子解耦） |
+| 多模态融合（`src/fusion/`） | 005, 010, 012, 014（ReliabilityGatedFusion，偏离量门控路由）, 015（from_contract 钩子解耦）, 018（DeviationWeightedFusion，逐特征加权，零可学习参数，不达标） |
 | 模型实现（`src/models/`） | 005 |
 | 数据 loader（`src/data/`） | 005, 014（`endpoint_baseline_stats.py`, `endpoint_id` 全链路打通） |
 | 评估指标细化（per-endpoint, phase 对齐） | 005 |
-| `src/preprocessors/` | 005 |
-| `configs/contract/` | 005, 016 |
-| `configs/data/`（多数据源配置） | 006, 009 |
+| `src/preprocessors/` | 005, 019（LogPreprocessor 整文件读入→流式读取，修复超大日志文件 OOM） |
+| `configs/contract/` | 005, 016, 019（`v1_new_ep1.yaml`，`fault_baseline_train_fraction` 推到数值上限 12.24:87.76） |
+| `configs/data/`（多数据源配置） | 006, 009, 019（`new_ep1.yaml`，独立数据集不与其他 root 合并） |
 | `src/data/dataset_config.py` | 006 |
 | `configs/contract/endpoint_to_service.yaml` | 006 |
 | `src/data/normalization.py`（Normalizer） | 007, 013（零方差 group 除零放大） |

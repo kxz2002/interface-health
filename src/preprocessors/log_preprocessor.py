@@ -35,6 +35,16 @@ class LogPreprocessor(ModalityPreprocessor):
     ]
     WINDOW_MS = 15_000
     ERROR_LEVELS = frozenset({"ERROR", "FATAL"})
+    # Train-Ticket 部分服务会把整个业务对象列表一次性打印进单条日志（实测 new_ep1
+    # 数据集中 order-service 出现过 73 万字符的单行），这类超长行对模板聚类没有
+    # 额外信息量（模板特征只看行首结构，不看 payload 内容），但会让 Drain3 的
+    # tokenize/masking/tree_search 复杂度随字符数暴涨，实测导致 build_contract 卡死
+    # 数小时。截断只对占比 88%+ 的短行（≤2000 字符）不改变 template_id 归类；
+    # 超长行本身的 template 会因内容变化而变化——这部分损耗体现在
+    # service_log__template_diversity 特征上，实测约 60% 的 15s 窗口取值受影响
+    # （event_rate/error_ratio 不受影响，只看行数/日志级别不看内容）。
+    # 阈值-耗时/阈值-损耗曲线见 history/entries/020，调整该值前先读那份实测数据。
+    MAX_CONTENT_CHARS = 2000
 
     def __init__(
         self,
@@ -52,12 +62,17 @@ class LogPreprocessor(ModalityPreprocessor):
     def fit(self, raw_paths: list[Path]) -> None:
         miner = self._new_miner()
         for path in raw_paths:
-            for line in Path(path).read_text(errors="replace").splitlines():
-                parsed = self._parse_line(line)
-                if parsed is None:
-                    continue
-                _, _, content = parsed
-                miner.add_log_message(content)
+            # new_ep1 单个日志文件可达 4.8GB：read_text().splitlines() 会把整个文件读成
+            # 一份字符串再拷出一份行列表，峰值内存翻倍到接近文件大小的 2 倍，
+            # 实测导致 build_contract 被内核 OOM killer 杀掉（2026-07-27）。
+            # 逐行迭代文件对象只保留当前行在内存中。
+            with Path(path).open(encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    parsed = self._parse_line(line)
+                    if parsed is None:
+                        continue
+                    _, _, content = parsed
+                    miner.add_log_message(content)
         # FilePersistence 在 add_log_message 内部按需落盘；显式 save 兜底空输入场景。
         if self._state_path is not None:
             miner.save_state("fit complete")
@@ -76,21 +91,23 @@ class LogPreprocessor(ModalityPreprocessor):
         for service_dir in self._find_service_dirs(log_root_dir):
             service_name = self._canonical_service_name(service_dir.name)
             for log_file in sorted(service_dir.glob("*.log")):
-                for line in log_file.read_text(errors="replace").splitlines():
-                    parsed = self._parse_line(line)
-                    if parsed is None:
-                        continue
-                    ts_ms, level, content = parsed
-                    cluster = miner.match(content)
-                    template_id = cluster.cluster_id if cluster is not None else -1
-                    records.append(
-                        {
-                            "service_name": service_name,
-                            "timestamp_window_ms": (ts_ms // self.WINDOW_MS) * self.WINDOW_MS,
-                            "level": level,
-                            "template_id": template_id,
-                        }
-                    )
+                # 逐行流式读取，理由同 fit()：避免整文件 read_text() 造成的内存翻倍。
+                with log_file.open(encoding="utf-8", errors="replace") as f:
+                    for line in f:
+                        parsed = self._parse_line(line)
+                        if parsed is None:
+                            continue
+                        ts_ms, level, content = parsed
+                        cluster = miner.match(content)
+                        template_id = cluster.cluster_id if cluster is not None else -1
+                        records.append(
+                            {
+                                "service_name": service_name,
+                                "timestamp_window_ms": (ts_ms // self.WINDOW_MS) * self.WINDOW_MS,
+                                "level": level,
+                                "template_id": template_id,
+                            }
+                        )
 
         if not records:
             return pd.DataFrame(
@@ -175,5 +192,5 @@ class LogPreprocessor(ModalityPreprocessor):
         # so windows align with endpoint data.
         ts = pd.Timestamp(m.group("ts")).tz_localize(self._timezone)
         ts_ms = int(ts.value // 1_000_000)
-        content = line[m.end() :].strip()
+        content = line[m.end() :].strip()[: self.MAX_CONTENT_CHARS]
         return ts_ms, m.group("level"), content

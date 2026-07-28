@@ -1,0 +1,46 @@
+# DeviationWeightedFusion 专属 pipeline，从根 dvc.yaml 隔离出来（同
+# dvc_reliability_gate/dvc.yaml 的隔离模式，见该文件顶部注释）。复用
+# dvc_reliability_gate/dvc.yaml 的 build_contract_v1_expanded stage 已产出的
+# artifacts/contract_v1_expanded/*（与 RG 用同一份 contract，spec
+# 2026-07-27-deviation-weighted-fusion-design.md §4 的硬性要求：必须同 contract
+# 才能直接对比），本文件不重新定义 build 阶段。
+# 触发：`dvc repro dvc_deviation_weighted/dvc.yaml`（需先确保
+# artifacts/contract_v1_expanded/ 已由 `dvc repro dvc_reliability_gate/dvc.yaml`
+# 产出）。DVC 3.67.1 强制 pipeline 文件名字面量为 dvc.yaml，故放子目录。
+stages:
+  train_v1_deviation_weighted:
+    wdir: ..
+    cmd: python scripts/train_baseline_v0.py contract_dir=artifacts/contract_v1_expanded
+      out=artifacts/baseline_v1_deviation_weighted/scores.parquet seed=42
+      training.epochs=50 fusion=deviation_weighted model=deep_svdd
+    deps:
+      - scripts/train_baseline_v0.py
+      - configs/base.yaml
+      - configs/fusion/deviation_weighted.yaml
+      - configs/model/deep_svdd.yaml
+      - configs/training/default.yaml
+      - configs/contract/endpoint_to_service.yaml
+      - src/models/deep_svdd.py
+      - src/fusion/deviation_weighted.py
+      - src/fusion/base.py
+      - src/data/contract_dataloader.py
+      - src/data/endpoint_baseline_stats.py
+      - artifacts/contract_v1_expanded/train.parquet
+      - artifacts/contract_v1_expanded/eval_all.parquet
+      - artifacts/contract_v1_expanded/schema.json
+      - artifacts/contract_v1_expanded/endpoint_baseline_stats.json
+    outs:
+      - artifacts/baseline_v1_deviation_weighted/scores.parquet
+
+  eval_v1_deviation_weighted:
+    wdir: ..
+    cmd: python scripts/eval_baseline_v0.py
+      --scores artifacts/baseline_v1_deviation_weighted/scores.parquet
+      --out artifacts/baseline_v1_deviation_weighted/metrics.json
+    deps:
+      - scripts/eval_baseline_v0.py
+      - src/contracts
+      - artifacts/baseline_v1_deviation_weighted/scores.parquet
+    metrics:
+      - artifacts/baseline_v1_deviation_weighted/metrics.json:
+          cache: false

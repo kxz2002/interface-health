@@ -82,6 +82,46 @@ def test_find_service_dirs_nested_layout(tmp_path):
     assert result == [svc_dir]
 
 
+def test_fit_and_transform_stream_multiline_file_without_read_text(tmp_path, monkeypatch):
+    """验证 fit()/transform() 真的走逐行流式读取，而不是退回整文件 read_text()——
+    之前的测试只测了 _parse_line() 单行截断逻辑，没有任何测试驱动 fit/transform
+    读一个真实文件，OOM 修复（read_text().splitlines() → 文件对象逐行迭代）本身
+    完全没有回归覆盖。这里给 Path.read_text 打补丁让它抛错，若 fit/transform
+    悄悄退回整文件读入会立刻暴露，同时验证多行输出与预期一致。"""
+
+    def _boom(*args, **kwargs):
+        raise AssertionError("fit()/transform() 不应调用 Path.read_text()（应逐行流式读取）")
+
+    monkeypatch.setattr(Path, "read_text", _boom)
+
+    lines = [
+        "2026-06-09 10:41:43.491  INFO 1 --- [thread] logger : hello world",
+        "2026-06-09 10:41:44.000  ERROR 1 --- [thread] logger : boom",
+        "2026-06-09 10:41:58.500  INFO 1 --- [thread] logger : hello world",
+    ]
+    svc_dir = tmp_path / "ts-order-service-abc123-xyz12"
+    svc_dir.mkdir()
+    (svc_dir / "svc.log").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    pre = LogPreprocessor()
+    pre.fit([svc_dir / "svc.log"])
+    df = pre.transform(tmp_path, case_meta={"case_id": "test"})
+
+    assert df["service_log__event_rate"].sum() == 3
+    assert (df["service_log__error_ratio"] * df["service_log__event_rate"]).sum() == 1
+
+
+def test_parse_line_truncates_overlong_content():
+    """超长单行（如整段业务对象 dump）喂给 Drain3 前应被截断，避免 tokenize 爆炸。"""
+    log_pre = LogPreprocessor()
+    huge_payload = "x" * 1_000_000
+    line = f"2026-06-09 10:41:43.491  INFO 1 --- [thread] logger : {huge_payload}"
+    result = log_pre._parse_line(line)
+    assert result is not None
+    _, _, content = result
+    assert len(content) == LogPreprocessor.MAX_CONTENT_CHARS
+
+
 def test_parse_line_timezone_converts_to_utc():
     """CST 10:41:43 → UTC 02:41:43（差 8h），验证 epoch ms 对应 UTC 时间。"""
     import pandas as pd

@@ -124,6 +124,28 @@ python scripts/eval_baseline_v0.py --scores artifacts/baseline_v1_reliability_ga
 # 查看 RG gate 权重分布（实验后分析用；--checkpoint 可选，若训练时用 fusion_checkpoint= 落盘则传入）
 python scripts/analyze_gate_weights.py --contract-dir artifacts/contract_v1_expanded --checkpoint <path-to-fusion.pt>
 
+# === DeviationWeightedFusion（DWF，零参数逐特征偏离量加权，见 history/entries/018）===
+# 复用 dvc_reliability_gate/dvc.yaml 已产出的 artifacts/contract_v1_expanded/*（同 contract 才能
+# 与 RG 直接对比），本 pipeline 只跑训练+评估两个 stage，不重新 build contract。
+dvc repro dvc_deviation_weighted/dvc.yaml
+
+# 单独运行（不走 DVC 缓存）
+python scripts/train_baseline_v0.py contract_dir=artifacts/contract_v1_expanded out=artifacts/baseline_v1_deviation_weighted/scores.parquet seed=42 training.epochs=50 fusion=deviation_weighted model=deep_svdd
+python scripts/eval_baseline_v0.py --scores artifacts/baseline_v1_deviation_weighted/scores.parquet --out artifacts/baseline_v1_deviation_weighted/metrics.json
+
+# 模态观测覆盖诊断（一次性分析脚本，见 history/entries/017/020，不在 dvc pipeline 里）
+python scripts/analyze_modality_observability.py --contract-dir artifacts/contract_v1 --out artifacts/modality_observability/report.md
+
+# === new_ep1（独立 endpoint 级故障注入数据集，不与历史批次混合，见 history/entries/019）===
+# 复用 configs/data/new_ep1.yaml / configs/contract/v1_new_ep1.yaml，contract 与
+# L0/DWF 训练评估均隔离到 dvc_new_ep1/dvc.yaml，裸 dvc repro 不触发。
+dvc repro dvc_new_ep1/dvc.yaml
+
+# 单独运行（不走 DVC 缓存）
+python scripts/build_contract.py --config configs/contract/v1_new_ep1.yaml --dataset configs/data/new_ep1.yaml --out-dir artifacts/contract_new_ep1_expanded --seed 42
+python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_ep1_expanded out=artifacts/baseline_new_ep1_concat/scores.parquet seed=42 training.epochs=50 fusion=concat model=deep_svdd
+python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_ep1_expanded out=artifacts/baseline_new_ep1_deviation_weighted/scores.parquet seed=42 training.epochs=50 fusion=deviation_weighted model=deep_svdd
+
 # 运行测试
 pytest tests/
 ```
@@ -207,6 +229,8 @@ pytest tests/
 - **RG softmax gate collapse**：`ReliabilityGatedFusion` 默认 `gate_normalization=softmax` 在所有 27 种故障类型下均收敛到 `w_svc≈1.0`（完全信任 service 分支，endpoint 分支权重归零）。根因：两分支初始偏差尺度 ~1.2× 不对称 + softmax 竞争归一化形成正反馈放大。`independent_sigmoid` 消融（`configs/fusion/reliability_gate_ablation_indep_sigmoid.yaml`）可规避此问题，AUROC 0.6598 vs softmax 0.6024
 - **组合模型 optimizer 必须覆盖全部子模块**：`instantiate(optimizer_cfg, params=svdd.parameters())` 只传 SVDD 参数时，fusion encoder 层永远停在随机初始化——L1/L2 在 entry 012 实际命中此 bug（消融结果与 L0 无差异直到修复）。任何新增 fusion+model 组合上线前须验证 optimizer 参数集覆盖所有 `nn.Module`
 - **RG coupling 已收束（见 history/entries/015）**：① fusion 构造改为 `FusionModule.from_contract` 钩子，RG 覆写自行加载 `EndpointBaselineStats`+派生 `id_to_endpoint_key`，`train_baseline_v0.py` 不再按 `_target_` 字符串分支；② `EndpointBaselineStats` fit/save 与 `endpoint_id` 列派生改由 `ContractConfig.fit_endpoint_baseline_stats` 开关门控（v1.yaml=false / v1_expanded_pool.yaml=true），不再无条件 fit；③ 3 个 RG 专属 stage 隔离到 `dvc_reliability_gate/dvc.yaml`，裸 `dvc repro` 不再触发。`scripts/analyze_gate_weights.py`（一次性分析脚本）维持直接构造 RG 的用法，不在收束范围内。
+- **DeviationWeightedFusion（DWF）零参数逐特征加权，判定不达标不做后续深化（见 history/entries/018）**：ABORT/REPLACE 宏平均 AUROC 0.632/0.538，与 RG 基本无差异（REPLACE 更差）。构造时用 `EndpointBaselineStats.red_cols`/`svc_cols` 属性按值校验传入的 `red_cols`/`svc_cols` 顺序与内部 fit 顺序一致（不只是长度），因为 `schema.json` 的列顺序与 `EndpointBaselineStats` 的 fit 顺序是独立派生的两条链路，理论上可能同长度但顺序不同，此时 `branch_stats()` 的 mean/std 会被错位应用到错误的特征位置，计算不报错但结果是错的。
+- **`MAX_CONTENT_CHARS=2000` 截断对 log 特征有实测可量化的损耗，不是"行为不变"（见 history/entries/019、020）**：截断只对占比 88%+ 的短行不改变 Drain3 template 归类，但超长行（占比约 12%，真实数据里可达近百万字符）本身的 template 归类会变，落到 `service_log__template_diversity` 特征上，约 60% 的 15s 窗口取值会变化（平均绝对偏差 ~0.017，最大 ~0.16；`event_rate`/`error_ratio` 不受影响）。阈值 2000→3000 CPU 几乎零代价但损耗改善有限（~14%），继续加大阈值到 20000 才有中等改善但 CPU 涨到 2.3 倍，逼近数据集真实离群值（几十万字符）时 CPU 暴涨到 80 倍。调整该阈值前先读 entry 020 的实测曲线，不要凭直觉猜测。该常量只在 `feature/deviation-weighted-fusion` 分支存在，`master` 无此逻辑——`v0`/`v1`/`v1_expanded`（RG）三条既有 contract 管线因此 `dvc status` 显示 deps 过期，已提交的 `metrics.json` 是旧代码（无截断）产物；决定不重跑（见 entry 021），因为这批数据集已知需要重采（PATCH 类故障对现有 endpoint RED 特征全隐形，entry 017），重跑旧数据集无法产出会被后续引用的新结论。
 
 ## Git Commit Convention
 MUST: 撰写提交信息__必须__严格遵守提交格式。

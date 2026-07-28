@@ -1,0 +1,96 @@
+schema: '2.0'
+stages:
+  train_v1_deviation_weighted:
+    cmd: python scripts/train_baseline_v0.py
+      contract_dir=artifacts/contract_v1_expanded
+      out=artifacts/baseline_v1_deviation_weighted/scores.parquet seed=42
+      training.epochs=50 fusion=deviation_weighted model=deep_svdd
+    deps:
+    - path: artifacts/contract_v1_expanded/endpoint_baseline_stats.json
+      hash: md5
+      md5: 78fe3a7335efe3cde09da07006b833ea
+      size: 10399
+    - path: artifacts/contract_v1_expanded/eval_all.parquet
+      hash: md5
+      md5: abc5bfb138e77aa3b42579a82b4c53cc
+      size: 730632
+    - path: artifacts/contract_v1_expanded/schema.json
+      hash: md5
+      md5: 9507016a38ff0a1b121b9171139f2b92
+      size: 1434
+    - path: artifacts/contract_v1_expanded/train.parquet
+      hash: md5
+      md5: 7dbde6abfdf0cb2acbbfd36c551ec376
+      size: 136999
+    - path: configs/base.yaml
+      hash: md5
+      md5: 3a9e113ef5cad881cbd753e96d1b1842
+      size: 573
+    - path: configs/contract/endpoint_to_service.yaml
+      hash: md5
+      md5: 502bc873b80464ad8366925be54f460e
+      size: 761
+    - path: configs/fusion/deviation_weighted.yaml
+      hash: md5
+      md5: cafc8488160147077c7e85388289fea5
+      size: 79
+    - path: configs/model/deep_svdd.yaml
+      hash: md5
+      md5: 4a05564eb170d5d224e873bdd75799d5
+      size: 67
+    - path: configs/training/default.yaml
+      hash: md5
+      md5: 61c5ba5fe13c7e5b2e43155525373cb1
+      size: 422
+    - path: scripts/train_baseline_v0.py
+      hash: md5
+      md5: 76097712e72d7d283e7604c76f969094
+      size: 8543
+    - path: src/data/contract_dataloader.py
+      hash: md5
+      md5: 2dc1551d55e1a25994cc6d9eb4330433
+      size: 5378
+    - path: src/data/endpoint_baseline_stats.py
+      hash: md5
+      md5: 1077cd5154110dc810032fbe2161b93c
+      size: 8471
+    - path: src/fusion/base.py
+      hash: md5
+      md5: bd9f6d36f107d3b725eed9c2ed54695f
+      size: 1434
+    - path: src/fusion/deviation_weighted.py
+      hash: md5
+      md5: 92475ddee2191f323679f9e817321ffc
+      size: 8828
+    - path: src/models/deep_svdd.py
+      hash: md5
+      md5: aa16842416019ecaac32547ea3e634f4
+      size: 2005
+    outs:
+    - path: artifacts/baseline_v1_deviation_weighted/scores.parquet
+      hash: md5
+      md5: a4d75792eb184b9d6e1860f4a455d343
+      size: 240747
+  eval_v1_deviation_weighted:
+    cmd: python scripts/eval_baseline_v0.py --scores
+      artifacts/baseline_v1_deviation_weighted/scores.parquet --out
+      artifacts/baseline_v1_deviation_weighted/metrics.json
+    deps:
+    - path: artifacts/baseline_v1_deviation_weighted/scores.parquet
+      hash: md5
+      md5: a4d75792eb184b9d6e1860f4a455d343
+      size: 240747
+    - path: scripts/eval_baseline_v0.py
+      hash: md5
+      md5: 57d40b8c355e9280d6cd6117b0ed7d87
+      size: 4466
+    - path: src/contracts
+      hash: md5
+      md5: 11074ec09af8cfe528cded30d5e7c985.dir
+      size: 25765
+      nfiles: 8
+    outs:
+    - path: artifacts/baseline_v1_deviation_weighted/metrics.json
+      hash: md5
+      md5: 35bfa7820789e9246d94b918d2a4a71d
+      size: 4677

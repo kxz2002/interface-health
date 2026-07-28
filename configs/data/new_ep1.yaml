@@ -1,0 +1,18 @@
+# configs/data/new_ep1.yaml
+# 仅用 new_ep1 单一数据源，不与 anomod_v1/endpoint_raw2/normal_v2 等历史批次混合，
+# 避免重演 entry 017/analyze_modality_observability.py 发现的跨 run 污染问题
+# （不同批次采集的 case 混入同一训练/评估池会让指标部分测量"哪个 run"而不是
+# 真实检测能力）。11 个故障 case（HTTPABORT/DELAY/PATCH/REPLACE ×
+# order/travel/travel2，缺 assurance 家族、无 PATCH_order 组合）+ 1 个 Normal
+# case，同批次（2026-07-25/26）采集。
+#
+# new_ep1 故意将 baseline_sec 拉长至 1500s（Normal 为 1800s，是 endpoint_raw2
+# 的 300s 的 5 倍），构建 contract 时 fault_baseline_train_fraction 需要重新
+# 校准，不能直接沿用给 endpoint_raw2 调的 0.2，否则 eval_all 类别比例会因
+# baseline 窗口数暴涨而失衡，见 history/entries/016。
+name: new_ep1
+description: new_ep1 单一数据源（11 个故障 case + 1 个 Normal case，2026-07-25/26 采集，不与历史批次混合）
+roots:
+  - data/new_ep1
+normal_source: data/new_ep1
+fused_window: 15s
