@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -22,6 +23,9 @@ import torch
 from sklearn.metrics import roc_auc_score
 
 from src.models.deep_svdd import DeepSVDD
+from src.utils.seed import set_seed
+
+logger = logging.getLogger(__name__)
 
 SUBSETS = {
     "endpoint_only": ["endpoint_red"],
@@ -29,7 +33,10 @@ SUBSETS = {
     "all": ["endpoint_red", "service_metric", "service_log"],
 }
 SEEDS = [1, 2, 3, 42]
-EPOCHS = 100
+# 与 dvc_deviation_weighted/dvc.yaml、dvc_reliability_gate/dvc.yaml 等训练 stage
+# 保持同一 epochs，这份诊断脚本的 SVDD 结果才能与其他实验里的 SVDD 直接对照
+# （entry 017 的"信号淹没"结论正是靠这个对照支撑）。
+EPOCHS = 50
 LR = 1e-3
 WEIGHT_DECAY = 1e-4
 HIDDEN_DIM = 64
@@ -45,8 +52,7 @@ def _load(parquet: Path, groups: dict, sub_groups: list, tr_means: pd.Series):
 
 
 def _train(x_train: torch.Tensor, seed: int) -> DeepSVDD:
-    torch.manual_seed(seed)
-    np.random.seed(seed)
+    set_seed(seed)
     m = DeepSVDD(input_dim=x_train.shape[1], hidden_dim=HIDDEN_DIM, rep_dim=REP_DIM)
     m.init_center(x_train)
     opt = torch.optim.Adam(m.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
@@ -97,9 +103,14 @@ def _eval_subset(df: pd.DataFrame, scores: np.ndarray, cross_run: bool) -> dict:
     return res
 
 
-def _oracle_single_feature(df: pd.DataFrame, groups: dict) -> dict:
+def _oracle_single_feature(df: pd.DataFrame, groups: dict, tr_means: pd.Series) -> dict:
     """单特征 oracle：每个 HTTP 子类型下，取 endpoint_red 各列单独的最佳 |AUROC-0.5| 特征。
-    用同case负样本。证明'信号存在但被朴素全向量 SVDD 淹没'。"""
+    用同case负样本。证明'信号存在但被朴素全向量 SVDD 淹没'。
+
+    NaN 填补必须与 _load() 用同一套 train 均值，不能各算各的——baseline/inject
+    两阶段的 NaN 密度天然不同（如某些 endpoint_red 列在 inject 阶段更容易缺失），
+    若这里改用 fillna(0.0) 单独兜底，0.0 本身就是与 phase 相关的信号，会让
+    oracle 特征选择摸到的是"NaN 模式差异"而非真实特征差异，污染诊断结论。"""
     ep_cols = groups["endpoint_red"]
     out = {}
     for h in HTTP_SUBTYPES:
@@ -107,7 +118,8 @@ def _oracle_single_feature(df: pd.DataFrame, groups: dict) -> dict:
         both = pd.concat([pos.assign(_y=1), neg.assign(_y=0)])
         best_c, best_a = None, 0.5
         for c in ep_cols:
-            a = _auroc(both["_y"], both[c].fillna(0.0))
+            filled = both[c].fillna(tr_means[c]).fillna(0.0)
+            a = _auroc(both["_y"], filled)
             if a is not None and abs(a - 0.5) > abs(best_a - 0.5):
                 best_a, best_c = a, c
         out[h] = (best_c.replace("endpoint_red__", "") if best_c else "—", best_a)
@@ -115,6 +127,7 @@ def _oracle_single_feature(df: pd.DataFrame, groups: dict) -> dict:
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
     ap = argparse.ArgumentParser()
     ap.add_argument("--contract-dir", default="artifacts/contract_v1")
     ap.add_argument("--out", default="artifacts/modality_observability/report.md")
@@ -146,9 +159,11 @@ def main():
             w_seeds.append(_eval_subset(eval_df, sc, cross_run=False))
             c_seeds.append(_eval_subset(eval_df, sc, cross_run=True))
         within[sname], cross[sname] = w_seeds, c_seeds
-        print(f"[{sname}] dim={x_tr.shape[1]} done")
+        logger.info("[%s] dim=%d done", sname, x_tr.shape[1])
 
-    oracle = _oracle_single_feature(tag(pd.read_parquet(cdir / "eval_all.parquet")), groups)
+    oracle = _oracle_single_feature(
+        tag(pd.read_parquet(cdir / "eval_all.parquet")), groups, tr_means
+    )
     _write_report(within, cross, oracle, Path(args.out))
 
 
@@ -193,7 +208,7 @@ def _write_report(within, cross, oracle, out: Path):
         "- oracle≈0.5（PATCH）⇒ 该故障对所有 RED 特征隐形，需响应体校验。",
     ]
     out.write_text("\n".join(L) + "\n")
-    print(f"报告 → {out}")
+    logger.info("报告 → %s", out)
 
 
 if __name__ == "__main__":

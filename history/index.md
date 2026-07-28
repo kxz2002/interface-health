@@ -46,6 +46,7 @@
 | [017](./entries/017-phase0-shortcut-refuted-reframe.md) | 2026-07-23 | Docs | Phase 0 诊断证伪 per-endpoint shortcut（HTTP 故障不污染共享特征：metric 0.02σ/log 0.15σ），转向 "Reliability ≠ Observability"；双轮 novelty-check + 采集审计；决定先做 C（service-only vs endpoint-only 验证），re-collection 暂缓 | 研究方向/论文 framing, `artifacts/contract_v1/`（只读诊断）, `.aris/traces/novelty-check/`, 后续 `scripts/`（C 实现） |
 | [018](./entries/018-deviation-weighted-fusion.md) | 2026-07-27 | Experiment | DeviationWeightedFusion：逐特征偏离量加权融合最小改动验证——零可学习参数，ABORT/REPLACE 宏平均 AUROC 0.632/0.538，与 RG 基本无差异（REPLACE 更差），判定不达标，不做后续深化 | `src/fusion/deviation_weighted.py`, `configs/fusion/`, `dvc_deviation_weighted/`, `tests/` |
 | [019](./entries/019-new-ep1-oom-fix-and-first-eval.md) | 2026-07-27 | Bugfix + Experiment | new_ep1 OOM 修复（LogPreprocessor 整文件读入→流式读取）+ fraction 推到 12.24:87.76 数值上限 + 首次训练评估（DWF vs L0，ABORT 退步/REPLACE 进步/PATCH 分数反转诊断为 fraction=1.0 训练池污染，与融合机制无关） | `src/preprocessors/log_preprocessor.py`, `configs/contract/v1_new_ep1.yaml`, `configs/data/new_ep1.yaml`, `artifacts/contract_new_ep1_expanded/` |
+| [020](./entries/020-log-truncation-impact-quantified.md) | 2026-07-28 | Docs | MAX_CONTENT_CHARS 截断实测：短行 template_id 100% 不变/超长行 100% 变化，template_diversity 60% 窗口受影响（均偏 0.017）；阈值-耗时曲线显示 2000→20000 仅 2.3x，不截断达 80x；2000→3000 几乎零 CPU 代价但损耗改善仅 ~14%，未改代码 | `src/preprocessors/log_preprocessor.py`（注释准确性） |
 
 ---
 

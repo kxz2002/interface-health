@@ -160,3 +160,58 @@ def test_deviation_weighted_from_contract_missing_sidecar_raises_clear_error(tmp
     )
     with pytest.raises(FileNotFoundError, match="fit_endpoint_baseline_stats"):
         DeviationWeightedFusion.from_contract(cfg, contract_dir=tmp_path, modality_dims=_DIMS)
+
+
+def _stats_sidecar_only(tmp_path):
+    """写好 endpoint_baseline_stats.json 但故意不写 schema.json，用于测试
+    schema.json 缺失/字段不全时报错是否清晰（sidecar 检查通过之后才会读到
+    schema.json，所以这两步分开测才能定位到具体是哪一步失败）。"""
+    df = pd.DataFrame(
+        {
+            "endpoint_key": ["k1", "k1"],
+            "endpoint_red__a": [0.1, 0.2],
+            "endpoint_red__b": [0.3, 0.5],
+            "service_metric__c": [0.4, 0.6],
+            "service_log__d": [0.2, 0.3],
+        }
+    )
+    stats = EndpointBaselineStats(
+        red_cols=["endpoint_red__a", "endpoint_red__b"],
+        svc_cols=["service_metric__c", "service_log__d"],
+    )
+    stats.fit(df)
+    stats.save(tmp_path / "endpoint_baseline_stats.json")
+
+
+def test_deviation_weighted_from_contract_missing_schema_raises_clear_error(tmp_path):
+    """sidecar 存在但 schema.json 缺失——之前会在这里裸抛
+    FileNotFoundError 只报 schema.json 路径，没有任何指引；现在必须明确
+    指向 contract_dir 本身不完整。"""
+    _stats_sidecar_only(tmp_path)
+    cfg = OmegaConf.create(
+        {"_target_": "src.fusion.deviation_weighted.DeviationWeightedFusion", "threshold": 2.0}
+    )
+    with pytest.raises(FileNotFoundError, match="schema.json"):
+        DeviationWeightedFusion.from_contract(
+            cfg,
+            contract_dir=tmp_path,
+            modality_dims={"endpoint_red": 2, "service_metric": 1, "service_log": 1},
+        )
+
+
+def test_deviation_weighted_from_contract_schema_missing_feature_group_raises_clear_error(tmp_path):
+    """schema.json 存在但缺 feature_groups 里的必需 key（如旧版本 schema
+    没有 endpoint_red）——之前会裸抛 KeyError: 'endpoint_red'，没有任何
+    上下文；现在必须提示 schema 版本不兼容。"""
+    _stats_sidecar_only(tmp_path)
+    incomplete_schema = {"feature_groups": {"service_metric": {"columns": ["service_metric__c"]}}}
+    (tmp_path / "schema.json").write_text(json.dumps(incomplete_schema))
+    cfg = OmegaConf.create(
+        {"_target_": "src.fusion.deviation_weighted.DeviationWeightedFusion", "threshold": 2.0}
+    )
+    with pytest.raises(KeyError, match="endpoint_red"):
+        DeviationWeightedFusion.from_contract(
+            cfg,
+            contract_dir=tmp_path,
+            modality_dims={"endpoint_red": 2, "service_metric": 1, "service_log": 1},
+        )

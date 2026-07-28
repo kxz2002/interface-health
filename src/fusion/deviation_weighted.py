@@ -72,6 +72,25 @@ class DeviationWeightedFusion(FusionModule):
                 f"len(svc_cols)={len(svc_cols)} must equal "
                 f"modality_dims['service_metric']+modality_dims['service_log']={self._svc_dim}"
             )
+        # 长度相等只排除了数量错配，排不掉顺序错配（schema.json 列序与
+        # EndpointBaselineStats 内部 fit 顺序独立派生，理论上可能同长度但顺序不同，
+        # 此时 branch_stats() 的 mean/std 会被错位应用到 red_cols/svc_cols 的
+        # 错误位置，计算不报错但结果是错的）——按值比对两者顺序，堵住这个此前
+        # 仅由注释警告、未被代码强制的缺口。
+        if list(red_cols) != endpoint_baseline_stats.red_cols:
+            raise ValueError(
+                "red_cols 与 endpoint_baseline_stats 内部 fit 顺序不一致，"
+                f"传入={list(red_cols)!r}，fit 顺序={endpoint_baseline_stats.red_cols!r}——"
+                "检查 schema.json 的 feature_groups 列序是否与 build_contract.py "
+                "fit EndpointBaselineStats 时的列序一致"
+            )
+        if list(svc_cols) != endpoint_baseline_stats.svc_cols:
+            raise ValueError(
+                "svc_cols 与 endpoint_baseline_stats 内部 fit 顺序不一致，"
+                f"传入={list(svc_cols)!r}，fit 顺序={endpoint_baseline_stats.svc_cols!r}——"
+                "检查 schema.json 的 feature_groups 列序是否与 build_contract.py "
+                "fit EndpointBaselineStats 时的列序一致"
+            )
 
         # 退化列（EndpointBaselineStats 全局 fallback 到 1e-9 std 的列）的权重必须
         # 固定为1，不能走 sigmoid(|z|-threshold) 公式——否则一个从未真正偏离过的
@@ -163,12 +182,34 @@ class DeviationWeightedFusion(FusionModule):
                 "（如 v1.yaml）构建的"
             )
         baseline_stats = EndpointBaselineStats.load(sidecar)
-        schema = json.loads((Path(contract_dir) / "schema.json").read_text())
-        red_cols = schema["feature_groups"]["endpoint_red"]["columns"]
-        svc_cols = (
-            schema["feature_groups"]["service_metric"]["columns"]
-            + schema["feature_groups"]["service_log"]["columns"]
-        )
+
+        schema_path = Path(contract_dir) / "schema.json"
+        if not schema_path.exists():
+            raise FileNotFoundError(
+                f"{schema_path} 不存在——DeviationWeightedFusion.from_contract 需要 "
+                f"contract_dir 是一份完整的 build_contract.py 产物，检查 {contract_dir} "
+                "是否指向了正确的 contract 输出目录"
+            )
+        schema = json.loads(schema_path.read_text())
+        try:
+            feature_groups = schema["feature_groups"]
+            red_cols = feature_groups["endpoint_red"]["columns"]
+            svc_cols = (
+                feature_groups["service_metric"]["columns"]
+                + feature_groups["service_log"]["columns"]
+            )
+        except KeyError as e:
+            raise KeyError(
+                f"{schema_path} 缺少必需字段 {e}——schema.json 版本可能与当前"
+                " DeviationWeightedFusion 期望的 feature_groups 结构（endpoint_red/"
+                "service_metric/service_log）不兼容，检查 contract 构建时用的配置版本"
+            ) from e
+
+        if not _EP_TO_SVC_PATH.exists():
+            raise FileNotFoundError(
+                f"{_EP_TO_SVC_PATH} 不存在——DeviationWeightedFusion 需要该文件派生 "
+                "id_to_endpoint_key 反查表，检查是否在 repo 根目录下运行"
+            )
         ep_to_svc = yaml.safe_load(_EP_TO_SVC_PATH.read_text())
         id_to_key = _derive_id_to_endpoint_key(ep_to_svc)
         return hydra.utils.instantiate(

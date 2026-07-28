@@ -39,7 +39,11 @@ class LogPreprocessor(ModalityPreprocessor):
     # 数据集中 order-service 出现过 73 万字符的单行），这类超长行对模板聚类没有
     # 额外信息量（模板特征只看行首结构，不看 payload 内容），但会让 Drain3 的
     # tokenize/masking/tree_search 复杂度随字符数暴涨，实测导致 build_contract 卡死
-    # 数小时。截断只影响喂给 Drain3 的内容，不改变 template_id 的行首语义。
+    # 数小时。截断只对占比 88%+ 的短行（≤2000 字符）不改变 template_id 归类；
+    # 超长行本身的 template 会因内容变化而变化——这部分损耗体现在
+    # service_log__template_diversity 特征上，实测约 60% 的 15s 窗口取值受影响
+    # （event_rate/error_ratio 不受影响，只看行数/日志级别不看内容）。
+    # 阈值-耗时/阈值-损耗曲线见 history/entries/020，调整该值前先读那份实测数据。
     MAX_CONTENT_CHARS = 2000
 
     def __init__(

@@ -116,6 +116,17 @@ class EndpointBaselineStats:
                 per_branch[branch] = _EndpointBranchStats(mean=mean, std=std)
             self._stats[str(ep)] = per_branch
 
+    @property
+    def red_cols(self) -> list[str]:
+        """fit 时使用的 ep 分支列名，按位置顺序——调用方（DeviationWeightedFusion）
+        需要用它校验自己持有的列表与本对象内部 fit 顺序一致，而不是只比长度。"""
+        return list(self._red_cols)
+
+    @property
+    def svc_cols(self) -> list[str]:
+        """同 red_cols，svc 分支版本。"""
+        return list(self._svc_cols)
+
     def branch_stats(self, endpoint_key: str, branch: Branch) -> tuple[np.ndarray, np.ndarray]:
         if endpoint_key not in self._stats:
             raise KeyError(

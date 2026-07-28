@@ -144,6 +144,89 @@ def test_missing_endpoint_id_degrades_to_plain_concat():
     torch.testing.assert_close(out, expected)
 
 
+def test_red_cols_length_mismatch_raises():
+    """red_cols 长度与 modality_dims['endpoint_red'] 不符必须 fail fast——
+    否则退化列 mask 与 branch_stats() 的 mean/std 长度不对齐，只在 forward 的
+    torch.where 广播里报出无意义的 shape 错误。"""
+    stats = _fitted_stats()
+    with pytest.raises(ValueError, match="red_cols"):
+        DeviationWeightedFusion(
+            modality_dims=MODALITY_DIMS,
+            endpoint_baseline_stats=stats,
+            id_to_endpoint_key={0: "epA", 1: "epB"},
+            red_cols=RED_COLS[:-1],  # 少一列
+            svc_cols=SVC_COLS,
+        )
+
+
+def test_svc_cols_length_mismatch_raises():
+    stats = _fitted_stats()
+    with pytest.raises(ValueError, match="svc_cols"):
+        DeviationWeightedFusion(
+            modality_dims=MODALITY_DIMS,
+            endpoint_baseline_stats=stats,
+            id_to_endpoint_key={0: "epA", 1: "epB"},
+            red_cols=RED_COLS,
+            svc_cols=SVC_COLS + ["service_log__extra"],  # 多一列
+        )
+
+
+def test_red_cols_order_mismatch_raises():
+    """同长度但顺序与 endpoint_baseline_stats 内部 fit 顺序不同——长度检查会
+    放过这种情况，必须靠按值比对列名顺序才能拦住（否则 branch_stats() 的
+    mean/std 会被错位应用到 red_cols 的错误位置，计算不报错但结果是错的）。"""
+    stats = _fitted_stats()
+    reordered = RED_COLS[::-1]
+    assert len(reordered) == len(RED_COLS)
+    with pytest.raises(ValueError, match="fit 顺序"):
+        DeviationWeightedFusion(
+            modality_dims=MODALITY_DIMS,
+            endpoint_baseline_stats=stats,
+            id_to_endpoint_key={0: "epA", 1: "epB"},
+            red_cols=reordered,
+            svc_cols=SVC_COLS,
+        )
+
+
+def test_svc_cols_order_mismatch_raises():
+    stats = _fitted_stats()
+    reordered = SVC_COLS[::-1]
+    with pytest.raises(ValueError, match="fit 顺序"):
+        DeviationWeightedFusion(
+            modality_dims=MODALITY_DIMS,
+            endpoint_baseline_stats=stats,
+            id_to_endpoint_key={0: "epA", 1: "epB"},
+            red_cols=RED_COLS,
+            svc_cols=reordered,
+        )
+
+
+def test_forward_multi_row_multi_endpoint_uses_correct_stats_per_row():
+    """batch 里混合两个不同 endpoint 的行，逐行断言数值（不只是 shape）——
+    防止 forward 里按行遍历 endpoint_id 时把某一行的统计量错配给另一行。"""
+    fusion = _fusion()
+    fusion.eval()
+    stats = fusion._baseline
+    batch = {
+        "endpoint_red": torch.tensor([[15.0, 15.0, 15.0], [20.0, 20.0, 20.0]]),
+        "service_metric": torch.tensor([[15.0, 15.0], [20.0, 20.0]]),
+        "service_log": torch.tensor([[15.0], [20.0]]),
+    }
+    out = fusion(batch, endpoint_id=torch.tensor([0, 1]))
+
+    for row_idx, (key, val) in enumerate([("epA", 15.0), ("epB", 20.0)]):
+        ep_mean, ep_std = stats.branch_stats(key, "ep")
+        svc_mean, svc_std = stats.branch_stats(key, "svc")
+        raw_ep = np.full(3, val)
+        raw_svc = np.full(3, val)
+        z_ep = (raw_ep - ep_mean) / ep_std
+        z_svc = (raw_svc - svc_mean) / svc_std
+        w_ep = 1.0 / (1.0 + np.exp(-(np.abs(z_ep) - 2.0)))
+        w_svc = 1.0 / (1.0 + np.exp(-(np.abs(z_svc) - 2.0)))
+        expected = np.concatenate([raw_ep * w_ep, raw_svc * w_svc])
+        np.testing.assert_allclose(out[row_idx].numpy(), expected, rtol=1e-5)
+
+
 def test_missing_modality_key_raises():
     stats = _fitted_stats()
     with pytest.raises(ValueError):
