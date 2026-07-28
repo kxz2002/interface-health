@@ -136,6 +136,16 @@ python scripts/eval_baseline_v0.py --scores artifacts/baseline_v1_deviation_weig
 # 模态观测覆盖诊断（一次性分析脚本，见 history/entries/017/020，不在 dvc pipeline 里）
 python scripts/analyze_modality_observability.py --contract-dir artifacts/contract_v1 --out artifacts/modality_observability/report.md
 
+# === new_ep1（独立 endpoint 级故障注入数据集，不与历史批次混合，见 history/entries/019）===
+# 复用 configs/data/new_ep1.yaml / configs/contract/v1_new_ep1.yaml，contract 与
+# L0/DWF 训练评估均隔离到 dvc_new_ep1/dvc.yaml，裸 dvc repro 不触发。
+dvc repro dvc_new_ep1/dvc.yaml
+
+# 单独运行（不走 DVC 缓存）
+python scripts/build_contract.py --config configs/contract/v1_new_ep1.yaml --dataset configs/data/new_ep1.yaml --out-dir artifacts/contract_new_ep1_expanded --seed 42
+python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_ep1_expanded out=artifacts/baseline_new_ep1_concat/scores.parquet seed=42 training.epochs=50 fusion=concat model=deep_svdd
+python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_ep1_expanded out=artifacts/baseline_new_ep1_deviation_weighted/scores.parquet seed=42 training.epochs=50 fusion=deviation_weighted model=deep_svdd
+
 # 运行测试
 pytest tests/
 ```
