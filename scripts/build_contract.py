@@ -24,7 +24,7 @@ import yaml
 from src.contracts.contract_config import ContractConfig, load_contract_config
 from src.contracts.contract_v0 import RATE_COLUMNS, ContractV0Error, validate_contract_df
 from src.contracts.endpoint_id_mapping import endpoint_id_map as _derive_endpoint_id_map
-from src.contracts.split_fault_baseline import split_fault_baseline_temporal
+from src.contracts.split_fault_phase import split_fault_phase_temporal
 from src.contracts.split_v1 import split_normal_rows_temporal
 from src.data.dataset_config import load_dataset_config
 from src.data.endpoint_baseline_stats import EndpointBaselineStats
@@ -539,7 +539,7 @@ def _write_v1(
         # 切分——最早 fraction 比例的窗口进训练池，其余留在 eval_all 维持负样本类别平衡。
         # 唯一硬约束是 train/eval 的 sample_id 互斥——split 按整窗切分天然保证（同一窗
         # 不会既在 train 又在 eval）。
-        fault_baseline_train, fault_baseline_eval = split_fault_baseline_temporal(
+        fault_baseline_train, fault_baseline_eval = split_fault_phase_temporal(
             fault_baseline_df, fraction=fault_baseline_train_fraction
         )
         fault_baseline_train["source_phase"] = "fault_baseline"

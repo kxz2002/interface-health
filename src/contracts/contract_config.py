@@ -58,7 +58,7 @@ class ContractConfig:
     def __post_init__(self) -> None:
         # 恒校验（不看 expand_train_pool）：越界/非数值比例是配置错误，即便当前未被
         # 消费也应在加载期暴露，而不是等到 expand_train_pool 被打开时才在
-        # split_fault_baseline_temporal 内部产出反直觉结果——大于 1.0 的正数会让 train
+        # split_fault_phase_temporal 内部产出反直觉结果——大于 1.0 的正数会让 train
         # 吞下全部窗口而不报错，负数触发 Python 负索引切片导致方向反转的错误切分（都
         # 不是"崩溃"而是"看起来合理但错误的数据"）；YAML 里若误加引号（字符串类型）
         # 则会在比较运算处抛出与本意无关的 TypeError，因此类型检查须先于范围检查。

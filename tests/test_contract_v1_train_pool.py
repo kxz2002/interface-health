@@ -75,7 +75,7 @@ def test_eval_all_and_train_pool_sample_id_disjoint_no_leakage(tmp_path):
     """核心防泄漏不变量（issue #16 修复后仍必须成立且加强）：train_pool 与 eval_all
     的 sample_id 必须互斥。issue #16 前的实现靠"baseline 整段摘出 eval"来保证互斥；
     修复后 baseline 按时间窗时序切分，一部分进 train、其余留 eval，互斥性改由
-    split_fault_baseline_temporal 的整窗切分保证（同一窗不会既在 train 又在 eval）。
+    split_fault_phase_temporal 的整窗切分保证（同一窗不会既在 train 又在 eval）。
     这条断言是唯一的硬约束，语义比"eval 不含 baseline 行"更本质。"""
     out_dir = tmp_path / "contract_v1"
     _run_v1_build(out_dir)

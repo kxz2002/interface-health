@@ -1,11 +1,11 @@
-"""split_fault_baseline_temporal 的单元测试：两路时序切分故障 baseline 行。"""
+"""split_fault_phase_temporal 的单元测试：两路时序切分故障 baseline 行。"""
 
 from __future__ import annotations
 
 import pandas as pd
 import pytest
 
-from src.contracts.split_fault_baseline import split_fault_baseline_temporal
+from src.contracts.split_fault_phase import split_fault_phase_temporal
 
 _ENDPOINTS = [f"ep{i}" for i in range(4)]
 
@@ -32,7 +32,7 @@ def _synth_baseline_df(windows_per_case: dict[str, int]) -> pd.DataFrame:
 
 def test_split_disjoint_and_lossless():
     df = _synth_baseline_df({"F1": 5, "F2": 5})
-    train, eval_ = split_fault_baseline_temporal(df, fraction=0.2)
+    train, eval_ = split_fault_phase_temporal(df, fraction=0.2)
     assert set(train["sample_id"]) & set(eval_["sample_id"]) == set()
     assert len(train) + len(eval_) == len(df)
 
@@ -41,7 +41,7 @@ def test_fraction_0_2_takes_earliest_one_of_five_windows():
     """5 窗 × fraction=0.2 → int(5*0.2)=1 窗进 train，其余 4 窗进 eval。
     且进 train 的必须是最早那一窗（时序切分）。"""
     df = _synth_baseline_df({"F1": 5})
-    train, eval_ = split_fault_baseline_temporal(df, fraction=0.2)
+    train, eval_ = split_fault_phase_temporal(df, fraction=0.2)
     train_windows = sorted(train["timestamp_window_ms"].unique())
     eval_windows = sorted(eval_["timestamp_window_ms"].unique())
     assert len(train_windows) == 1
@@ -52,7 +52,7 @@ def test_fraction_0_2_takes_earliest_one_of_five_windows():
 def test_window_not_split_across_train_and_eval():
     """同一时间窗的所有 endpoint 行必须整体归属同一侧，不能拆散。"""
     df = _synth_baseline_df({"F1": 5})
-    train, eval_ = split_fault_baseline_temporal(df, fraction=0.2)
+    train, eval_ = split_fault_phase_temporal(df, fraction=0.2)
     train_windows = set(train["timestamp_window_ms"])
     eval_windows = set(eval_["timestamp_window_ms"])
     assert train_windows & eval_windows == set()
@@ -64,21 +64,21 @@ def test_single_window_natural_truncation_no_fallback():
     训练池已有纯 Normal 打底，某 case 贡献 0 行不影响训练可行性；强行留 1 窗反而
     会让该 case 在 eval 里的 baseline 覆盖率归零。"""
     df = _synth_baseline_df({"F1": 1})
-    train, eval_ = split_fault_baseline_temporal(df, fraction=0.2)
+    train, eval_ = split_fault_phase_temporal(df, fraction=0.2)
     assert len(train) == 0
     assert len(eval_) == len(_ENDPOINTS)
 
 
 def test_fraction_1_0_all_to_train():
     df = _synth_baseline_df({"F1": 5})
-    train, eval_ = split_fault_baseline_temporal(df, fraction=1.0)
+    train, eval_ = split_fault_phase_temporal(df, fraction=1.0)
     assert len(train) == len(df)
     assert len(eval_) == 0
 
 
 def test_fraction_0_0_all_to_eval():
     df = _synth_baseline_df({"F1": 5})
-    train, eval_ = split_fault_baseline_temporal(df, fraction=0.0)
+    train, eval_ = split_fault_phase_temporal(df, fraction=0.0)
     assert len(train) == 0
     assert len(eval_) == len(df)
 
@@ -87,7 +87,7 @@ def test_per_case_independent_split():
     """每个 case 独立按自身窗数切分——不同 case 窗数不同时各切各的，且互相不泄漏
     （F1 的行不会混进 F2 的 train/eval，反之亦然）。"""
     df = _synth_baseline_df({"F1": 5, "F2": 10})
-    train, eval_ = split_fault_baseline_temporal(df, fraction=0.2)
+    train, eval_ = split_fault_phase_temporal(df, fraction=0.2)
     f1_train = train[train["case_id"] == "F1"]["timestamp_window_ms"].nunique()
     f2_train = train[train["case_id"] == "F2"]["timestamp_window_ms"].nunique()
     assert f1_train == 1  # int(5*0.2)
@@ -112,7 +112,7 @@ def test_empty_input_returns_two_empty_frames():
     df = pd.DataFrame(
         columns=["sample_id", "case_id", "endpoint_key", "timestamp_window_ms", "phase", "feat"]
     )
-    train, eval_ = split_fault_baseline_temporal(df, fraction=0.2)
+    train, eval_ = split_fault_phase_temporal(df, fraction=0.2)
     assert len(train) == 0
     assert len(eval_) == 0
     assert list(train.columns) == list(df.columns)
@@ -124,9 +124,9 @@ def test_degenerate_side_preserves_columns():
     恰好为空）。如果 _concat 对"部分行但拼接后为空列表"的情形返回了列不一致的帧，
     下游 pd.concat 会静默产出列错位的结果。"""
     df = _synth_baseline_df({"F1": 5})
-    train_all, eval_none = split_fault_baseline_temporal(df, fraction=1.0)
+    train_all, eval_none = split_fault_phase_temporal(df, fraction=1.0)
     assert list(eval_none.columns) == list(df.columns)
-    train_none, eval_all = split_fault_baseline_temporal(df, fraction=0.0)
+    train_none, eval_all = split_fault_phase_temporal(df, fraction=0.0)
     assert list(train_none.columns) == list(df.columns)
 
 
@@ -135,13 +135,13 @@ def test_negative_fraction_raises():
     （而非空切分）——必须在入口拒绝，而不是产出看似合理但错误的数据。"""
     df = _synth_baseline_df({"F1": 5})
     with pytest.raises(ValueError, match="fraction"):
-        split_fault_baseline_temporal(df, fraction=-0.5)
+        split_fault_phase_temporal(df, fraction=-0.5)
 
 
 def test_fraction_greater_than_one_raises():
     df = _synth_baseline_df({"F1": 5})
     with pytest.raises(ValueError, match="fraction"):
-        split_fault_baseline_temporal(df, fraction=1.5)
+        split_fault_phase_temporal(df, fraction=1.5)
 
 
 def test_nan_fraction_raises_regardless_of_df_emptiness():
@@ -150,25 +150,25 @@ def test_nan_fraction_raises_regardless_of_df_emptiness():
     empty 检查执行，两种情况都应一致地在入口报错。"""
     non_empty = _synth_baseline_df({"F1": 5})
     with pytest.raises(ValueError, match="fraction"):
-        split_fault_baseline_temporal(non_empty, fraction=float("nan"))
+        split_fault_phase_temporal(non_empty, fraction=float("nan"))
 
     empty = pd.DataFrame(
         columns=["sample_id", "case_id", "endpoint_key", "timestamp_window_ms", "phase", "feat"]
     )
     with pytest.raises(ValueError, match="fraction"):
-        split_fault_baseline_temporal(empty, fraction=float("nan"))
+        split_fault_phase_temporal(empty, fraction=float("nan"))
 
 
 def test_missing_case_col_raises_keyerror_with_context():
     df = _synth_baseline_df({"F1": 5}).drop(columns=["case_id"])
     with pytest.raises(KeyError, match="case_id"):
-        split_fault_baseline_temporal(df, fraction=0.2)
+        split_fault_phase_temporal(df, fraction=0.2)
 
 
 def test_missing_time_col_raises_keyerror_with_context():
     df = _synth_baseline_df({"F1": 5}).drop(columns=["timestamp_window_ms"])
     with pytest.raises(KeyError, match="timestamp_window_ms"):
-        split_fault_baseline_temporal(df, fraction=0.2)
+        split_fault_phase_temporal(df, fraction=0.2)
 
 
 def test_nan_timestamp_raises_instead_of_silently_misordering():
@@ -178,4 +178,4 @@ def test_nan_timestamp_raises_instead_of_silently_misordering():
     df = _synth_baseline_df({"F1": 5})
     df.loc[df.index[0], "timestamp_window_ms"] = float("nan")
     with pytest.raises(ValueError, match="timestamp_window_ms"):
-        split_fault_baseline_temporal(df, fraction=0.2)
+        split_fault_phase_temporal(df, fraction=0.2)
