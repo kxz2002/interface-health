@@ -17,7 +17,9 @@ fault_baseline_train_fraction: 0.2
 # is_endpoint_anomaly==False）按时间窗时序切分：最早该比例的窗口进训练池，其余留
 # eval_all。设 1.0 = 全部吸收，尽量压低 eval_all 的负样本地板——entry 019 实测
 # 这批 fan-out 残留是负样本最大一项（new_ep1 上 2546 行），fault_baseline_train_fraction
-# 推到 1.0 也压不动它，正负比封顶 12.24:87.76。见 history/entries/022。
+# 推到 1.0 也压不动它，正负比封顶 12.24:87.76（该数字是 new_ep1 数据集在
+# fault_baseline_train_fraction=1.0 时的实测，本配置走 merged_v2 数据集且 baseline
+# fraction 为 0.2，具体数字不同，仅作为动机参考）。见 history/entries/022。
 fault_inject_nontarget_train_fraction: 1.0
 # 故障 case 的 recover 阶段"非目标 endpoint"行（判据 is_target_endpoint==False，
 # 且只对 label_granularity=="endpoint" 的 case 生效——case 级标签的 case 该列全为
