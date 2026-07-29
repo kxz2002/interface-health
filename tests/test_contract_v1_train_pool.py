@@ -1,9 +1,12 @@
+import dataclasses
 import subprocess
 import sys
 from pathlib import Path
 
 import pandas as pd
 import yaml
+
+from src.contracts.contract_config import ContractConfig
 
 REPO_ROOT = Path(__file__).parents[1]
 
@@ -35,14 +38,29 @@ def _run_v1_build(
     )
 
 
-def _cfg_with_fractions(tmp_path: Path, name: str, **overrides: float) -> str:
-    """基于 v1_expanded_pool.yaml 产出一份覆写了指定 fraction 的临时 config。
+_CONTRACT_CONFIG_FIELDS = {f.name for f in dataclasses.fields(ContractConfig)}
+
+
+def _cfg_with_fractions(
+    tmp_path: Path,
+    name: str,
+    base: str = "configs/contract/v1_expanded_pool.yaml",
+    **overrides: float,
+) -> str:
+    """基于 base（默认 v1_expanded_pool.yaml）产出一份覆写了指定 fraction 的临时 config。
 
     用 YAML 往返（load → 改 dict → dump）而不是字符串追加：字符串追加会在
-    v1_expanded_pool.yaml 已声明同名字段时产生重复 key——PyYAML 静默取最后一个，
-    测试看似能过，但一旦有人调整字段顺序或加注释就会悄悄读到另一个值。
+    base 已声明同名字段时产生重复 key——PyYAML 静默取最后一个，测试看似能过，
+    但一旦有人调整字段顺序或加注释就会悄悄读到另一个值。
+
+    参数名会校验是否为 ContractConfig 的真实字段——loader 用 raw.get(...) 读取，
+    未知 key 会被静默忽略、fraction 退化为默认 0.0，导致 fraction=1.0 的"不吸收"
+    断言在参数名打错时 vacuously 通过而不报错。
     """
-    raw = yaml.safe_load((REPO_ROOT / "configs/contract/v1_expanded_pool.yaml").read_text())
+    unknown = set(overrides) - _CONTRACT_CONFIG_FIELDS
+    if unknown:
+        raise AssertionError(f"未知 ContractConfig 字段: {sorted(unknown)}")
+    raw = yaml.safe_load((REPO_ROOT / base).read_text())
     raw.update(overrides)
     cfg_path = tmp_path / f"{name}.yaml"
     cfg_path.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False))
@@ -231,7 +249,9 @@ def test_inject_nontarget_rows_partially_absorbed_into_train(tmp_path):
         (eval_all["phase"] == "inject") & (~eval_all["is_endpoint_anomaly"])
     ]
     # 剩 4 行来自 Lv_E_NTGT_travel，另 0 行来自 case 级 case（其 inject 行全是正样本）
-    assert len(eval_inject_nontarget) == 4, len(eval_inject_nontarget)
+    assert (
+        len(eval_inject_nontarget) == 4
+    ), f"应留 4 行未吸收的非目标 inject 行，实际 {len(eval_inject_nontarget)}"
 
 
 def test_inject_target_rows_never_absorbed_regardless_of_fraction(tmp_path):
@@ -254,6 +274,10 @@ def test_inject_target_rows_never_absorbed_regardless_of_fraction(tmp_path):
     # case 级 case 的 10 行 inject 全是正样本（fallback），合计 15 行必须全留 eval
     positives = eval_all[eval_all["is_endpoint_anomaly"]]
     assert len(positives) == 15, f"正样本应恒为 15 行，实际 {len(positives)}"
+    # 正向对照：证明 fraction 确实被消费了，否则上面的"未被吸收"断言在 fraction
+    # 静默退化为 0.0 时会 vacuously 通过——fraction=1.0 应吸收 Lv_E_NTGT_travel
+    # 的全部 5 个非目标 inject 窗口进 train
+    assert (train["source_phase"] == "fault_inject_nontarget").sum() == 5
 
 
 def test_recover_nontarget_rows_partially_absorbed_into_train(tmp_path):
@@ -293,7 +317,13 @@ def test_recover_target_endpoint_rows_never_absorbed(tmp_path):
         & (eval_all["case_id"] == "Lv_E_NTGT_travel")
         & eval_all["is_target_endpoint"]
     ]
-    assert len(target_recover_eval) == 5, len(target_recover_eval)
+    assert (
+        len(target_recover_eval) == 5
+    ), f"目标 endpoint 的 recover 窗应全留 eval，实际 {len(target_recover_eval)}"
+    # 正向对照：证明 fraction 确实被消费了，否则上面的"未被吸收"断言在 fraction
+    # 静默退化为 0.0 时会 vacuously 通过——fraction=1.0 应吸收 Lv_E_NTGT_travel
+    # 的全部 5 个非目标 recover 窗口进 train
+    assert (train["source_phase"] == "fault_recover_nontarget").sum() == 5
 
 
 def test_case_level_label_recover_rows_never_absorbed(tmp_path):
@@ -320,7 +350,13 @@ def test_case_level_label_recover_rows_never_absorbed(tmp_path):
     case_recover_eval = eval_all[
         (eval_all["case_id"] == "Lv_D_CASELVL_travel") & (eval_all["phase"] == "recover")
     ]
-    assert len(case_recover_eval) == 10, len(case_recover_eval)
+    assert (
+        len(case_recover_eval) == 10
+    ), f"case 级标签 case 的 recover 行应整段留 eval，实际 {len(case_recover_eval)}"
+    # 正向对照：证明 fraction 确实被消费了，否则上面的"未被吸收"断言在 fraction
+    # 静默退化为 0.0 时会 vacuously 通过——fraction=1.0 应吸收 Lv_E_NTGT_travel
+    # 的全部 5 个非目标 recover 窗口进 train
+    assert (train["source_phase"] == "fault_recover_nontarget").sum() == 5
 
 
 def test_label_granularity_derives_from_target_endpoint_not_anomaly_level(tmp_path):
@@ -364,7 +400,9 @@ def test_all_three_fractions_together_keep_sample_id_disjoint(tmp_path):
     # 无行丢失：三路全吸收后，两侧行数之和必须等于 fixture 总行数（12 Normal +
     # 30 + 30 = 72）减去 train_val（Normal 三路切分里既不进 train 也不进 eval_all
     # 的那一份，6 窗 × int(6*0.2)=1 窗 × 2 endpoint = 2 行）
-    assert len(train) + len(eval_all) == 72 - 2
+    assert (
+        len(train) + len(eval_all) == 72 - 2
+    ), f"三路全吸收后行数不守恒：train={len(train)} eval_all={len(eval_all)}"
 
 
 def test_nontarget_fractions_are_noop_when_expand_train_pool_false(tmp_path):
@@ -372,14 +410,16 @@ def test_nontarget_fractions_are_noop_when_expand_train_pool_false(tmp_path):
     时即便都设成 1.0，train.parquet 也必须恒等于 train_fit.parquet、不含 source_phase
     列——照抄 fault_baseline_train_fraction 的既有约定（见该字段的 noop 测试）。
     """
-    raw = yaml.safe_load((REPO_ROOT / "configs/contract/v1.yaml").read_text())
-    raw["fault_inject_nontarget_train_fraction"] = 1.0
-    raw["fault_recover_nontarget_train_fraction"] = 1.0
-    cfg_path = tmp_path / "v1_nontarget_noop.yaml"
-    cfg_path.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False))
+    cfg = _cfg_with_fractions(
+        tmp_path,
+        "nontarget_noop",
+        base="configs/contract/v1.yaml",
+        fault_inject_nontarget_train_fraction=1.0,
+        fault_recover_nontarget_train_fraction=1.0,
+    )
 
     out_dir = tmp_path / "contract_v1"
-    _run_v1_build(out_dir, config=str(cfg_path), dataset=_NTGT_DATASET)
+    _run_v1_build(out_dir, config=cfg, dataset=_NTGT_DATASET)
 
     train = pd.read_parquet(out_dir / "train.parquet")
     train_fit = pd.read_parquet(out_dir / "train_fit.parquet")
