@@ -1,0 +1,8 @@
+{
+  "case_id": "Lv_D_CASELVL_travel",
+  "anomaly_type": "Lv_D_CASELVL_travel",
+  "anomaly_level": "endpoint",
+  "target_service": "ts-travel-service",
+  "inject_start_ms": 1796200075000,
+  "inject_end_ms": 1796200135000
+}
