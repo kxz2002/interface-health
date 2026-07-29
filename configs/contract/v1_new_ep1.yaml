@@ -19,6 +19,13 @@ fit_endpoint_baseline_stats: true
 # 稀释，本参数只能推到数值上限，不能真正解决——如需更接近 1:1，需要改变 eval_all
 # 的构成定义（如是否把同窗非目标 endpoint 行计入负样本），不是本参数的调节范围。
 fault_baseline_train_fraction: 1.0
+# 【entry 022 更新】上述"需要改变 eval_all 构成定义"的判断已落地：新增
+# fault_inject_nontarget_train_fraction / fault_recover_nontarget_train_fraction
+# 两个字段，分别吸收 inject/recover 阶段的非目标 endpoint 行。上文 12.24:87.76
+# 的上限描述仅对"只有 fault_baseline_train_fraction 一个可调参数"时成立。
+# 见 history/entries/022。
+fault_inject_nontarget_train_fraction: 1.0
+fault_recover_nontarget_train_fraction: 1.0
 
 modalities:
   endpoint_red:
