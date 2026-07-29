@@ -469,15 +469,7 @@ def main() -> None:
     validate_contract_df(full, args.config)
 
     if cfg.contract_version == "v1":
-        _write_v1(
-            out,
-            full,
-            normal_mask,
-            args.seed,
-            cfg.expand_train_pool,
-            cfg.fit_endpoint_baseline_stats,
-            cfg.fault_baseline_train_fraction,
-        )
+        _write_v1(out, full, normal_mask, args.seed, cfg)
     else:
         # v0：train=全部 Normal，eval_all=全部行（保持向后兼容，train ⊆ eval_all）
         full[normal_mask].reset_index(drop=True).to_parquet(out / "train.parquet", index=False)
@@ -493,9 +485,7 @@ def _write_v1(
     full: pd.DataFrame,
     normal_mask: pd.Series,
     seed: int,
-    expand_train_pool: bool,
-    fit_endpoint_baseline_stats: bool,
-    fault_baseline_train_fraction: float,
+    cfg: ContractConfig,
 ) -> None:
     """v1：Normal 行按时间窗三路切分。`expand_train_pool=False`（默认，与 entry 012
     既有实验数字可比）时 train.parquet=train_fit、eval_all=全部故障阶段+holdout，
@@ -508,6 +498,29 @@ def _write_v1(
     （修复 issue #16：整段搬移会把 eval_all 正负比拉到 ~84:16），防止复现 v0 的
     train⊆eval 泄漏。
 
+    除 baseline 阶段行外，`fault_inject_nontarget_train_fraction` /
+    `fault_recover_nontarget_train_fraction` 两个独立比例分别控制"inject 阶段
+    非目标 endpoint 行"与"recover 阶段非目标 endpoint 行"的吸收（默认均 0.0，
+    即不吸收，与本字段引入前行为一致）。动机：eval_all 的负样本地板里，inject
+    窗口内非目标 endpoint 的 fan-out 残留是最大一项，`fault_baseline_train_fraction`
+    推到 1.0 也压不动它，正负比在 new_ep1 上封顶 12.24:87.76（见
+    history/entries/019）。
+
+    两路的"非目标"判据**不同**，不能互换：
+    - inject 侧用 `is_endpoint_anomaly == False`。该列已统一处理两种
+      label_granularity——case 级标签下它 fallback 等于 is_anomaly，inject 阶段恒
+      True，故该判据在 case 级 case 上自动选不出任何行，不会把正样本误吸收进
+      训练池，也因此不需要额外按 label_granularity 分支。
+    - recover 侧必须用 `is_target_endpoint == False`，且只对
+      `label_granularity == "endpoint"` 的 case 生效。原因：is_anomaly 定义为
+      phase == "inject"，recover 阶段恒 False，导致 is_endpoint_anomaly 对 recover
+      阶段所有 endpoint（含目标）恒为 False，拿它筛"非目标"是空操作；而
+      is_target_endpoint 只在有 target_endpoint 字段的 case 上有精确含义，case 级
+      标签的 case 该列全为 False、无法区分目标/非目标，其 recover 行整段排除在本
+      切分外、原样留在 eval_all（否则会把"实际就是故障发生地"的 endpoint 的
+      recover 行也吸收进训练池，污染训练池对"正常"的定义）。
+    目标 endpoint 自身的 recover 行始终不被吸收，沿用上述保守排除理由。
+
     EndpointBaselineStats 必须 fit 在 parts["train_fit"]（归一化之后的尺度）上，
     不能像 Normalizer 一样 fit 在归一化之前的 fit_df 上——门控推理时从 parquet
     读到的特征已经是归一化后的尺度（main() 里 full[feature_cols] 被原地覆盖），
@@ -519,6 +532,12 @@ def _write_v1(
     门控是否执行这次 fit/save（RG 专属，L0/L1/L2 基线不需要），与
     `expand_train_pool` 相互独立。
     """
+    expand_train_pool = cfg.expand_train_pool
+    fault_baseline_train_fraction = cfg.fault_baseline_train_fraction
+    fault_inject_nontarget_train_fraction = cfg.fault_inject_nontarget_train_fraction
+    fault_recover_nontarget_train_fraction = cfg.fault_recover_nontarget_train_fraction
+    fit_endpoint_baseline_stats = cfg.fit_endpoint_baseline_stats
+
     normal_df = full[normal_mask].reset_index(drop=True)
     anomaly_df = full[~normal_mask].reset_index(drop=True)
     parts = split_normal_rows_temporal(normal_df, seed=seed)
@@ -552,15 +571,98 @@ def _write_v1(
                 len(fault_baseline_df),
             )
 
-        train_pool = pd.concat([train_fit_labeled, fault_baseline_train], ignore_index=True)
+        # inject 阶段非目标 endpoint 行（fan-out 残留）。判据 is_endpoint_anomaly==False
+        # 兼容两种 label_granularity，见 docstring；case 级标签的 case 在此自动选不出行。
+        fault_inject_nontarget_df = anomaly_df[
+            (anomaly_df["phase"] == "inject") & (~anomaly_df["is_endpoint_anomaly"])
+        ].copy()
+        (
+            fault_inject_nontarget_train,
+            fault_inject_nontarget_eval,
+        ) = split_fault_phase_temporal(
+            fault_inject_nontarget_df, fraction=fault_inject_nontarget_train_fraction
+        )
+        fault_inject_nontarget_train["source_phase"] = "fault_inject_nontarget"
+        if (
+            fault_inject_nontarget_train_fraction > 0
+            and len(fault_inject_nontarget_train) == 0
+            and len(fault_inject_nontarget_df) > 0
+        ):
+            LOG.warning(
+                "fault_inject_nontarget_train_fraction=%.3f 对全部 %d 行 inject 非目标"
+                "endpoint 行贡献了 0 行进训练池——请检查 fraction 是否过小或各 case 的"
+                "inject 窗口数是否过少（int(n*fraction) 自然向下取整，不做至少 1 窗兜底）",
+                fault_inject_nontarget_train_fraction,
+                len(fault_inject_nontarget_df),
+            )
+
+        # recover 阶段非目标 endpoint 行。判据必须是 is_target_endpoint==False 且先按
+        # label_granularity=="endpoint" 过滤，见 docstring。is_target_endpoint 在真实
+        # contract 数据里是 float64（{0.0, 1.0, NaN}，NaN 出现在 case 级标签的 case 上，
+        # 见 trace_preprocessor.py 缺列时填 False／_attach_label_columns 未强制转 bool），
+        # `~` 对 float64 NaN 列会抛 TypeError（ufunc 'invert' not supported），且 `&`
+        # 两侧会被完整求值，label_granularity 的过滤不能通过短路规避这个类型错误——
+        # 必须先显式转成干净 bool 再取反。
+        is_target_endpoint_bool = anomaly_df["is_target_endpoint"].fillna(False).astype(bool)
+        fault_recover_nontarget_df = anomaly_df[
+            (anomaly_df["phase"] == "recover")
+            & (anomaly_df["label_granularity"] == "endpoint")
+            & (~is_target_endpoint_bool)
+        ].copy()
+        (
+            fault_recover_nontarget_train,
+            fault_recover_nontarget_eval,
+        ) = split_fault_phase_temporal(
+            fault_recover_nontarget_df, fraction=fault_recover_nontarget_train_fraction
+        )
+        fault_recover_nontarget_train["source_phase"] = "fault_recover_nontarget"
+        if (
+            fault_recover_nontarget_train_fraction > 0
+            and len(fault_recover_nontarget_train) == 0
+            and len(fault_recover_nontarget_df) > 0
+        ):
+            LOG.warning(
+                "fault_recover_nontarget_train_fraction=%.3f 对全部 %d 行 recover 非目标"
+                "endpoint 行贡献了 0 行进训练池——请检查 fraction 是否过小或各 case 的"
+                "recover 窗口数是否过少",
+                fault_recover_nontarget_train_fraction,
+                len(fault_recover_nontarget_df),
+            )
+
+        train_pool = pd.concat(
+            [
+                train_fit_labeled,
+                fault_baseline_train,
+                fault_inject_nontarget_train,
+                fault_recover_nontarget_train,
+            ],
+            ignore_index=True,
+        )
         train_pool.to_parquet(out / "train.parquet", index=False)
 
-        # eval_all：故障 case 的 inject/recover 行（全保留）+ 未被吸收进训练池的 baseline
-        # 窗口（fault_baseline_eval）+ Normal holdout。inject/recover 用 phase 过滤，
-        # baseline 用 split 摘出的 eval 部分，两者不重叠且并集为故障 case 全部非训练行。
+        # eval_all 五段拼接。inject/recover 两个阶段各自被拆成"被吸收进 train 的部分"
+        # 与"留在 eval 的部分"，这里只收后者；写成显式五段而不是 phase != baseline 的
+        # 粗筛，是为了让每一段的归属理由可读、可断言。
+        # ① inject 阶段正样本（is_endpoint_anomaly==True）——永不被吸收，是评估的
+        #    唯一正样本来源。
+        eval_inject_positive = anomaly_df[
+            (anomaly_df["phase"] == "inject") & anomaly_df["is_endpoint_anomaly"]
+        ]
+        # ② recover 阶段未参与新切分的行：case 级标签 case 的全部 recover 行（判据
+        #    无法区分目标/非目标，整段保留）+ endpoint 级标签 case 里的目标 endpoint
+        #    recover 行（保守排除，不吸收）。is_target_endpoint_bool 复用上面已转好的
+        #    干净 bool 列，避免同一个 NaN 问题在这里再犯一次。
+        recover_mask = anomaly_df["phase"] == "recover"
+        eval_recover_untouched = anomaly_df[
+            recover_mask
+            & ((anomaly_df["label_granularity"] != "endpoint") | is_target_endpoint_bool)
+        ]
         eval_all = pd.concat(
             [
-                anomaly_df[anomaly_df["phase"] != "baseline"],
+                eval_inject_positive,
+                fault_inject_nontarget_eval,
+                eval_recover_untouched,
+                fault_recover_nontarget_eval,
                 fault_baseline_eval,
                 parts["eval_normal_holdout"],
             ],
@@ -568,15 +670,26 @@ def _write_v1(
         )
         eval_all.to_parquet(out / "eval_all.parquet", index=False)
         LOG.info(
-            "v1 切分（训练池已扩容，fraction=%.3f）：train_fit=%d holdout=%d "
+            "v1 切分（训练池已扩容，baseline_fraction=%.3f inject_nontarget_fraction=%.3f "
+            "recover_nontarget_fraction=%.3f）：train_fit=%d holdout=%d "
             "fault_baseline_total=%d fault_baseline_to_train=%d fault_baseline_to_eval=%d "
-            "train_pool=%d eval_all=%d",
+            "inject_nontarget_total=%d inject_nontarget_to_train=%d inject_nontarget_to_eval=%d "
+            "recover_nontarget_total=%d recover_nontarget_to_train=%d "
+            "recover_nontarget_to_eval=%d train_pool=%d eval_all=%d",
             fault_baseline_train_fraction,
+            fault_inject_nontarget_train_fraction,
+            fault_recover_nontarget_train_fraction,
             len(parts["train_fit"]),
             len(parts["eval_normal_holdout"]),
             len(fault_baseline_df),
             len(fault_baseline_train),
             len(fault_baseline_eval),
+            len(fault_inject_nontarget_df),
+            len(fault_inject_nontarget_train),
+            len(fault_inject_nontarget_eval),
+            len(fault_recover_nontarget_df),
+            len(fault_recover_nontarget_train),
+            len(fault_recover_nontarget_eval),
             len(train_pool),
             len(eval_all),
         )
