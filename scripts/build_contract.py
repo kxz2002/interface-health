@@ -287,6 +287,11 @@ def _attach_label_columns(ep_df: pd.DataFrame, case_meta: dict) -> None:
         # 显式检查该退化并记录 warning，而不是让它悄悄发生。
         is_target = ep_df.get("is_target_endpoint", False)
         if isinstance(is_target, pd.Series):
+            # fillna(False)：这里是在判定正样本（is_endpoint_anomaly），未知值必须默认
+            # "不是目标"才安全，否则会把未知状态的行误判成正样本。_write_v1 里
+            # is_target_endpoint 用于反向判据（筛"非目标"行去吸收），未知值默认方向
+            # 相反（fillna(True)，见该处注释）——两处 fillna 方向不同不是疏漏，
+            # 是分别对齐各自"宁可漏检、不可误判"的保守原则。
             is_target = is_target.fillna(False)
         ep_df["is_endpoint_anomaly"] = is_target & ep_df["is_anomaly"]
         if not ep_df["is_endpoint_anomaly"].any() and ep_df["is_anomaly"].any():
@@ -609,6 +614,8 @@ def _write_v1(
         # recover 行绝不能被静默吸收进训练池（保守排除的核心诉求），若 fillna(False)
         # 会把未知值误判成"非目标"从而吸收，方向反了。同理下面 eval 补集用 OR 该列
         # 保留目标 endpoint 行时，未知值也应被当成目标而保留在 eval，不能悄悄漏出去。
+        # _attach_label_columns 里判定正样本用的同名字段是 fillna(False)，方向相反——
+        # 两处对齐的是各自"宁可漏检、不可误判"的保守原则，不是疏漏，见该处注释。
         # 下面用裸下标而不是 .get()：is_target_endpoint 由 trace_preprocessor.py 无条件
         # 补齐，是常驻列，不像 _attach_label_columns 里 case_meta.get("target_endpoint")
         # 那样依赖可能缺失的外部字段。
