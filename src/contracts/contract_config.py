@@ -35,8 +35,8 @@ class ContractConfig:
     window_size_s: int
     modalities: dict[str, ModalitySpec]
     # v1 专属：是否把故障 case 的 baseline 阶段行部分吸收进训练池（吸收比例由下方
-    # fault_baseline_train_fraction 控制，默认吸收后训练池 838→~1787 行，其余 baseline
-    # 窗口留在 eval_all，见 issue #16 / history/entries/016）。默认 False 保持 Task 6
+    # fault_baseline_train_fraction 控制；838→~1787 行是 entry 016 时点数字，已随
+    # 数据集变化 drift，不再准确，见 issue #16 / history/entries/016）。默认 False 保持 Task 6
     # 之前的行为（train=纯 train_fit，eval_all 含全部故障阶段），与 entry 012 的既有
     # 实验数字可比；RG 专属实验用 v1_expanded_pool.yaml 显式打开。v0 不消费此字段。
     expand_train_pool: bool = False
