@@ -170,8 +170,8 @@ fault_inject_nontarget_train_fraction: float = 0.0
 # 阶段非目标 endpoint 行按时间窗时序切分时，最早 fraction 比例的窗口进训练池，
 # 其余留在 eval_all。仅对 label_granularity=="endpoint" 的 case 生效——
 # label_granularity=="case" 的 case 没有 target_endpoint 字段，is_target_endpoint
-# 全为 False，无法区分目标/非目标，recover 行整段排除在外，原样留在 eval_all。
-# 默认 0.0（不吸收，向后兼容）。
+# 在真实数据里全为 0.0 或 NaN，无法区分目标/非目标，recover 行整段排除在外，
+# 原样留在 eval_all。默认 0.0（不吸收，向后兼容）。
 fault_recover_nontarget_train_fraction: float = 0.0
 ```
 

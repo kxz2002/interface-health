@@ -66,9 +66,11 @@ class ContractConfig:
     # 而非 is_endpoint_anomaly——is_anomaly 定义为 phase == "inject"，recover 阶段
     # 恒 False，导致 is_endpoint_anomaly 对 recover 阶段所有 endpoint（含目标）恒为
     # False，拿它筛"非目标"是空操作。且该判据只对 label_granularity == "endpoint"
-    # 的 case 有精确含义：case 级标签的 case 没有 target_endpoint 字段、
-    # is_target_endpoint 全填 False，无法区分目标/非目标，其 recover 行整段排除在
-    # 本切分外、原样留在 eval_all（见 _write_v1）。默认 0.0（不吸收，向后兼容）。
+    # 的 case 有精确含义：case 级标签的 case 没有 target_endpoint 字段，
+    # is_target_endpoint 在真实数据里全为 0.0 或 NaN（缺列时 trace_preprocessor.py
+    # 填 False，Normal case 该列存在但全 NaN，两条不同路径），无法区分目标/非目标，
+    # 其 recover 行整段排除在本切分外、原样留在 eval_all（见 _write_v1）。默认 0.0
+    # （不吸收，向后兼容）。
     fault_recover_nontarget_train_fraction: float = 0.0
 
     def __post_init__(self) -> None:

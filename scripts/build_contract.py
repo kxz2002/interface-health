@@ -265,11 +265,12 @@ def _attach_label_columns(ep_df: pd.DataFrame, case_meta: dict) -> None:
         ep_df["phase"] = "normal"
 
     ep_df["is_anomaly"] = ep_df["phase"] == "inject"
-    # is_train_eligible 标记 non-inject 窗口（baseline/recover/normal 均可）；
-    # 注意这与 train.parquet 实际吸收的行集合不是同一个概念——这一列是逐行的粗粒度
-    # 可训练性标记，不是训练池扩容逻辑的依据。train.parquet 实际吸收哪些行取决于
-    # expand_train_pool 开关（仅当 True 时含 baseline，默认 False 时不含任何故障
-    # 行），见 _write_v1。
+    # is_train_eligible 是逐行的粗粒度文档性标记（= ~is_anomaly），不等价于该行是否
+    # 真的进了 train.parquet——expand_train_pool=true 时，baseline/inject 非目标/
+    # recover 非目标三类故障行也会被部分吸收进训练池，但吸收比例由三个独立 fraction
+    # 决定，跟这一列的值无关，这里也不会同步更新。要看某行实际归属哪个训练池桶（或
+    # 完全没被吸收），一律看 _write_v1 写出的 source_phase 列，不要用这一列做训练/
+    # 评估分流依据。
     ep_df["is_train_eligible"] = ~ep_df["is_anomaly"]
     ep_df["injection_start_ms"] = inject_start
     ep_df["injection_end_ms"] = inject_end
@@ -539,9 +540,10 @@ def _write_v1(
       phase == "inject"，recover 阶段恒 False，导致 is_endpoint_anomaly 对 recover
       阶段所有 endpoint（含目标）恒为 False，拿它筛"非目标"是空操作；而
       is_target_endpoint 只在有 target_endpoint 字段的 case 上有精确含义，case 级
-      标签的 case 该列全为 False、无法区分目标/非目标，其 recover 行整段排除在本
-      切分外、原样留在 eval_all（否则会把"实际就是故障发生地"的 endpoint 的
-      recover 行也吸收进训练池，污染训练池对"正常"的定义）。
+      标签的 case 该列在真实数据里全为 0.0 或 NaN（缺列时 trace_preprocessor.py
+      填 False，Normal case 该列存在但全 NaN，两条不同路径）、无法区分目标/非目标，
+      其 recover 行整段排除在本切分外、原样留在 eval_all（否则会把"实际就是故障
+      发生地"的 endpoint 的 recover 行也吸收进训练池，污染训练池对"正常"的定义）。
     目标 endpoint 自身的 recover 行始终不被吸收，沿用上述保守排除理由。
 
     EndpointBaselineStats 必须 fit 在 parts["train_fit"]（归一化之后的尺度）上，
@@ -607,11 +609,9 @@ def _write_v1(
         # recover 行绝不能被静默吸收进训练池（保守排除的核心诉求），若 fillna(False)
         # 会把未知值误判成"非目标"从而吸收，方向反了。同理下面 eval 补集用 OR 该列
         # 保留目标 endpoint 行时，未知值也应被当成目标而保留在 eval，不能悄悄漏出去。
-        # 下面用裸下标而不是 .get()：is_target_endpoint 列由 trace_preprocessor.py
-        # 在 transform() 里无条件补齐（原始 CSV 缺列时填 False，见该文件），是
-        # ep_df 的常驻列，不会像 297 行附近 case_meta.get("target_endpoint") 那样
-        # 依赖某个可能缺失的外部字段——两处的"防御性 .get()"针对的是不同的缺失
-        # 风险，不能类比套用。
+        # 下面用裸下标而不是 .get()：is_target_endpoint 由 trace_preprocessor.py 无条件
+        # 补齐，是常驻列，不像 _attach_label_columns 里 case_meta.get("target_endpoint")
+        # 那样依赖可能缺失的外部字段。
         is_target_endpoint_bool = anomaly_df["is_target_endpoint"].fillna(True).astype(bool)
         fault_recover_nontarget_df = anomaly_df[
             (anomaly_df["phase"] == "recover")

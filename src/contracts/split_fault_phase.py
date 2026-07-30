@@ -27,11 +27,12 @@ def split_fault_phase_temporal(
     case_col: str = "case_id",
     time_col: str = "timestamp_window_ms",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """把故障 baseline 行切成 (train_part, eval_part) 两个互斥子集。
+    """把故障 case 指定阶段行切成 (train_part, eval_part) 两个互斥子集。
 
-    调用方须保证 df 仅含故障 case 的 baseline 阶段行（phase == 'baseline'）。
-    每个 case 独立按 time_col 排序，最早 int(n * fraction) 个时间窗归 train_part，
-    其余归 eval_part。切分单位是时间窗，同一窗的所有行整体归属同一侧。
+    调用方负责筛出目标行子集（baseline / inject 非目标 / recover 非目标，本函数
+    不读 phase 列、不关心筛选判据）。每个 case 独立按 time_col 排序，最早
+    int(n * fraction) 个时间窗归 train_part，其余归 eval_part。切分单位是时间窗，
+    同一窗的所有行整体归属同一侧。
 
     fraction 校验独立于调用方（不依赖 ContractConfig 已校验过）：非 [0.0, 1.0] 会
     在 int(n * fraction) 处产生反直觉结果而不是清晰报错——负数触发 Python 负索引
