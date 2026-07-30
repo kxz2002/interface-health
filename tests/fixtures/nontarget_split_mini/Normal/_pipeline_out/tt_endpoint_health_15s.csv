@@ -1,0 +1,13 @@
+case_id,anomaly_type,timestamp_window,endpoint_key,request_count,error_rate,latency_mean,latency_p50,latency_p95,latency_p99,status_2xx_rate,status_4xx_rate,status_5xx_rate,method,normalized_path
+Normal,Normal,2026-11-30T00:53:20Z,POST:/api/v1/travelservice/trips/left,8,0.0,22000.0,20400.0,41500.0,42000.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Normal,Normal,2026-11-30T00:53:20Z,POST:/api/v1/travel2service/trips/left,11,0.0,22330.0,20706.0,42100.0,42600.0,1.0,0.0,0.0,POST,/api/v1/travel2service/trips/left
+Normal,Normal,2026-11-30T00:53:35Z,POST:/api/v1/travelservice/trips/left,9,0.0,22550.000000000004,20910.0,42550.0,43050.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Normal,Normal,2026-11-30T00:53:35Z,POST:/api/v1/travel2service/trips/left,12,0.0,22880.000000000004,21216.0,43150.0,43650.0,1.0,0.0,0.0,POST,/api/v1/travel2service/trips/left
+Normal,Normal,2026-11-30T00:53:50Z,POST:/api/v1/travelservice/trips/left,10,0.0,23100.000000000004,21420.0,43600.0,44100.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Normal,Normal,2026-11-30T00:53:50Z,POST:/api/v1/travel2service/trips/left,13,0.0,23430.000000000004,21726.0,44200.0,44700.0,1.0,0.0,0.0,POST,/api/v1/travel2service/trips/left
+Normal,Normal,2026-11-30T00:54:05Z,POST:/api/v1/travelservice/trips/left,11,0.0,23650.000000000004,21930.0,44650.0,45150.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Normal,Normal,2026-11-30T00:54:05Z,POST:/api/v1/travel2service/trips/left,14,0.0,23980.000000000004,22236.0,45250.0,45750.0,1.0,0.0,0.0,POST,/api/v1/travel2service/trips/left
+Normal,Normal,2026-11-30T00:54:20Z,POST:/api/v1/travelservice/trips/left,12,0.0,24200.000000000004,22440.0,45700.0,46200.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Normal,Normal,2026-11-30T00:54:20Z,POST:/api/v1/travel2service/trips/left,15,0.0,24530.000000000004,22746.0,46300.0,46800.0,1.0,0.0,0.0,POST,/api/v1/travel2service/trips/left
+Normal,Normal,2026-11-30T00:54:35Z,POST:/api/v1/travelservice/trips/left,13,0.0,24750.000000000004,22950.0,46750.0,47250.0,1.0,0.0,0.0,POST,/api/v1/travelservice/trips/left
+Normal,Normal,2026-11-30T00:54:35Z,POST:/api/v1/travel2service/trips/left,16,0.0,25080.000000000004,23256.0,47350.0,47850.0,1.0,0.0,0.0,POST,/api/v1/travel2service/trips/left

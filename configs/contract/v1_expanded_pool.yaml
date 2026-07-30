@@ -1,8 +1,9 @@
 contract_version: "v1"
 window_size_s: 15
 # 训练池扩容：train 额外吸收故障 case baseline 阶段行中最早
-# fault_baseline_train_fraction 比例的时间窗（默认 838→~1787 行，见下方字段），
-# 其余 baseline 窗口留在 eval_all 维持负样本类别平衡（修复 issue #16，见
+# fault_baseline_train_fraction 比例的时间窗（见下方字段；838→~1787 行是 entry 016
+# 时点数字，已随数据集变化 drift，不再准确），其余 baseline 窗口留在 eval_all
+# 维持负样本类别平衡（修复 issue #16，见
 # history/entries/016）。RG（ReliabilityGatedFusion）专属实验用这份配置；
 # L0/L1/L2 等既有 baseline 对比继续用 v1.yaml（不扩容），保持与 entry 012 的
 # 既有数字可比。见 history/entries/014-reliability-gate-fusion.md。
@@ -13,6 +14,20 @@ fit_endpoint_baseline_stats: true
 # 其余 80% 留在 eval_all 维持负样本类别平衡（修复 issue #16 的 ~84:16 失衡）。
 # 后续扩充 Normal 数据集后可再调此值。见 history/entries/016。
 fault_baseline_train_fraction: 0.2
+# 故障 case 的 inject 阶段"非目标 endpoint"行（endpoint 级 fan-out 残留，判据
+# is_endpoint_anomaly==False）按时间窗时序切分：最早该比例的窗口进训练池，其余留
+# eval_all。设 1.0 = 全部吸收，尽量压低 eval_all 的负样本地板——entry 019 实测
+# 这批 fan-out 残留是负样本最大一项（new_ep1 上 2546 行），fault_baseline_train_fraction
+# 推到 1.0 也压不动它，正负比封顶 12.24:87.76（该数字是 new_ep1 数据集在
+# fault_baseline_train_fraction=1.0 时的实测，本配置走 merged_v2 数据集且 baseline
+# fraction 为 0.2，具体数字不同，仅作为动机参考）。见 history/entries/022。
+fault_inject_nontarget_train_fraction: 1.0
+# 故障 case 的 recover 阶段"非目标 endpoint"行（判据 is_target_endpoint==False，
+# 且只对 label_granularity=="endpoint" 的 case 生效——case 级标签的 case 该列全为
+# 0.0 或 NaN（NaN 经 fillna(True) 视为目标），无法区分目标/非目标，其 recover 行
+# 整段留在 eval_all）。目标 endpoint 自身
+# 的 recover 行始终不吸收（系统未稳定回正常态，分布未验证，沿用 entry 014 决策）。
+fault_recover_nontarget_train_fraction: 1.0
 
 modalities:
   endpoint_red:

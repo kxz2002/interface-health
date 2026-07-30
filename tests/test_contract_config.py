@@ -184,3 +184,113 @@ def test_fault_baseline_train_fraction_quoted_string_raises(tmp_path):
     )
     with pytest.raises(ValueError, match="fault_baseline_train_fraction"):
         load_contract_config(cfg_path)
+
+
+def test_nontarget_fractions_default_to_zero(tmp_path):
+    """两个新字段默认 0.0：向后兼容——config 不写时行为与本次改动前完全一致
+    （expand_train_pool=true 也只吸收 baseline，不吸收 inject/recover 非目标行）。"""
+    cfg_path = tmp_path / "c.yaml"
+    cfg_path.write_text(
+        "contract_version: v1\n"
+        "window_size_s: 15\n"
+        "modalities:\n"
+        "  endpoint_red:\n"
+        "    preprocessor: TracePreprocessor\n"
+        "    preprocessor_version: v0\n"
+        "    features: [trace_request_count]\n"
+        "    normalization: per_endpoint_min_max\n"
+    )
+    cfg = load_contract_config(cfg_path)
+    assert cfg.fault_inject_nontarget_train_fraction == 0.0
+    assert cfg.fault_recover_nontarget_train_fraction == 0.0
+
+
+def test_nontarget_fractions_override(tmp_path):
+    cfg_path = tmp_path / "c.yaml"
+    cfg_path.write_text(
+        "contract_version: v1\n"
+        "window_size_s: 15\n"
+        "fault_inject_nontarget_train_fraction: 0.75\n"
+        "fault_recover_nontarget_train_fraction: 0.4\n"
+        "modalities:\n"
+        "  endpoint_red:\n"
+        "    preprocessor: TracePreprocessor\n"
+        "    preprocessor_version: v0\n"
+        "    features: [trace_request_count]\n"
+        "    normalization: per_endpoint_min_max\n"
+    )
+    cfg = load_contract_config(cfg_path)
+    assert cfg.fault_inject_nontarget_train_fraction == 0.75
+    assert cfg.fault_recover_nontarget_train_fraction == 0.4
+
+
+def test_nontarget_fractions_out_of_range_raises(tmp_path):
+    """越界一律在加载期报错，不看 expand_train_pool——理由同
+    fault_baseline_train_fraction：负数会触发 Python 负索引切片导致方向反转的
+    错误切分，大于 1 会让 train 吞下全部窗口且不报错，两者都是"看起来合理但
+    错误的数据"，必须在入口堵住。"""
+    for field in (
+        "fault_inject_nontarget_train_fraction",
+        "fault_recover_nontarget_train_fraction",
+    ):
+        for bad in (1.5, -0.1):
+            cfg_path = tmp_path / f"c_{field}_{bad}.yaml"
+            cfg_path.write_text(
+                "contract_version: v1\n"
+                "window_size_s: 15\n"
+                f"{field}: {bad}\n"
+                "modalities:\n"
+                "  endpoint_red:\n"
+                "    preprocessor: TracePreprocessor\n"
+                "    preprocessor_version: v0\n"
+                "    features: [trace_request_count]\n"
+                "    normalization: per_endpoint_min_max\n"
+            )
+            with pytest.raises(ValueError, match=field):
+                load_contract_config(cfg_path)
+
+
+def test_nontarget_fractions_boundary_values_valid(tmp_path):
+    """0.0 与 1.0 是合法边界值，不能被范围校验误拒。"""
+    for field in (
+        "fault_inject_nontarget_train_fraction",
+        "fault_recover_nontarget_train_fraction",
+    ):
+        for boundary in (0.0, 1.0):
+            cfg_path = tmp_path / f"c_{field}_{boundary}.yaml"
+            cfg_path.write_text(
+                "contract_version: v1\n"
+                "window_size_s: 15\n"
+                f"{field}: {boundary}\n"
+                "modalities:\n"
+                "  endpoint_red:\n"
+                "    preprocessor: TracePreprocessor\n"
+                "    preprocessor_version: v0\n"
+                "    features: [trace_request_count]\n"
+                "    normalization: per_endpoint_min_max\n"
+            )
+            cfg = load_contract_config(cfg_path)
+            assert getattr(cfg, field) == boundary
+
+
+def test_nontarget_fractions_quoted_string_raises(tmp_path):
+    """YAML 里误加引号（字符串类型）必须报出指名字段的错误，而不是在比较运算处
+    抛与本意无关的 TypeError——类型检查须先于范围检查。"""
+    for field in (
+        "fault_inject_nontarget_train_fraction",
+        "fault_recover_nontarget_train_fraction",
+    ):
+        cfg_path = tmp_path / f"c_{field}_str.yaml"
+        cfg_path.write_text(
+            "contract_version: v1\n"
+            "window_size_s: 15\n"
+            f'{field}: "0.5"\n'
+            "modalities:\n"
+            "  endpoint_red:\n"
+            "    preprocessor: TracePreprocessor\n"
+            "    preprocessor_version: v0\n"
+            "    features: [trace_request_count]\n"
+            "    normalization: per_endpoint_min_max\n"
+        )
+        with pytest.raises(ValueError, match=field):
+            load_contract_config(cfg_path)

@@ -17,7 +17,7 @@ stages:
       - src/preprocessors
       - src/contracts/contract_v0.py
       - src/contracts/split_v1.py
-      - src/contracts/split_fault_baseline.py
+      - src/contracts/split_fault_phase.py
       - src/data/normalization.py
       - src/data/dataset_config.py
       - src/data/endpoint_baseline_stats.py

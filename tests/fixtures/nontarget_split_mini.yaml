@@ -1,0 +1,5 @@
+name: nontarget_split_mini
+roots:
+  - tests/fixtures/nontarget_split_mini
+normal_source: tests/fixtures/nontarget_split_mini
+fused_window: 15s

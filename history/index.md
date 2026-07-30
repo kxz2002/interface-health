@@ -48,6 +48,7 @@
 | [019](./entries/019-new-ep1-oom-fix-and-first-eval.md) | 2026-07-27 | Bugfix + Experiment | new_ep1 OOM 修复（LogPreprocessor 整文件读入→流式读取）+ fraction 推到 12.24:87.76 数值上限 + 首次训练评估（DWF vs L0，ABORT 退步/REPLACE 进步/PATCH 分数反转诊断为 fraction=1.0 训练池污染，与融合机制无关） | `src/preprocessors/log_preprocessor.py`, `configs/contract/v1_new_ep1.yaml`, `configs/data/new_ep1.yaml`, `artifacts/contract_new_ep1_expanded/`, `dvc_new_ep1/` |
 | [020](./entries/020-log-truncation-impact-quantified.md) | 2026-07-28 | Docs | MAX_CONTENT_CHARS 截断实测：短行 template_id 100% 不变/超长行 100% 变化，template_diversity 60% 窗口受影响（均偏 0.017）；阈值-耗时曲线显示 2000→20000 仅 2.3x，不截断达 80x；2000→3000 几乎零 CPU 代价但损耗改善仅 ~14%，未改代码 | `src/preprocessors/log_preprocessor.py`（注释准确性） |
 | [021](./entries/021-baseline-rerun-waived-recollection-pending.md) | 2026-07-29 | Docs | MAX_CONTENT_CHARS 是本分支新引入（master 无此常量），v0/v1/RG 三条既有 contract 管线因此 drift；决定不重跑——PATCH 类故障对现有数据集所有 RED 特征隐形（entry 017），需重采补 api_response 响应体才有价值，旧数据集即将被替换，重跑无意义；并纠正 entry 019 "两次连续同源 OOM/上一轮已修"的不准确叙事（实为同一 commit 一起首次引入） | `artifacts/baseline_v0|v1|v1_reliability_gate/`（决定维持现状） |
+| [022](./entries/022-inject-recover-nontarget-split.md) | 2026-07-29 | Feature | inject/recover 阶段非目标 endpoint 行按两个独立 fraction 吸收进训练池（承接 entry 019 的 12.24:87.76 上限）；`split_fault_baseline` 重命名为 `split_fault_phase`；判据踩坑：inject 用 `is_endpoint_anomaly`，recover 必须用 `is_target_endpoint` 且仅 `label_granularity=="endpoint"` 的 case 生效 | `src/contracts/split_fault_phase.py`, `src/contracts/contract_config.py`, `scripts/build_contract.py`, `configs/contract/v1_expanded_pool.yaml`, `configs/contract/v1_new_ep1.yaml`, `tests/fixtures/nontarget_split_mini/`, `CLAUDE.md` |
 
 ---
 
@@ -57,11 +58,11 @@
 
 | 目录 / 主题 | 相关 entries |
 |-------------|--------------|
-| `CLAUDE.md` | 001, 002, 003, 004, 009, 011, 015, 016 |
+| `CLAUDE.md` | 001, 002, 003, 004, 009, 011, 015, 016, 022 |
 | `data/` 组织与 DVC | 002 |
 | `configs/` (Hydra) | 002, 011（fusion/model config-group、base.yaml 必填字段）, 014（reliability_gate 路由消融配置、`fusion_checkpoint` 可选字段）, 018（`configs/fusion/deviation_weighted.yaml`） |
 | `src/utils/` (seed, logger) | 002, 011（param_budget） |
-| `src/contracts/` | 003, 011（Contract v1 时序切分）, 014（`endpoint_id` 列、训练池扩容吸收 fault baseline 行）, 016（`split_fault_baseline_temporal` 两路时序切分） |
+| `src/contracts/` | 003, 011（Contract v1 时序切分）, 014（`endpoint_id` 列、训练池扩容吸收 fault baseline 行）, 016（`split_fault_baseline_temporal` 两路时序切分）, 022（重命名为 `split_fault_phase_temporal`，新增 inject/recover 非目标行吸收） |
 | `scripts/` (train, eval) | 003, 011（train_baseline_v0.py 改 Hydra entrypoint） |
 | `scripts/lo2-scripts/` | 001 |
 | `docs/agent-docs/` | 001 |
@@ -70,7 +71,7 @@
 | `dvc.yaml` / DVC pipeline | 002 (初始化), 003 (定义 stage), 009 (切换 merged_v2), 011 (新增 build_contract_v1/train_v1/eval_v1), 015（RG 专属 stage 隔离到 dvc_reliability_gate/dvc.yaml）, 018（dvc_deviation_weighted/dvc.yaml，跨文件依赖复用 RG 已产出的 contract_v1_expanded） |
 | `environment.yml` / `Makefile` | 002 |
 | `.github/workflows/ci.yml` | 002, 004 |
-| `tests/` | 002 (占位), 003 (契约/e2e), 009 (merged_v2_mini fixture + 归档排除/多 root 测试) |
+| `tests/` | 002 (占位), 003 (契约/e2e), 009 (merged_v2_mini fixture + 归档排除/多 root 测试), 022 (`nontarget_split_mini` fixture，锁住 inject/recover 非目标行切分行为) |
 | `pyproject.toml` | 002 |
 | `history/` + `skills-local/` | 004 |
 | `Makefile` | 002 (环境), 004 (install-skills) |
@@ -79,13 +80,13 @@
 | 数据 loader（`src/data/`） | 005, 014（`endpoint_baseline_stats.py`, `endpoint_id` 全链路打通） |
 | 评估指标细化（per-endpoint, phase 对齐） | 005 |
 | `src/preprocessors/` | 005, 019（LogPreprocessor 整文件读入→流式读取，修复超大日志文件 OOM） |
-| `configs/contract/` | 005, 016, 019（`v1_new_ep1.yaml`，`fault_baseline_train_fraction` 推到数值上限 12.24:87.76） |
+| `configs/contract/` | 005, 016, 019（`v1_new_ep1.yaml`，`fault_baseline_train_fraction` 推到数值上限 12.24:87.76）, 022（`v1_expanded_pool.yaml`/`v1_new_ep1.yaml` 新增两个 nontarget fraction 字段并设为 1.0） |
 | `configs/data/`（多数据源配置） | 006, 009, 019（`new_ep1.yaml`，独立数据集不与其他 root 合并） |
 | `src/data/dataset_config.py` | 006 |
 | `configs/contract/endpoint_to_service.yaml` | 006 |
 | `src/data/normalization.py`（Normalizer） | 007, 013（零方差 group 除零放大） |
 | `src/preprocessors/trace_preprocessor.py`（is_target_endpoint 传递） | 008 |
-| `scripts/build_contract.py`（label_granularity/is_endpoint_anomaly 标签路由，`_attach_label_columns`） | 006, 008, 014（训练池扩容吸收 fault baseline 行）, 015（fit_endpoint_baseline_stats 开关取代 contract_version 判据）, 016（`_write_v1` 改按 fraction 时序切分 fault baseline） |
+| `scripts/build_contract.py`（label_granularity/is_endpoint_anomaly 标签路由，`_attach_label_columns`） | 006, 008, 014（训练池扩容吸收 fault baseline 行）, 015（fit_endpoint_baseline_stats 开关取代 contract_version 判据）, 016（`_write_v1` 改按 fraction 时序切分 fault baseline）, 022（`_write_v1` 追加 inject/recover 非目标行两路切分） |
 | `scripts/train_baseline_v0.py`（out_df 显式字段字典，新增列需手动传递） | 008, 014（`endpoint_id` 传递给 fusion，`fusion_checkpoint` 可选落盘）, 015（is_reliability_gate 分支移除） |
 | `scripts/eval_baseline_v0.py`（by_endpoint 分层） | 008 |
 
@@ -110,5 +111,5 @@
 - **竞争性 softmax 门控比独立 sigmoid 更容易训练坍缩**：Reliability Gate Fusion 的路由消融显示，默认 `softmax`（权重和恒为1的二选一）训练后在全部 27 种故障类型上坍缩为几乎恒定的 `w_svc≈1.0`，未体现"按故障类型动态路由"的设计假设；而去掉竞争性归一化的 `independent_sigmoid`（两个门控开关独立取值，不强制和为1）反而 AUROC 更高（0.6598 vs 默认 0.6024）。提示：门控输入维度低、监督信号只能通过下游 loss 间接传导（如 One-Class SVDD 无监督门控）时，softmax 的强制竞争约束可能让训练更容易早期卡进某一端主导的鞍点；同类机制设计如需门控随输入变化，优先验证独立参数化（sigmoid）而非竞争归一化（softmax）是否更不容易坍缩，坍缩现象本身需要专项训练过程可视化才能定位根因，不能仅凭最终权重分布下结论（014）
 - **多 seed 方差本身就是证据，不是可忽略的噪声**：Reliability Gate Fusion 4 个 seed 的 AUROC 标准差（0.0792）达到 baseline 机制（L0/L1/L2，0.0161~0.0334）的 2.5~5 倍，且 seed 范围跨越了所有 baseline 均值区间（4 个 seed 里 2 个优于 L2 均值、2 个明显劣于全部 baseline）。单 seed 或均值对比若不同时报告方差，会掩盖"新机制训练不稳定"这一独立于"新机制是否更优"的问题；如实报告的正确姿态是承认"当前数据不支持方向性结论"，而不是挑一个有利 seed 或只报均值（014）
 - **门控坍缩根因定位为"初始尺度温和不对称+softmax竞争性放大"，不是鞍点**：逐 epoch 追踪显示 `w_svc` 全程单调爬升、`frac(w_svc<0.01)` 恒为 0，不是"早期坍缩卡死"的鞍点形态；根因是 `dev_ep`/`dev_svc` 中位数级仅 1.2 倍的温和初始不对称，被 softmax 竞争性归一化在无监督 SVDD loss 下持续放大。训练池扩容（838→6249 行）会显著加速/加剧这个放大过程（`frac(w_svc>0.99)` 从稳定 2.9% 升到 50.7%，已排除梯度步数不足的混杂因素），是坍缩的实质性放大因素，不是无关旁枝改动（014）
-- **eval 集合的类别比例是否合理，需要独立于训练侵入之外单独核查**：门控坍缩的梯度只来自训练循环，`eval_all` 从不参与反向传播，"eval 类别失衡导致坍缩"这条因果链机制上不成立；但反过来，训练池扩容改 `eval_all` 摘除逻辑时，容易在无意中破坏 eval 集合本身的类别平衡（本例中负样本占比从约50%降到16%，且与 `CLAUDE.md` 既定的评估协议冲突），这是独立于训练动态之外必须单独核查的正确性问题，不能因为"不影响训练"就忽略（014）（016 落实修复：baseline 行改为按 fraction 时序切分而非整段搬移，eval 类别比例从 ~84:16 回升至约 24.62:75.38，虽未完全回到 50:50，但不再是接近全负样本被掏空的失衡状态）
+- **eval 集合的类别比例是否合理，需要独立于训练侵入之外单独核查**：门控坍缩的梯度只来自训练循环，`eval_all` 从不参与反向传播，"eval 类别失衡导致坍缩"这条因果链机制上不成立；但反过来，训练池扩容改 `eval_all` 摘除逻辑时，容易在无意中破坏 eval 集合本身的类别平衡（本例中负样本占比从约50%降到16%，且与 `CLAUDE.md` 既定的评估协议冲突），这是独立于训练动态之外必须单独核查的正确性问题，不能因为"不影响训练"就忽略（014）（016 落实修复：baseline 行改为按 fraction 时序切分而非整段搬移，eval 类别比例从 ~84:16 回升至约 24.62:75.38，虽未完全回到 50:50，但不再是接近全负样本被掏空的失衡状态）（022 进一步吸收 inject/recover 非目标行，实际比例未重新核算，见 022）
 - **效果不达标的机制仍可合入 master，前提是不污染默认路径**：Reliability Gate Fusion 的核心机制（softmax 门控）已确认坍缩、高方差，不构成可用结论，但决定仍合入 master——因为负面结果记录（根因定位、归因实验）和配套基础设施（`EndpointBaselineStats`、`endpoint_id` 全链路、`expand_train_pool` 开关）有独立于机制成败的复用价值，且验证过默认 `fusion=concat`/`expand_train_pool=false` 路径数值不受影响。代价是留下几个明确的 RG 专属耦合点（`train_baseline_v0.py` 按类名特判、`build_contract.py` 无条件生成 RG 专属产物、`dvc.yaml` 默认 DAG 多出 3 个 stage），这些不是零成本隔离，作为技术债务显式记录、留给下一个专项 PR 处理，不能假设"标注废弃"本身就能防止误用（014）

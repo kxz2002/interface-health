@@ -1,4 +1,4 @@
-"""Contract v1 训练池扩容专属：故障 case 的 baseline 阶段行两路时序切分。
+"""Contract v1 训练池扩容专属：故障 case 指定阶段行的两路时序切分。
 
 修复 issue #16——扩容前的实现把故障 baseline 行整段移入训练池、整段移出 eval_all，
 导致 eval_all 负样本骤减、正负比从 ~50:50 崩到 ~84:16。这里改为按时间窗时序切分：
@@ -10,6 +10,10 @@ split_normal_rows_temporal 相同的防泄漏时序原则，两者各自独立�
 - 两路而非三路（train / eval，无 val）
 - 对象是故障 case 的 baseline 行，不是 Normal case
 - 边界退化不做兜底（见下方注释），而 Normal 切分保证 train_fit 至少 1 窗
+
+本函数不假设输入是哪个 phase 的行——内部只按 case_col 分组、按 time_col 整窗切分，
+不读 phase 列。调用方负责筛出目标行子集（baseline / inject 非目标 / recover 非目标
+三个场景共用本函数，各自传不同的 fraction），因此函数名用 phase 而非 baseline。
 """
 
 from __future__ import annotations
@@ -17,17 +21,18 @@ from __future__ import annotations
 import pandas as pd
 
 
-def split_fault_baseline_temporal(
+def split_fault_phase_temporal(
     df: pd.DataFrame,
     fraction: float,
     case_col: str = "case_id",
     time_col: str = "timestamp_window_ms",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """把故障 baseline 行切成 (train_part, eval_part) 两个互斥子集。
+    """把故障 case 指定阶段行切成 (train_part, eval_part) 两个互斥子集。
 
-    调用方须保证 df 仅含故障 case 的 baseline 阶段行（phase == 'baseline'）。
-    每个 case 独立按 time_col 排序，最早 int(n * fraction) 个时间窗归 train_part，
-    其余归 eval_part。切分单位是时间窗，同一窗的所有行整体归属同一侧。
+    调用方负责筛出目标行子集（baseline / inject 非目标 / recover 非目标，本函数
+    不读 phase 列、不关心筛选判据）。每个 case 独立按 time_col 排序，最早
+    int(n * fraction) 个时间窗归 train_part，其余归 eval_part。切分单位是时间窗，
+    同一窗的所有行整体归属同一侧。
 
     fraction 校验独立于调用方（不依赖 ContractConfig 已校验过）：非 [0.0, 1.0] 会
     在 int(n * fraction) 处产生反直觉结果而不是清晰报错——负数触发 Python 负索引
@@ -39,7 +44,7 @@ def split_fault_baseline_temporal(
     for col in (case_col, time_col):
         if col not in df.columns:
             raise KeyError(
-                f"split_fault_baseline_temporal: 列 {col!r} 不存在于输入 df，"
+                f"split_fault_phase_temporal: 列 {col!r} 不存在于输入 df，"
                 f"可用列={list(df.columns)}"
             )
     if df.empty:
