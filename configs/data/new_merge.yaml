@@ -1,0 +1,27 @@
+# configs/data/new_merge.yaml
+# new_merge 单一数据源，不与 anomod_v1/endpoint_raw2/new_ep1 等历史批次混合
+# （entry 017 已证实跨 run 合并会污染评估）。27 个 case（2026-07-28/29 采集，
+# 原始采集 28 个，Lv_S_KILLPOD_gateway 已剔除，见下）：Lv_D_*（3，database）+
+# Lv_E_HTTP{ABORT,DELAY,PATCH,REPLACE}_{assurance,order,travel,travel2}
+# （16，endpoint 级）+ Lv_P_*（3，performance）+ Lv_S_*（4，service，含
+# target_endpoint=null 的 service/database/performance 级故障）+ Normal（1）。
+# AnoMod 侧已补齐 content_length/body_hash 派生特征
+# （client_content_length_mean/rel_shift、client_body_hash_mismatch_rate），
+# 但 endpoint_red_preprocessor 尚未接入这些新列，本配置暂不消费。
+#
+# 【已剔除】Lv_S_KILLPOD_gateway：ts-gateway-service 既是 PodChaos 目标又是
+# SkyWalking trace 上报通道，pod 被杀后 inject 阶段 trace 数据永久缺失（同类
+# 已知问题见 docs/agent-docs/dataset-guide.md 第十一节），该 case 在 eval_all
+# 里 100% 落在 baseline phase，AUROC 数学上无定义（entry 016 对 endpoint_raw2
+# 同类 case 已有先例）。已从磁盘物理删除并重新 dvc add（见 history/entries/023）。
+#
+# baseline_sec=1200（故障 case）/1800（Normal），与 new_ep1 的 1500/1800 量级
+# 接近，与 endpoint_raw2 的 300s 不同——沿用 endpoint_raw2 校准过的
+# fault_baseline_train_fraction 会重演 entry 016 的失衡，需按本数据集重新校准
+# （见 configs/contract/v1_new_merge.yaml）。
+name: new_merge
+description: new_merge 单一数据源（27 个 case，2026-07-28/29 采集，不与历史批次混合，已剔除 Lv_S_KILLPOD_gateway）
+roots:
+  - data/new_merge
+normal_source: data/new_merge
+fused_window: 15s
