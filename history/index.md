@@ -49,6 +49,7 @@
 | [020](./entries/020-log-truncation-impact-quantified.md) | 2026-07-28 | Docs | MAX_CONTENT_CHARS 截断实测：短行 template_id 100% 不变/超长行 100% 变化，template_diversity 60% 窗口受影响（均偏 0.017）；阈值-耗时曲线显示 2000→20000 仅 2.3x，不截断达 80x；2000→3000 几乎零 CPU 代价但损耗改善仅 ~14%，未改代码 | `src/preprocessors/log_preprocessor.py`（注释准确性） |
 | [021](./entries/021-baseline-rerun-waived-recollection-pending.md) | 2026-07-29 | Docs | MAX_CONTENT_CHARS 是本分支新引入（master 无此常量），v0/v1/RG 三条既有 contract 管线因此 drift；决定不重跑——PATCH 类故障对现有数据集所有 RED 特征隐形（entry 017），需重采补 api_response 响应体才有价值，旧数据集即将被替换，重跑无意义；并纠正 entry 019 "两次连续同源 OOM/上一轮已修"的不准确叙事（实为同一 commit 一起首次引入） | `artifacts/baseline_v0|v1|v1_reliability_gate/`（决定维持现状） |
 | [022](./entries/022-inject-recover-nontarget-split.md) | 2026-07-29 | Feature | inject/recover 阶段非目标 endpoint 行按两个独立 fraction 吸收进训练池（承接 entry 019 的 12.24:87.76 上限）；`split_fault_baseline` 重命名为 `split_fault_phase`；判据踩坑：inject 用 `is_endpoint_anomaly`，recover 必须用 `is_target_endpoint` 且仅 `label_granularity=="endpoint"` 的 case 生效 | `src/contracts/split_fault_phase.py`, `src/contracts/contract_config.py`, `scripts/build_contract.py`, `configs/contract/v1_expanded_pool.yaml`, `configs/contract/v1_new_ep1.yaml`, `tests/fixtures/nontarget_split_mini/`, `CLAUDE.md` |
+| [023](./entries/023-new-merge-dataset-integration.md) | 2026-07-31 | Data + Experiment | new_merge 数据集接入（27 case，单一批次不合并）：`fault_baseline_train_fraction` 实测校准（1.0 vs 0.2，选 0.2）；剔除 `Lv_S_KILLPOD_gateway`（inject 阶段 trace 永久缺失导致 AUROC 无定义，与 entry 016 同类先例）；首次 concat(L0) 训练评估，overall AUROC 0.718→0.742（清理前后） | `data/new_merge.dvc`, `configs/data/new_merge.yaml`, `configs/contract/v1_new_merge.yaml`, `dvc_new_merge/dvc.yaml`, `artifacts/contract_new_merge_expanded/`, `artifacts/baseline_new_merge_concat/` |
 
 ---
 
@@ -58,8 +59,8 @@
 
 | 目录 / 主题 | 相关 entries |
 |-------------|--------------|
-| `CLAUDE.md` | 001, 002, 003, 004, 009, 011, 015, 016, 022 |
-| `data/` 组织与 DVC | 002 |
+| `CLAUDE.md` | 001, 002, 003, 004, 009, 011, 015, 016, 022, 023 |
+| `data/` 组织与 DVC | 002, 023（`endpoint_raw2` 物理删除后 merged_v2 链路无法重建；new_merge 剔除 `Lv_S_KILLPOD_gateway`） |
 | `configs/` (Hydra) | 002, 011（fusion/model config-group、base.yaml 必填字段）, 014（reliability_gate 路由消融配置、`fusion_checkpoint` 可选字段）, 018（`configs/fusion/deviation_weighted.yaml`） |
 | `src/utils/` (seed, logger) | 002, 011（param_budget） |
 | `src/contracts/` | 003, 011（Contract v1 时序切分）, 014（`endpoint_id` 列、训练池扩容吸收 fault baseline 行）, 016（`split_fault_baseline_temporal` 两路时序切分）, 022（重命名为 `split_fault_phase_temporal`，新增 inject/recover 非目标行吸收） |
@@ -68,7 +69,7 @@
 | `docs/agent-docs/` | 001 |
 | `docs/plans/` | 001 |
 | `artifacts/` | 003 |
-| `dvc.yaml` / DVC pipeline | 002 (初始化), 003 (定义 stage), 009 (切换 merged_v2), 011 (新增 build_contract_v1/train_v1/eval_v1), 015（RG 专属 stage 隔离到 dvc_reliability_gate/dvc.yaml）, 018（dvc_deviation_weighted/dvc.yaml，跨文件依赖复用 RG 已产出的 contract_v1_expanded） |
+| `dvc.yaml` / DVC pipeline | 002 (初始化), 003 (定义 stage), 009 (切换 merged_v2), 011 (新增 build_contract_v1/train_v1/eval_v1), 015（RG 专属 stage 隔离到 dvc_reliability_gate/dvc.yaml）, 018（dvc_deviation_weighted/dvc.yaml，跨文件依赖复用 RG 已产出的 contract_v1_expanded）, 019/023（`dvc_new_ep1/`、`dvc_new_merge/dvc.yaml`，独立数据集隔离模式） |
 | `environment.yml` / `Makefile` | 002 |
 | `.github/workflows/ci.yml` | 002, 004 |
 | `tests/` | 002 (占位), 003 (契约/e2e), 009 (merged_v2_mini fixture + 归档排除/多 root 测试), 022 (`nontarget_split_mini` fixture，锁住 inject/recover 非目标行切分行为) |
@@ -80,8 +81,8 @@
 | 数据 loader（`src/data/`） | 005, 014（`endpoint_baseline_stats.py`, `endpoint_id` 全链路打通） |
 | 评估指标细化（per-endpoint, phase 对齐） | 005 |
 | `src/preprocessors/` | 005, 019（LogPreprocessor 整文件读入→流式读取，修复超大日志文件 OOM） |
-| `configs/contract/` | 005, 016, 019（`v1_new_ep1.yaml`，`fault_baseline_train_fraction` 推到数值上限 12.24:87.76）, 022（`v1_expanded_pool.yaml`/`v1_new_ep1.yaml` 新增两个 nontarget fraction 字段并设为 1.0） |
-| `configs/data/`（多数据源配置） | 006, 009, 019（`new_ep1.yaml`，独立数据集不与其他 root 合并） |
+| `configs/contract/` | 005, 016, 019（`v1_new_ep1.yaml`，`fault_baseline_train_fraction` 推到数值上限 12.24:87.76）, 022（`v1_expanded_pool.yaml`/`v1_new_ep1.yaml` 新增两个 nontarget fraction 字段并设为 1.0）, 023（`v1_new_merge.yaml`，fraction 实测校准选 0.2） |
+| `configs/data/`（多数据源配置） | 006, 009, 019（`new_ep1.yaml`，独立数据集不与其他 root 合并）, 023（`new_merge.yaml`，27 case 单一批次，已剔除 `Lv_S_KILLPOD_gateway`） |
 | `src/data/dataset_config.py` | 006 |
 | `configs/contract/endpoint_to_service.yaml` | 006 |
 | `src/data/normalization.py`（Normalizer） | 007, 013（零方差 group 除零放大） |
