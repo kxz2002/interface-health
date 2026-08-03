@@ -8,8 +8,12 @@
 # contract_dir。触发方式：`dvc repro dvc_new_merge/dvc.yaml`（单跑某 stage 用
 # `dvc_new_merge/dvc.yaml:stage_name`）。DVC 3.67.1 强制 pipeline 文件名字面量为
 # dvc.yaml，故放子目录。每个 stage 的 wdir: .. 让所有相对路径继续相对 repo
-# 根解析。concat(L0) 首次接入时跑通，independent_concat(L1)/gated(L2) 本轮追加，
-# 复用同一份 contract_new_merge_expanded，不重新 build；DWF/RG 仍未跑。
+# 根解析。concat(L0)/independent_concat(L1)/gated(L2) 已跑通，本轮追加
+# ReliabilityGatedFusion(RG，默认 softmax + independent_sigmoid 消融两组)与
+# DeviationWeightedFusion(DWF)，复用同一份 contract_new_merge_expanded，不
+# 重新 build。RG 默认 softmax 变体历史上（entry 014，merged_v2/endpoint_raw2）
+# 在全部故障类型上坍缩到 w_svc≈1.0，本轮同时跑 softmax 与 independent_sigmoid
+# 两组以验证该坍缩是否为结构性问题（与数据集无关）而非 endpoint_raw2 特有。
 stages:
   build_contract_new_merge_expanded:
     wdir: ..
@@ -139,4 +143,115 @@ stages:
       - artifacts/baseline_new_merge_gated/scores.parquet
     metrics:
       - artifacts/baseline_new_merge_gated/metrics.json:
+          cache: false
+
+  train_new_merge_reliability_gate:
+    wdir: ..
+    cmd: python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_merge_expanded
+      out=artifacts/baseline_new_merge_reliability_gate/scores.parquet seed=42
+      training.epochs=50 fusion=reliability_gate model=deep_svdd
+    deps:
+      - scripts/train_baseline_v0.py
+      - configs/base.yaml
+      - configs/fusion/reliability_gate.yaml
+      - configs/model/deep_svdd.yaml
+      - configs/training/default.yaml
+      - configs/contract/endpoint_to_service.yaml
+      - src/models/deep_svdd.py
+      - src/fusion/reliability_gate.py
+      - src/fusion/base.py
+      - src/data/contract_dataloader.py
+      - src/data/endpoint_baseline_stats.py
+      - artifacts/contract_new_merge_expanded/train.parquet
+      - artifacts/contract_new_merge_expanded/eval_all.parquet
+      - artifacts/contract_new_merge_expanded/schema.json
+      - artifacts/contract_new_merge_expanded/endpoint_baseline_stats.json
+    outs:
+      - artifacts/baseline_new_merge_reliability_gate/scores.parquet
+
+  eval_new_merge_reliability_gate:
+    wdir: ..
+    cmd: python scripts/eval_baseline_v0.py
+      --scores artifacts/baseline_new_merge_reliability_gate/scores.parquet
+      --out artifacts/baseline_new_merge_reliability_gate/metrics.json
+    deps:
+      - scripts/eval_baseline_v0.py
+      - src/contracts
+      - artifacts/baseline_new_merge_reliability_gate/scores.parquet
+    metrics:
+      - artifacts/baseline_new_merge_reliability_gate/metrics.json:
+          cache: false
+
+  train_new_merge_reliability_gate_indep_sigmoid:
+    wdir: ..
+    cmd: python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_merge_expanded
+      out=artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/scores.parquet seed=42
+      training.epochs=50 fusion=reliability_gate_ablation_indep_sigmoid model=deep_svdd
+    deps:
+      - scripts/train_baseline_v0.py
+      - configs/base.yaml
+      - configs/fusion/reliability_gate_ablation_indep_sigmoid.yaml
+      - configs/model/deep_svdd.yaml
+      - configs/training/default.yaml
+      - configs/contract/endpoint_to_service.yaml
+      - src/models/deep_svdd.py
+      - src/fusion/reliability_gate.py
+      - src/fusion/base.py
+      - src/data/contract_dataloader.py
+      - src/data/endpoint_baseline_stats.py
+      - artifacts/contract_new_merge_expanded/train.parquet
+      - artifacts/contract_new_merge_expanded/eval_all.parquet
+      - artifacts/contract_new_merge_expanded/schema.json
+      - artifacts/contract_new_merge_expanded/endpoint_baseline_stats.json
+    outs:
+      - artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/scores.parquet
+
+  eval_new_merge_reliability_gate_indep_sigmoid:
+    wdir: ..
+    cmd: python scripts/eval_baseline_v0.py
+      --scores artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/scores.parquet
+      --out artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/metrics.json
+    deps:
+      - scripts/eval_baseline_v0.py
+      - src/contracts
+      - artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/scores.parquet
+    metrics:
+      - artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/metrics.json:
+          cache: false
+
+  train_new_merge_deviation_weighted:
+    wdir: ..
+    cmd: python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_merge_expanded
+      out=artifacts/baseline_new_merge_deviation_weighted/scores.parquet seed=42
+      training.epochs=50 fusion=deviation_weighted model=deep_svdd
+    deps:
+      - scripts/train_baseline_v0.py
+      - configs/base.yaml
+      - configs/fusion/deviation_weighted.yaml
+      - configs/model/deep_svdd.yaml
+      - configs/training/default.yaml
+      - configs/contract/endpoint_to_service.yaml
+      - src/models/deep_svdd.py
+      - src/fusion/deviation_weighted.py
+      - src/fusion/base.py
+      - src/data/contract_dataloader.py
+      - src/data/endpoint_baseline_stats.py
+      - artifacts/contract_new_merge_expanded/train.parquet
+      - artifacts/contract_new_merge_expanded/eval_all.parquet
+      - artifacts/contract_new_merge_expanded/schema.json
+      - artifacts/contract_new_merge_expanded/endpoint_baseline_stats.json
+    outs:
+      - artifacts/baseline_new_merge_deviation_weighted/scores.parquet
+
+  eval_new_merge_deviation_weighted:
+    wdir: ..
+    cmd: python scripts/eval_baseline_v0.py
+      --scores artifacts/baseline_new_merge_deviation_weighted/scores.parquet
+      --out artifacts/baseline_new_merge_deviation_weighted/metrics.json
+    deps:
+      - scripts/eval_baseline_v0.py
+      - src/contracts
+      - artifacts/baseline_new_merge_deviation_weighted/scores.parquet
+    metrics:
+      - artifacts/baseline_new_merge_deviation_weighted/metrics.json:
           cache: false

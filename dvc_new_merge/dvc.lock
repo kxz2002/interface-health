@@ -338,3 +338,290 @@ stages:
       hash: md5
       md5: 442bb2cd9df06ed655dac89c66e931cb
       size: 4518
+  train_new_merge_reliability_gate:
+    cmd: python scripts/train_baseline_v0.py
+      contract_dir=artifacts/contract_new_merge_expanded
+      out=artifacts/baseline_new_merge_reliability_gate/scores.parquet seed=42
+      training.epochs=50 fusion=reliability_gate model=deep_svdd
+    deps:
+    - path: artifacts/contract_new_merge_expanded/endpoint_baseline_stats.json
+      hash: md5
+      md5: 65c4edc750b5a484e5cd07d28214e211
+      size: 10004
+    - path: artifacts/contract_new_merge_expanded/eval_all.parquet
+      hash: md5
+      md5: 921a21e14ddc58b1cad2bb082ca7048c
+      size: 864185
+    - path: artifacts/contract_new_merge_expanded/schema.json
+      hash: md5
+      md5: 9507016a38ff0a1b121b9171139f2b92
+      size: 1434
+    - path: artifacts/contract_new_merge_expanded/train.parquet
+      hash: md5
+      md5: e4e4e24c228048ac3ba0c406a63f53c1
+      size: 473409
+    - path: configs/base.yaml
+      hash: md5
+      md5: 3a9e113ef5cad881cbd753e96d1b1842
+      size: 573
+    - path: configs/contract/endpoint_to_service.yaml
+      hash: md5
+      md5: 502bc873b80464ad8366925be54f460e
+      size: 761
+    - path: configs/fusion/reliability_gate.yaml
+      hash: md5
+      md5: 8ba86baea32c895eb99888681605c203
+      size: 89
+    - path: configs/model/deep_svdd.yaml
+      hash: md5
+      md5: 4a05564eb170d5d224e873bdd75799d5
+      size: 67
+    - path: configs/training/default.yaml
+      hash: md5
+      md5: 61c5ba5fe13c7e5b2e43155525373cb1
+      size: 422
+    - path: scripts/train_baseline_v0.py
+      hash: md5
+      md5: 76097712e72d7d283e7604c76f969094
+      size: 8543
+    - path: src/data/contract_dataloader.py
+      hash: md5
+      md5: 2dc1551d55e1a25994cc6d9eb4330433
+      size: 5378
+    - path: src/data/endpoint_baseline_stats.py
+      hash: md5
+      md5: fa5a97b8aed9268650f449b3ca26235b
+      size: 8915
+    - path: src/fusion/base.py
+      hash: md5
+      md5: bd9f6d36f107d3b725eed9c2ed54695f
+      size: 1434
+    - path: src/fusion/reliability_gate.py
+      hash: md5
+      md5: d432d2d0a90218478b0146ff9f7a25c9
+      size: 10120
+    - path: src/models/deep_svdd.py
+      hash: md5
+      md5: aa16842416019ecaac32547ea3e634f4
+      size: 2005
+    outs:
+    - path: artifacts/baseline_new_merge_reliability_gate/scores.parquet
+      hash: md5
+      md5: 054cf0b01b379eb8a72dac03ef13d482
+      size: 283640
+  eval_new_merge_reliability_gate:
+    cmd: python scripts/eval_baseline_v0.py --scores
+      artifacts/baseline_new_merge_reliability_gate/scores.parquet --out
+      artifacts/baseline_new_merge_reliability_gate/metrics.json
+    deps:
+    - path: artifacts/baseline_new_merge_reliability_gate/scores.parquet
+      hash: md5
+      md5: 054cf0b01b379eb8a72dac03ef13d482
+      size: 283640
+    - path: scripts/eval_baseline_v0.py
+      hash: md5
+      md5: 57d40b8c355e9280d6cd6117b0ed7d87
+      size: 4466
+    - path: src/contracts
+      hash: md5
+      md5: 3e9101f4d6955dffbc591581778a1e8c.dir
+      size: 28082
+      nfiles: 8
+    outs:
+    - path: artifacts/baseline_new_merge_reliability_gate/metrics.json
+      hash: md5
+      md5: 9f044557b60814eee356bd0b16dd494e
+      size: 4582
+  train_new_merge_reliability_gate_indep_sigmoid:
+    cmd: python scripts/train_baseline_v0.py
+      contract_dir=artifacts/contract_new_merge_expanded
+      out=artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/scores.parquet
+      seed=42 training.epochs=50 fusion=reliability_gate_ablation_indep_sigmoid
+      model=deep_svdd
+    deps:
+    - path: artifacts/contract_new_merge_expanded/endpoint_baseline_stats.json
+      hash: md5
+      md5: 65c4edc750b5a484e5cd07d28214e211
+      size: 10004
+    - path: artifacts/contract_new_merge_expanded/eval_all.parquet
+      hash: md5
+      md5: 921a21e14ddc58b1cad2bb082ca7048c
+      size: 864185
+    - path: artifacts/contract_new_merge_expanded/schema.json
+      hash: md5
+      md5: 9507016a38ff0a1b121b9171139f2b92
+      size: 1434
+    - path: artifacts/contract_new_merge_expanded/train.parquet
+      hash: md5
+      md5: e4e4e24c228048ac3ba0c406a63f53c1
+      size: 473409
+    - path: configs/base.yaml
+      hash: md5
+      md5: 3a9e113ef5cad881cbd753e96d1b1842
+      size: 573
+    - path: configs/contract/endpoint_to_service.yaml
+      hash: md5
+      md5: 502bc873b80464ad8366925be54f460e
+      size: 761
+    - path: configs/fusion/reliability_gate_ablation_indep_sigmoid.yaml
+      hash: md5
+      md5: 9ce41ae251184d0f4591d55944cbecfa
+      size: 129
+    - path: configs/model/deep_svdd.yaml
+      hash: md5
+      md5: 4a05564eb170d5d224e873bdd75799d5
+      size: 67
+    - path: configs/training/default.yaml
+      hash: md5
+      md5: 61c5ba5fe13c7e5b2e43155525373cb1
+      size: 422
+    - path: scripts/train_baseline_v0.py
+      hash: md5
+      md5: 76097712e72d7d283e7604c76f969094
+      size: 8543
+    - path: src/data/contract_dataloader.py
+      hash: md5
+      md5: 2dc1551d55e1a25994cc6d9eb4330433
+      size: 5378
+    - path: src/data/endpoint_baseline_stats.py
+      hash: md5
+      md5: fa5a97b8aed9268650f449b3ca26235b
+      size: 8915
+    - path: src/fusion/base.py
+      hash: md5
+      md5: bd9f6d36f107d3b725eed9c2ed54695f
+      size: 1434
+    - path: src/fusion/reliability_gate.py
+      hash: md5
+      md5: d432d2d0a90218478b0146ff9f7a25c9
+      size: 10120
+    - path: src/models/deep_svdd.py
+      hash: md5
+      md5: aa16842416019ecaac32547ea3e634f4
+      size: 2005
+    outs:
+    - path:
+        artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/scores.parquet
+      hash: md5
+      md5: 38f92144e0718ad0a7a94a4862623134
+      size: 285952
+  eval_new_merge_reliability_gate_indep_sigmoid:
+    cmd: python scripts/eval_baseline_v0.py --scores
+      artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/scores.parquet
+      --out
+      artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/metrics.json
+    deps:
+    - path:
+        artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/scores.parquet
+      hash: md5
+      md5: 38f92144e0718ad0a7a94a4862623134
+      size: 285952
+    - path: scripts/eval_baseline_v0.py
+      hash: md5
+      md5: 57d40b8c355e9280d6cd6117b0ed7d87
+      size: 4466
+    - path: src/contracts
+      hash: md5
+      md5: 3e9101f4d6955dffbc591581778a1e8c.dir
+      size: 28082
+      nfiles: 8
+    outs:
+    - path:
+        artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/metrics.json
+      hash: md5
+      md5: ae21eac18304cb3f879f1dfaa5b60205
+      size: 4563
+  train_new_merge_deviation_weighted:
+    cmd: python scripts/train_baseline_v0.py
+      contract_dir=artifacts/contract_new_merge_expanded
+      out=artifacts/baseline_new_merge_deviation_weighted/scores.parquet seed=42
+      training.epochs=50 fusion=deviation_weighted model=deep_svdd
+    deps:
+    - path: artifacts/contract_new_merge_expanded/endpoint_baseline_stats.json
+      hash: md5
+      md5: 65c4edc750b5a484e5cd07d28214e211
+      size: 10004
+    - path: artifacts/contract_new_merge_expanded/eval_all.parquet
+      hash: md5
+      md5: 921a21e14ddc58b1cad2bb082ca7048c
+      size: 864185
+    - path: artifacts/contract_new_merge_expanded/schema.json
+      hash: md5
+      md5: 9507016a38ff0a1b121b9171139f2b92
+      size: 1434
+    - path: artifacts/contract_new_merge_expanded/train.parquet
+      hash: md5
+      md5: e4e4e24c228048ac3ba0c406a63f53c1
+      size: 473409
+    - path: configs/base.yaml
+      hash: md5
+      md5: 3a9e113ef5cad881cbd753e96d1b1842
+      size: 573
+    - path: configs/contract/endpoint_to_service.yaml
+      hash: md5
+      md5: 502bc873b80464ad8366925be54f460e
+      size: 761
+    - path: configs/fusion/deviation_weighted.yaml
+      hash: md5
+      md5: cafc8488160147077c7e85388289fea5
+      size: 79
+    - path: configs/model/deep_svdd.yaml
+      hash: md5
+      md5: 4a05564eb170d5d224e873bdd75799d5
+      size: 67
+    - path: configs/training/default.yaml
+      hash: md5
+      md5: 61c5ba5fe13c7e5b2e43155525373cb1
+      size: 422
+    - path: scripts/train_baseline_v0.py
+      hash: md5
+      md5: 76097712e72d7d283e7604c76f969094
+      size: 8543
+    - path: src/data/contract_dataloader.py
+      hash: md5
+      md5: 2dc1551d55e1a25994cc6d9eb4330433
+      size: 5378
+    - path: src/data/endpoint_baseline_stats.py
+      hash: md5
+      md5: fa5a97b8aed9268650f449b3ca26235b
+      size: 8915
+    - path: src/fusion/base.py
+      hash: md5
+      md5: bd9f6d36f107d3b725eed9c2ed54695f
+      size: 1434
+    - path: src/fusion/deviation_weighted.py
+      hash: md5
+      md5: b46e352db1f364ce5b3b046897caae20
+      size: 11275
+    - path: src/models/deep_svdd.py
+      hash: md5
+      md5: aa16842416019ecaac32547ea3e634f4
+      size: 2005
+    outs:
+    - path: artifacts/baseline_new_merge_deviation_weighted/scores.parquet
+      hash: md5
+      md5: 88510e10895df2c5b8ad49db58cef759
+      size: 290295
+  eval_new_merge_deviation_weighted:
+    cmd: python scripts/eval_baseline_v0.py --scores
+      artifacts/baseline_new_merge_deviation_weighted/scores.parquet --out
+      artifacts/baseline_new_merge_deviation_weighted/metrics.json
+    deps:
+    - path: artifacts/baseline_new_merge_deviation_weighted/scores.parquet
+      hash: md5
+      md5: 88510e10895df2c5b8ad49db58cef759
+      size: 290295
+    - path: scripts/eval_baseline_v0.py
+      hash: md5
+      md5: 57d40b8c355e9280d6cd6117b0ed7d87
+      size: 4466
+    - path: src/contracts
+      hash: md5
+      md5: 3e9101f4d6955dffbc591581778a1e8c.dir
+      size: 28082
+      nfiles: 8
+    outs:
+    - path: artifacts/baseline_new_merge_deviation_weighted/metrics.json
+      hash: md5
+      md5: 663978b33ddb1e4ef5b523ac70c6c1de
+      size: 4515
