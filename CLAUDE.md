@@ -155,14 +155,22 @@ python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_ep1_expa
 
 # === new_merge（【当前主数据集】27 case，单一批次，不与历史批次混合，见 history/entries/023）===
 # 复用 configs/data/new_merge.yaml / configs/contract/v1_new_merge.yaml，contract 与
-# L0 训练评估隔离到 dvc_new_merge/dvc.yaml，裸 dvc repro 不触发。本轮仅跑 concat(L0)，
-# DWF/RG 待后续实验补充。
+# concat(L0)/independent_concat(L1)/gated(L2)/reliability_gate(RG，softmax 默认 +
+# independent_sigmoid 消融)/deviation_weighted(DWF) 六种融合方式的训练评估均隔离到
+# dvc_new_merge/dvc.yaml，裸 dvc repro 不触发。六种方式已全部跑通并按 seed{1,2,3,42}
+# 四组重跑，多 seed 对比结果见 history/entries/023。
 dvc repro dvc_new_merge/dvc.yaml
 
 # 单独运行（不走 DVC 缓存）
 python scripts/build_contract.py --config configs/contract/v1_new_merge.yaml --dataset configs/data/new_merge.yaml --out-dir artifacts/contract_new_merge_expanded --seed 42
 python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_merge_expanded out=artifacts/baseline_new_merge_concat/scores.parquet seed=42 training.epochs=50 fusion=concat model=deep_svdd
 python scripts/eval_baseline_v0.py --scores artifacts/baseline_new_merge_concat/scores.parquet --out artifacts/baseline_new_merge_concat/metrics.json
+
+# seed{1,2,3} 多 seed 复现：dvc.yaml 里每个 train_new_merge_* stage 硬编码 seed=42，
+# artifacts/baseline_new_merge_*_seed{1,2,3}/ 是手动覆盖 seed= 跑出来的，不在 dvc.yaml
+# 里、不能靠 dvc repro 复现，需对其余五种融合方式各自替换 fusion= 手动重跑，例如：
+python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_merge_expanded out=artifacts/baseline_new_merge_concat_seed1/scores.parquet seed=1 training.epochs=50 fusion=concat model=deep_svdd
+python scripts/eval_baseline_v0.py --scores artifacts/baseline_new_merge_concat_seed1/scores.parquet --out artifacts/baseline_new_merge_concat_seed1/metrics.json
 
 # 运行测试
 pytest tests/

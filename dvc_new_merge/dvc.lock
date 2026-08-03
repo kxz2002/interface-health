@@ -290,8 +290,8 @@ stages:
     outs:
     - path: artifacts/baseline_new_merge_independent_concat/metrics.json
       hash: md5
-      md5: ae2da301575471be2d59c702a96f1756
-      size: 4581
+      md5: 1ce90a1d13d3e7af2d42c8b61dcba1e3
+      size: 4582
   eval_new_merge_gated:
     cmd: python scripts/eval_baseline_v0.py --scores
       artifacts/baseline_new_merge_gated/scores.parquet --out
@@ -313,8 +313,8 @@ stages:
     outs:
     - path: artifacts/baseline_new_merge_gated/metrics.json
       hash: md5
-      md5: c6b1e8c8d9cef7d99cf51f9c7df4f0c3
-      size: 4518
+      md5: 46257e9b95c4017a99b2a64a9436ee61
+      size: 4519
   eval_new_merge_concat:
     cmd: python scripts/eval_baseline_v0.py --scores
       artifacts/baseline_new_merge_concat/scores.parquet --out
@@ -336,8 +336,8 @@ stages:
     outs:
     - path: artifacts/baseline_new_merge_concat/metrics.json
       hash: md5
-      md5: 442bb2cd9df06ed655dac89c66e931cb
-      size: 4518
+      md5: 59bf76571335c566f879215291f845a9
+      size: 4519
   train_new_merge_reliability_gate:
     cmd: python scripts/train_baseline_v0.py
       contract_dir=artifacts/contract_new_merge_expanded
@@ -430,8 +430,8 @@ stages:
     outs:
     - path: artifacts/baseline_new_merge_reliability_gate/metrics.json
       hash: md5
-      md5: 9f044557b60814eee356bd0b16dd494e
-      size: 4582
+      md5: 78d322213673165ecc5cb1706e00eae4
+      size: 4583
   train_new_merge_reliability_gate_indep_sigmoid:
     cmd: python scripts/train_baseline_v0.py
       contract_dir=artifacts/contract_new_merge_expanded
@@ -529,8 +529,8 @@ stages:
     - path:
         artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/metrics.json
       hash: md5
-      md5: ae21eac18304cb3f879f1dfaa5b60205
-      size: 4563
+      md5: 2e07b45c0b564ae43c2137a115fd74f0
+      size: 4564
   train_new_merge_deviation_weighted:
     cmd: python scripts/train_baseline_v0.py
       contract_dir=artifacts/contract_new_merge_expanded
@@ -623,5 +623,5 @@ stages:
     outs:
     - path: artifacts/baseline_new_merge_deviation_weighted/metrics.json
       hash: md5
-      md5: 663978b33ddb1e4ef5b523ac70c6c1de
-      size: 4515
+      md5: 3e3eb21a7aad8b32ab887fb2a1dcaa46
+      size: 4516
