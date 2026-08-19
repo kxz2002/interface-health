@@ -11,7 +11,11 @@
 - **场景 A（项目拿到）**：在 SAT 专有数据上做论文，考虑周期性、动态基线等真实业务场景
 - **场景 B（项目落空）**：在 Train-Ticket 数据集上做，专注异常检测创新
 
-当前数据集：Train-Ticket 微服务系统，合并三个数据源共 29 个 case——`data/anomod_v1/`（11 个 service 级故障注入 case，原 Normal 因 cadvisor 断流已归档至 `_archive/`，不参与训练评估）+ `data/endpoint_raw2/`（16 case，endpoint 级故障注入）+ `data/normal_v2/`（2 个重采 Normal case，30min+60min），由 `configs/data/merged_v2.yaml` 声明合并（`normal_source` 固定为 `data/normal_v2`）。历史快照 `configs/data/merged_v1.yaml`（Normal 取自 `anomod_v1`）保留不动，仅用于复现旧实验。数据集字段口径、pipeline 逻辑与已知问题详见 `docs/agent-docs/dataset-guide.md`，接触数据相关代码前必读。
+当前主数据集：`data/new_merge/`（Train-Ticket 微服务系统，27 case，2026-07-28/29 单一批次采集，不与历史批次混合——entry 017 已证实跨 run 合并会污染评估），由 `configs/data/new_merge.yaml` 声明（`roots`/`normal_source` 均为 `data/new_merge`，见 `configs/contract/v1_new_merge.yaml`）。原始采集 28 case，已剔除 `Lv_S_KILLPOD_gateway`（inject 阶段 trace 数据永久缺失导致 AUROC 无定义，见 history/entries/023）。
+
+历史数据源（均判定待重采/不再深化，仅供复现旧实验参考，见 history/entries/021/022/023）：`data/anomod_v1/`（11 个 service 级故障注入 case，原 Normal 已归档至 `_archive/`，不参与训练评估）+ `data/normal_v2/`（2 个重采 Normal case，30min+60min）+ `data/new_ep1/`（11 个 endpoint 级故障 case + 1 Normal，独立批次）。`configs/data/merged_v2.yaml`（anomod_v1 + endpoint_raw2 + normal_v2）依赖的 `data/endpoint_raw2/` 已被 `326b885` 物理删除（被 new_merge 取代），该链路（根 `dvc.yaml` 的 build_contract/train_v0/eval_v0/build_contract_v1/train_v1/eval_v1，以及 `dvc_reliability_gate/`、`dvc_deviation_weighted/`）**已无法从原始数据 `dvc repro` 重建**，仅已提交的 `metrics.json` 可查阅，不要在此基础上继续实验或假设可重跑。`configs/data/merged_v1.yaml` 同理保留不动仅供参考。
+
+数据集字段口径、pipeline 逻辑与已知问题详见 `docs/agent-docs/dataset-guide.md`（**注意**：该文档写于项目最早期，仍描述已弃用的 `data/anomod/` 单批次格式与 `process_tt_traces.py`/`build_endpoint_health.py` 老 pipeline，未覆盖 endpoint_raw2/normal_v2/contract v1/new_ep1/new_merge 等后续所有数据集和现行 pipeline——这些以本文件和各 `configs/data/*.yaml`/`configs/contract/*.yaml` 注释为准），接触数据相关代码前必读。
 
 ### 两个论文创新方向
 
@@ -34,18 +38,17 @@
 ## Directory Structure
 ```
 data/                  # 所有数据集根目录，每个数据集为独立原子单元
-├── anomod_v1/         # Train-Ticket service 级故障注入数据集（READ-ONLY，never modify）
+├── new_merge/         # 【当前主数据集】27 case，2026-07-28/29 单一批次采集，READ-ONLY，见 history/entries/023
+│   └── Lv_D_*/ Lv_E_HTTP{ABORT,DELAY,PATCH,REPLACE}_{assurance,order,travel,travel2}/ Lv_P_*/ Lv_S_*/ Normal_*/
+├── new_ep1/           # 独立 endpoint 级故障注入数据集（11 case + 1 Normal，2026-07-25/26），已判定待重采不再深化，见 history/entries/019/021
+├── new_ep2/           # 新一批采集数据，未纳入任何 config/pipeline，不要修改或提交
+├── anomod_v1/         # Train-Ticket service 级故障注入数据集（历史数据源，READ-ONLY，never modify）
 │   ├── _archive/Normal/              # 原 Normal case，因 cadvisor 断流导致 metric 模态窗口内 0 覆盖，已归档不参与枚举
-│   ├── Lv_P_*/  Lv_S_*/  Lv_D_*/   # 11 个故障注入 case
-│   └── <case>/_pipeline_out/         # pipeline 产物（tt_endpoint_health_15s.csv / tt_traces_red_15s.csv）
-├── endpoint_raw2/     # endpoint 级故障注入数据集（16 case，log 重采修复版，READ-ONLY）
-│   └── Lv_E_HTTP{ABORT,DELAY,PATCH,REPLACE}_{assurance,order,travel,travel2}/
-├── endpoint_raw/      # endpoint_raw2 的旧版本，log 采集因 fsnotify watcher 耗尽而全崩（inject/recover 阶段零日志覆盖），已弃用不参与 pipeline
-├── normal_v2/         # 30/60 分钟重采 Normal 数据（2 case），替换 anomod_v1 原 Normal；不再有 cadvisor 断流导致的全窗口 0 覆盖，但 latency_p50/p95/p99 仍有 ~80% 行 NaN（样本量不足触发分位数计算门限），非 100% 覆盖
+│   └── Lv_P_*/  Lv_S_*/  Lv_D_*/   # 11 个故障注入 case
+├── normal_v2/         # 30/60 分钟重采 Normal 数据（2 case，历史数据源），替换 anomod_v1 原 Normal；latency_p50/p95/p99 仍有 ~80% 行 NaN（样本量不足触发分位数计算门限），非 100% 覆盖
 │   ├── normal_0711_30/
 │   └── normal_0711_60/
-├── lo2-sample/        # LO2 数据集样本（logs + metrics）
-└── external/          # 外部/公开数据集
+└── （`endpoint_raw2/`、`lo2-sample/` 已物理删除并清空 DVC 追踪，被 new_merge 取代，见 `326b885`；`merged_v2.yaml` 因此已无法重建，仅 metrics.json 可查阅）
 
 docs/agent-docs/       # pipeline 与数据集参考文档（接触数据代码前必读）
 ├── dataset-guide.md   # 字段口径、pipeline 逻辑、已知问题
@@ -150,6 +153,25 @@ python scripts/build_contract.py --config configs/contract/v1_new_ep1.yaml --dat
 python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_ep1_expanded out=artifacts/baseline_new_ep1_concat/scores.parquet seed=42 training.epochs=50 fusion=concat model=deep_svdd
 python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_ep1_expanded out=artifacts/baseline_new_ep1_deviation_weighted/scores.parquet seed=42 training.epochs=50 fusion=deviation_weighted model=deep_svdd
 
+# === new_merge（【当前主数据集】27 case，单一批次，不与历史批次混合，见 history/entries/023）===
+# 复用 configs/data/new_merge.yaml / configs/contract/v1_new_merge.yaml，contract 与
+# concat(L0)/independent_concat(L1)/gated(L2)/reliability_gate(RG，softmax 默认 +
+# independent_sigmoid 消融)/deviation_weighted(DWF) 六种融合方式的训练评估均隔离到
+# dvc_new_merge/dvc.yaml，裸 dvc repro 不触发。六种方式已全部跑通并按 seed{1,2,3,42}
+# 四组重跑，多 seed 对比结果见 history/entries/023。
+dvc repro dvc_new_merge/dvc.yaml
+
+# 单独运行（不走 DVC 缓存）
+python scripts/build_contract.py --config configs/contract/v1_new_merge.yaml --dataset configs/data/new_merge.yaml --out-dir artifacts/contract_new_merge_expanded --seed 42
+python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_merge_expanded out=artifacts/baseline_new_merge_concat/scores.parquet seed=42 training.epochs=50 fusion=concat model=deep_svdd
+python scripts/eval_baseline_v0.py --scores artifacts/baseline_new_merge_concat/scores.parquet --out artifacts/baseline_new_merge_concat/metrics.json
+
+# seed{1,2,3} 多 seed 复现：dvc.yaml 里每个 train_new_merge_* stage 硬编码 seed=42，
+# artifacts/baseline_new_merge_*_seed{1,2,3}/ 是手动覆盖 seed= 跑出来的，不在 dvc.yaml
+# 里、不能靠 dvc repro 复现，需对其余五种融合方式各自替换 fusion= 手动重跑，例如：
+python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_merge_expanded out=artifacts/baseline_new_merge_concat_seed1/scores.parquet seed=1 training.epochs=50 fusion=concat model=deep_svdd
+python scripts/eval_baseline_v0.py --scores artifacts/baseline_new_merge_concat_seed1/scores.parquet --out artifacts/baseline_new_merge_concat_seed1/metrics.json
+
 # 运行测试
 pytest tests/
 ```
@@ -162,7 +184,7 @@ pytest tests/
 - 模型通过 `hydra.utils.instantiate(cfg.model)` 实例化，融合机制同理通过 `hydra.utils.instantiate(cfg.fusion)` 实例化，`_target_` 指向具体类
 - `train_baseline_v0.py` 是 `@hydra.main` 入口：`contract_dir`/`out` 是 `configs/base.yaml` 里的必填 Hydra 字段（`???`），不是 argparse flag，调用改用 `contract_dir=... out=...` override 语法
 - `configs/data/*.yaml` 声明数据集组成：`roots`（合并哪些数据源目录）+ `normal_source`（Normal 只取自哪个 root）。如 `merged_v1.yaml` = anomod_v1 + endpoint_raw2；`build_contract.py --dataset <该文件>` 消费
-- `configs/contract/v1.yaml` 的 `expand_train_pool: bool` 字段（仅 v1 契约消费，v0 不识别）：`false`（默认）=train 仅纯 Normal `train_fit`；`true`=train 按三个独立 fraction 额外吸收故障 case 的 baseline 阶段行、inject 阶段非目标 endpoint 行、recover 阶段非目标 endpoint 行，被吸收窗口同步从 eval_all 摘除防泄漏。三个 fraction 默认分别是 0.2 / 0.0 / 0.0，`v1_expanded_pool.yaml` 与 `v1_new_ep1.yaml` 把后两个显式设为 1.0
+- `configs/contract/v1.yaml` 的 `expand_train_pool: bool` 字段（仅 v1 契约消费，v0 不识别）：`false`（默认）=train 仅纯 Normal `train_fit`；`true`=train 按三个独立 fraction 额外吸收故障 case 的 baseline 阶段行、inject 阶段非目标 endpoint 行、recover 阶段非目标 endpoint 行，被吸收窗口同步从 eval_all 摘除防泄漏。三个 fraction 默认分别是 0.2 / 0.0 / 0.0，`v1_expanded_pool.yaml` 与 `v1_new_ep1.yaml` 把后两个显式设为 1.0；`v1_new_merge.yaml` 的 `fault_baseline_train_fraction` 同样是 0.2，但这是针对 new_merge 单独实测校准得出的（不是借用 endpoint_raw2 的数值），换数据集时不要假设可以直接复用别的数据集已校准的 fraction，必须重新跑 `build_contract.py` 核实 eval_all 类别比例，见 history/entries/023
 
 ## Data Rules
 - `data/anomod_v1/` 等数据集目录是 READ-ONLY，绝不修改原始数据
@@ -231,6 +253,7 @@ pytest tests/
 - **`expand_train_pool` 开关会改变 eval_all 行数，不同取值的 AUROC 不可直接横向比较**：`false`（`contract_v1`）与 `true`（`contract_v1_expanded`）的 eval_all 行数不同——后者摘除了被吸收进训练池的故障行。具体数字不在此写死：13632/12683/8221 是 entry 016 的时点数字（当时两个 nontarget fraction 尚未引入，实际默认为 0.0），entry 022 起两个新 fraction（`fault_inject_nontarget_train_fraction`/`fault_recover_nontarget_train_fraction`）设为 1.0 后 `contract_v1_expanded` 的 eval_all 进一步降低，具体数字未重新核算（不 dvc repro，理由见 entry 021/022）。L0/L1/L2 与 RG 分别固定用其中一种取值（见上方 Commands 小节），不要把两者的 AUROC 直接摆在一张表里比大小，除非明确注明各自的 eval 样本数和口径差异。`EndpointBaselineStats`/`Normalizer` 的 fit 范围不受该开关影响，始终锁定纯 Normal 的 `train_fit`
 - **`expand_train_pool=true` 后 eval_all 类别比例由三个 fraction 共同控制**：`fault_baseline_train_fraction`（issue #16 修复，默认 0.2，切 baseline 阶段行）、`fault_inject_nontarget_train_fraction` 与 `fault_recover_nontarget_train_fraction`（entry 022 新增，默认 0.0，`v1_expanded_pool.yaml`/`v1_new_ep1.yaml` 设 1.0）。三者都走同一个整窗时序切分函数 `src/contracts/split_fault_phase.py`，最早该比例的窗口进训练池、其余留 eval_all，`train.sample_id ∩ eval_all.sample_id == ∅` 由整窗切分保证。**两路"非目标"判据不同、不可互换**：inject 侧用 `is_endpoint_anomaly == False`（兼容两种 `label_granularity`；case 级标签下该列 fallback 等于 `is_anomaly`、inject 阶段恒 True，故自动选不出行，不会误吸收正样本）；recover 侧必须用 `is_target_endpoint == False` 且只对 `label_granularity == "endpoint"` 的 case 生效（`is_anomaly` 定义为 `phase == "inject"`，recover 阶段恒 False，导致 `is_endpoint_anomaly` 对 recover 所有 endpoint 含目标恒为 False——该判据在 recover 阶段对所有 endpoint（含目标 endpoint 自身）都成立，等于筛不掉任何行，不是"选不出行"而是"全部选中"，拿它筛"非目标"会把目标 endpoint 自身的 recover 行也一起误判为非目标吸收进训练池；而 case 级标签的 case `is_target_endpoint` 全为 0.0 或 NaN（NaN 经 `fillna(True)` 视为目标）、无法区分目标/非目标，其 recover 行整段留 eval_all）。目标 endpoint 自身的 recover 行始终不吸收。**即使三路全推 1.0 也未必到 1:1**——负样本地板还剩 recover 未吸收部分 + Normal holdout，后两者各有独立保护理由（分布未验证 / Normalizer 防泄漏），具体可达比例需按实际数据集核算。见 history/entries/016、019、022
 - **`is_target_endpoint` 在真实 contract 数据中是 float64（含 NaN），直接取反会抛 TypeError**：该列不是干净的 bool，取值集合是 `{0.0, 1.0, NaN}`（`label_granularity == "case"` 的 case 该列全 NaN 或全 0.0，具体取决于上游赋值路径）；对 float64 NaN 列直接 `~is_target_endpoint` 会抛 `TypeError: ufunc 'invert' not supported`，必须先显式转成干净 bool（`.fillna(...).astype(bool)`）再取反或比较。`fillna` 的方向也不是随便选：第一次实现选了 `fillna(False)`（未知值默认"不是目标"），这会让未知目标状态的行被误判为非目标、可能被 recover 侧的非目标吸收逻辑吞进训练池——恰好违反 entry 014/022 "目标 endpoint 自身的 recover 行始终不吸收"的保守设计意图。正确方向是 `fillna(True)`（未知值默认"是目标"，即更保守、更容易被排除在训练池吸收范围之外），实现过程中先错后改，见 history/entries/022
+- **"target service 同时是 chaos 目标又是 trace/log 上报通道"的 case 会导致 inject 阶段该模态数据永久缺失、AUROC 数学上无定义**：已在两个独立数据集上复现同一模式——`endpoint_raw2` 上的 `Lv_S_KILLPOD_gateway`（entry 016）与 `new_merge` 上的同名 case（entry 023，已剔除）。根因都是 `ts-gateway-service` 被 PodChaos 杀掉后，它自己既是 SkyWalking trace 上报通道又是被杀目标，pod 死后没有任何组件能继续上报该 case 的 trace，导致 inject 阶段 0 行、`eval_all` 里该 case 100% 落在 baseline phase（单一类别），`by_anomaly_type` 分层 AUROC 为 `null`。接入任何新数据集时，若含 `KILLPOD`/`PodChaos` 类故障且目标服务本身承担可观测性上报职责，需要提前排查该 case 是否有这个缺陷，而不是等 metrics.json 里出现 `null` 才发现
 - **RG softmax gate collapse**：`ReliabilityGatedFusion` 默认 `gate_normalization=softmax` 在所有 27 种故障类型下均收敛到 `w_svc≈1.0`（完全信任 service 分支，endpoint 分支权重归零）。根因：两分支初始偏差尺度 ~1.2× 不对称 + softmax 竞争归一化形成正反馈放大。`independent_sigmoid` 消融（`configs/fusion/reliability_gate_ablation_indep_sigmoid.yaml`）可规避此问题，AUROC 0.6598 vs softmax 0.6024
 - **组合模型 optimizer 必须覆盖全部子模块**：`instantiate(optimizer_cfg, params=svdd.parameters())` 只传 SVDD 参数时，fusion encoder 层永远停在随机初始化——L1/L2 在 entry 012 实际命中此 bug（消融结果与 L0 无差异直到修复）。任何新增 fusion+model 组合上线前须验证 optimizer 参数集覆盖所有 `nn.Module`
 - **RG coupling 已收束（见 history/entries/015）**：① fusion 构造改为 `FusionModule.from_contract` 钩子，RG 覆写自行加载 `EndpointBaselineStats`+派生 `id_to_endpoint_key`，`train_baseline_v0.py` 不再按 `_target_` 字符串分支；② `EndpointBaselineStats` fit/save 与 `endpoint_id` 列派生改由 `ContractConfig.fit_endpoint_baseline_stats` 开关门控（v1.yaml=false / v1_expanded_pool.yaml=true），不再无条件 fit；③ 3 个 RG 专属 stage 隔离到 `dvc_reliability_gate/dvc.yaml`，裸 `dvc repro` 不再触发。`scripts/analyze_gate_weights.py`（一次性分析脚本）维持直接构造 RG 的用法，不在收束范围内。

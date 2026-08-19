@@ -1,7 +1,9 @@
 # TT Dataset Guide
 
 > 目标读者：接手本数据的 agent。本文描述数据的物理组织、字段口径、pipeline 逻辑和已知问题，供快速上手查阅。
-> 最后更新：2026-06-19
+> 最后更新：2026-06-19（正文第一～十二节）；十三节（new_merge）追加于 2026-07-31。
+
+> **⚠️ 本文档正文（第一～十二节）已过时，仅供历史参考**：描述的是项目最早期（2026-06-19）的 `data/anomod/` 单一采集批次，以及已弃用的 `process_tt_traces.py`/`build_endpoint_health.py` 老 pipeline。此后接入的 `endpoint_raw2`/`normal_v2`/`new_ep1`/`new_merge` 等数据集、Contract v0/v1 pipeline、`expand_train_pool` 训练池扩容机制均未记录在正文里，实际口径以 `CLAUDE.md` 与各 `configs/data/*.yaml`/`configs/contract/*.yaml` 文件内的注释为准。第十三节（new_merge）是本文档目前唯一同步到现行 pipeline 的部分。
 
 ---
 
@@ -407,3 +409,49 @@ ts-gateway-service 既是 PodChaos 目标又是 SkyWalking trace 上报通道。
 | _pipeline_out | 极小（建模用） | < 10M |
 
 pipeline 产物（`tt_fused_*.csv`）合计不超过 100M，99% 磁盘被 raw 数据占用。
+
+---
+
+## 十三、new_merge 数据集（当前主数据集，2026-07-31 追加）
+
+> 与本文档正文（第一～十二节）描述的老 `data/anomod/`/`process_tt_traces.py` pipeline **无关**。new_merge 走的是 Contract v0/v1 pipeline（`scripts/build_contract.py` + `src/preprocessors/`），配置见 `configs/data/new_merge.yaml`、`configs/contract/v1_new_merge.yaml`、`dvc_new_merge/dvc.yaml`。详见 `CLAUDE.md` Commands 小节与 history/entries/023。
+
+### 13.1 定位
+
+`data/new_merge/`，AnoMod 侧 2026-07-28/29 单一批次采集，27 case（原始采集 28 个，见 13.3）。不与 `anomod_v1`/`endpoint_raw2`/`new_ep1` 等历史批次混合（entry 017 已证实跨 run 合并会污染评估），是独立、自包含的数据源，`roots`/`normal_source` 均指向 `data/new_merge`。
+
+### 13.2 Case 构成
+
+| 类别 | 数量 | 说明 |
+|---|---|---|
+| `Lv_D_*` | 3 | database 级：`cachelimit` / `CONNECTION_POOL_exhaustion` / `TRANSACTION_timeout` |
+| `Lv_E_HTTP{ABORT,DELAY,PATCH,REPLACE}_{assurance,order,travel,travel2}` | 16 | endpoint 级，4 故障类型 × 4 目标 service |
+| `Lv_P_*` | 3 | performance 级：`CPU_preserve` / `DISKIO_preserve` / `NETLOSS_preserve` |
+| `Lv_S_*` | 4 | service 级：`DNSFAIL_preserve_no_order` / `HTTPABORT_preserve` / `KILLPOD_order` / `KILLPOD_preserve`，含 `target_endpoint=null` 的 service/database/performance 级故障 |
+| `Normal` | 1 | 负样本基线 |
+| **合计** | **27** | — |
+
+`baseline_sec=1200`（故障 case）/ `1800`（Normal），与 `new_ep1` 的 1500/1800 量级接近，与 `endpoint_raw2` 的 300s 不同——两者的 fraction 不可直接互相借用（见 13.4）。
+
+### 13.3 已剔除：Lv_S_KILLPOD_gateway
+
+原始采集 28 case，其中 `Lv_S_KILLPOD_gateway`（PodChaos，目标 `ts-gateway-service`）已剔除，不在上表统计内。根因与 `endpoint_raw2` 上的同名 case（本文档已知问题：见十一节 "KILLPOD_gateway inject 阶段数据缺失"，及 entry 016）完全相同——`ts-gateway-service` 既是 PodChaos 杀 pod 目标又是 SkyWalking trace 上报通道，pod 被杀后 inject 阶段 trace 永久无法上报。该 case 在 `eval_all` 里 100% 落在 `phase=='baseline'`（462 行，单一类别），`by_anomaly_type` 分层 AUROC 数学上无定义。已从磁盘物理删除并重新 `dvc add`（27 case），详见 history/entries/023。
+
+**教训**：`KILLPOD`/`PodChaos` 类故障若目标服务本身承担可观测性上报职责，接入新数据集前应主动排查该 case 是否有此缺陷，而不是等 `metrics.json` 出现 `null` 才发现——这是第二次在不同数据集上复现同一模式。
+
+### 13.4 fraction 实测校准（不可跨数据集直接借用）
+
+`configs/contract/v1_new_merge.yaml` 的 `fault_baseline_train_fraction` 通过实测对比确定，非借用其他数据集数值：
+
+- `fraction=1.0`（借用 `new_ep1`）：故障 case 的 baseline 阶段行全部被吸收进训练池，`eval_all` 只剩 fan-out 残留 + Normal holdout 的负样本地板，正负比严重偏正，不可用。
+- `fraction=0.2`（借用 `endpoint_raw2`/`v1_expanded_pool`）：`eval_all=15809`（清理 KILLPOD_gateway 后），正负比约 19.7:80.3（3113 正 / 12696 负），量级上接近 entry 016 对 `endpoint_raw2` 的校准目标（24.62:75.38）。故选 0.2。
+
+`baseline_sec` 量级接近不代表 fraction 可以直接复用——最终效果取决于 `fault_baseline_total` 行数与其他负样本项（fan-out 残留、Normal holdout）的相对大小，必须实测 `eval_all` 的 `is_endpoint_anomaly` 分布验证，见 history/entries/023。
+
+### 13.5 首次 concat(L0) 基线
+
+`dvc_new_merge/dvc.yaml`（`build_contract_new_merge_expanded` → `train_new_merge_concat` → `eval_new_merge_concat`），本轮仅跑 `fusion=concat`，DWF/RG 未跑。清理 `Lv_S_KILLPOD_gateway` 前后对比：overall AUROC 0.718→0.742，各分层同步小幅提升。具体数字见 `artifacts/baseline_new_merge_concat/metrics.json`、history/entries/023。
+
+### 13.6 待接入特征
+
+AnoMod 侧已补齐 `client_content_length_mean/rel_shift`、`client_body_hash_mismatch_rate` 派生特征，但 `TracePreprocessor`/`endpoint_red_preprocessor` 尚未消费这些新列，`configs/data/new_merge.yaml` 暂不启用。
