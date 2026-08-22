@@ -28,6 +28,9 @@ def test_api_output_columns():
         "endpoint_red__client_error_rate",
         "endpoint_red__client_5xx_rate",
         "endpoint_red__latency_divergence",
+        "endpoint_red__client_content_length_mean",
+        "endpoint_red__client_content_length_rel_shift",
+        "endpoint_red__client_body_hash_mismatch_rate",
     }
 
 

@@ -744,11 +744,16 @@ def _write_v1(
         return
 
     train_fit_normalized = parts["train_fit"]
-    red_cols = [c for c in train_fit_normalized.columns if c.startswith("endpoint_red__")]
-    svc_cols = [
-        c
-        for c in train_fit_normalized.columns
-        if c.startswith(("service_metric__", "service_log__"))
+    # red_cols/svc_cols 必须锁定 contract 声明的特征列（cfg.modalities[...].features），
+    # 不能扫描 dataframe 里所有 endpoint_red__ 前缀列——预处理器可能产出比 contract
+    # 声明更多的原始列（如未在 v1_expanded_pool.yaml 里声明的 content_length/
+    # body_hash 派生特征），此时按前缀扫描会把未声明列也吸收进 EndpointBaselineStats，
+    # 其维度与 schema.json 的 feature_groups（严格按 cfg 声明派生）产生静默错位，
+    # 下游 ReliabilityGatedFusion/DeviationWeightedFusion 用 schema.json 的列表重建
+    # red_cols/svc_cols 时维度对不上，报出一个离真正病灶很远的 tensor shape 错误。
+    red_cols = [f"endpoint_red__{f}" for f in cfg.modalities["endpoint_red"].features]
+    svc_cols = [f"service_metric__{f}" for f in cfg.modalities["service_metric"].features] + [
+        f"service_log__{f}" for f in cfg.modalities["service_log"].features
     ]
     baseline_stats = EndpointBaselineStats(red_cols=red_cols, svc_cols=svc_cols)
     baseline_stats.fit(train_fit_normalized)

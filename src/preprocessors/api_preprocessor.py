@@ -32,6 +32,9 @@ class ApiPreprocessor(ModalityPreprocessor):
         "endpoint_red__client_error_rate",
         "endpoint_red__client_5xx_rate",
         "endpoint_red__latency_divergence",
+        "endpoint_red__client_content_length_mean",
+        "endpoint_red__client_content_length_rel_shift",
+        "endpoint_red__client_body_hash_mismatch_rate",
     ]
 
     _RENAME = {
@@ -39,6 +42,9 @@ class ApiPreprocessor(ModalityPreprocessor):
         "latency_p95": "endpoint_red__client_latency_p95",
         "error_rate": "endpoint_red__client_error_rate",
         "status_5xx_rate": "endpoint_red__client_5xx_rate",
+        "content_length_mean": "endpoint_red__client_content_length_mean",
+        "content_length_rel_shift": "endpoint_red__client_content_length_rel_shift",
+        "body_hash_mismatch_rate": "endpoint_red__client_body_hash_mismatch_rate",
     }
 
     def __init__(
@@ -66,6 +72,21 @@ class ApiPreprocessor(ModalityPreprocessor):
         )
 
         df["endpoint_red__latency_divergence"] = self._compute_divergence(df, raw_path)
+
+        # content_length/body_hash 派生列只在 new_merge 批次的采集里存在（AnoMod
+        # 侧 2026-07-28 起才产出，见 history/entries/023 TODO）；旧批次（new_ep1/
+        # anomod_v1/mini fixture）的 tt_endpoint_health_15s.csv 没有这三列。
+        # 缺失时填 NaN 而不是 KeyError，交由下游既有的 train-mean 填补逻辑处理，
+        # 与 latency_divergence 在 trace 文件缺失时的既有降级方式一致。
+        missing = [c for c in self.OUTPUT_COLUMNS if c not in df.columns]
+        if missing:
+            logger.warning(
+                "%s 缺少列 %s（该数据批次未产出 content_length/body_hash 派生特征），填 NaN",
+                raw_path,
+                missing,
+            )
+            for col in missing:
+                df[col] = pd.Series(float("nan"), index=df.index, dtype="float64")
 
         return df[["endpoint_key", "timestamp_window_ms"] + self.OUTPUT_COLUMNS].reset_index(
             drop=True
