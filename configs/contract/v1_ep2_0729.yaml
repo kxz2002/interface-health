@@ -1,0 +1,62 @@
+contract_version: "v1"
+window_size_s: 15
+# 本 contract 专供特征判别力分析（entry 024），不参与任何模型对比实验，因此
+# expand_train_pool=false：分析要的是"每一行故障数据都留在评估侧、可按 phase 与
+# is_endpoint_anomaly 自由分层"，训练池吸收会把一部分 inject/recover/baseline 行
+# 从 eval_all 摘走（见 CLAUDE.md 相应 gotcha 与 history/entries/016、022），
+# 反而破坏分析所需的完整分层。
+#
+# 注意这不代表"分析用的负样本 = eval_all 的负样本"。entry 017 记录的跨 run 混杂
+# 要求负样本取自同 case 的 baseline/recover（within-case 协议），而不是跨 run 的
+# Normal case；该协议在分析侧实现（notebook），不在 contract 侧。contract 只负责
+# 把每一行的 phase / is_endpoint_anomaly / case_id 如实带出来。
+expand_train_pool: false
+# 不 fit per-endpoint 基线统计量：那是 RG/DWF 融合模块的输入，本次分析不训练这两个
+# 融合机制。分析若需要 per-endpoint 偏离量，直接在 notebook 里按 Normal 分组算，
+# 不必让 contract 多产一个依赖。
+fit_endpoint_baseline_stats: false
+
+modalities:
+  endpoint_red:
+    preprocessor: TracePreprocessor
+    preprocessor_version: v0
+    features:
+      - trace_request_count
+      - trace_latency_p50
+      - trace_latency_p95
+      - trace_error_rate
+      - trace_5xx_rate
+      - client_request_count
+      - client_latency_p95
+      - client_error_rate
+      - client_5xx_rate
+      - latency_divergence
+    normalization: per_endpoint_min_max
+    candidates_pool: []
+
+  service_metric:
+    preprocessor: MetricPreprocessor
+    preprocessor_version: v0
+    features:
+      - cpu_usage_rate
+      - memory_usage_ratio
+      - net_rx_error_rate
+      - net_tx_error_rate
+      - process_count
+    normalization: per_service_min_max
+    candidates_pool: []
+
+  # service_log 三维照常声明：_merge_log 在 log_data 缺失/失败时会跳过该模态，
+  # _fill_missing_feature_cols 把这三列填 NaN，schema.json 仍如实记录 18 维。
+  # 本轮先在不跑 Drain3 的前提下产出 15 维可用数据（log 侧 100GB 过 Drain3 需数小时，
+  # 后台单独补），因此这三列预期全 NaN——分析侧必须显式区分"全 NaN=本轮未构建"
+  # 与"部分 NaN=join 未命中"，不要把前者当成 log 模态无判别力的证据。
+  service_log:
+    preprocessor: LogPreprocessor
+    preprocessor_version: v0
+    features:
+      - event_rate
+      - error_ratio
+      - template_diversity
+    normalization: per_service_min_max
+    candidates_pool: []
