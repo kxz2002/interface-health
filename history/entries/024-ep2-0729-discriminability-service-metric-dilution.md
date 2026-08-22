@@ -1,7 +1,7 @@
-# 023 · ep2_0729 特征判别力分析 + service_metric 判别力异常根因定位
+# 024 · ep2_0729 特征判别力分析 + service_metric 判别力异常根因定位
 
 - **日期**: 2026-08-15
-- **PR**: 待定（工作分支 `exp/feature-discriminability-analysis`，尚未提交/合并，当前无 commit）
+- **PR**: #23（工作分支 `exp/feature-discriminability-analysis`）。原计划编号为 023，因与 master 上并行合并的 PR #22（entry 023 · new_merge 数据集接入）撞号，rebase 时改为 024
 - **类型**: Experiment
 - **影响域**: `notebooks/feature_discriminability.py`, `configs/data/ep2_0729.yaml`, `configs/contract/v1_ep2_0729.yaml`, `scripts/build_contract.py`（case 级 `is_endpoint_anomaly` 标签构造，发现问题未改代码）, `configs/contract/endpoint_to_service.yaml`（覆盖范围限制，发现问题未改代码）
 

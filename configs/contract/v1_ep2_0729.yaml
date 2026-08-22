@@ -1,6 +1,6 @@
 contract_version: "v1"
 window_size_s: 15
-# 本 contract 专供特征判别力分析（entry 023），不参与任何模型对比实验，因此
+# 本 contract 专供特征判别力分析（entry 024），不参与任何模型对比实验，因此
 # expand_train_pool=false：分析要的是"每一行故障数据都留在评估侧、可按 phase 与
 # is_endpoint_anomaly 自由分层"，训练池吸收会把一部分 inject/recover/baseline 行
 # 从 eval_all 摘走（见 CLAUDE.md 相应 gotcha 与 history/entries/016、022），
