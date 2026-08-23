@@ -50,6 +50,7 @@
 | [021](./entries/021-baseline-rerun-waived-recollection-pending.md) | 2026-07-29 | Docs | MAX_CONTENT_CHARS 是本分支新引入（master 无此常量），v0/v1/RG 三条既有 contract 管线因此 drift；决定不重跑——PATCH 类故障对现有数据集所有 RED 特征隐形（entry 017），需重采补 api_response 响应体才有价值，旧数据集即将被替换，重跑无意义；并纠正 entry 019 "两次连续同源 OOM/上一轮已修"的不准确叙事（实为同一 commit 一起首次引入） | `artifacts/baseline_v0|v1|v1_reliability_gate/`（决定维持现状） |
 | [022](./entries/022-inject-recover-nontarget-split.md) | 2026-07-29 | Feature | inject/recover 阶段非目标 endpoint 行按两个独立 fraction 吸收进训练池（承接 entry 019 的 12.24:87.76 上限）；`split_fault_baseline` 重命名为 `split_fault_phase`；判据踩坑：inject 用 `is_endpoint_anomaly`，recover 必须用 `is_target_endpoint` 且仅 `label_granularity=="endpoint"` 的 case 生效 | `src/contracts/split_fault_phase.py`, `src/contracts/contract_config.py`, `scripts/build_contract.py`, `configs/contract/v1_expanded_pool.yaml`, `configs/contract/v1_new_ep1.yaml`, `tests/fixtures/nontarget_split_mini/`, `CLAUDE.md` |
 | [023](./entries/023-new-merge-dataset-integration.md) | 2026-07-31~08-03 | Data + Experiment | new_merge 数据集接入（27 case，单一批次不合并）：`fault_baseline_train_fraction` 实测校准（1.0 vs 0.2，选 0.2）；剔除 `Lv_S_KILLPOD_gateway`（inject 阶段 trace 永久缺失导致 AUROC 无定义，与 entry 016 同类先例）；L0/L1/L2/RG/DWF 六种融合方式多 seed 全对比，concat(L0)/DWF 最优最稳，RG softmax 坍缩未见旧数据集同等复现 | `data/new_merge.dvc`, `configs/data/new_merge.yaml`, `configs/contract/v1_new_merge.yaml`, `dvc_new_merge/dvc.yaml`, `artifacts/contract_new_merge_expanded/`, `artifacts/baseline_new_merge_*` |
+| [024](./entries/024-content-length-clip-fix.md) | 2026-08-22 | Bugfix + Experiment | 修复 `content_length_mean` 归一化尺度爆炸（`order/refresh` fit-eval 电平错位，非长尾分布，log1p 已排除）：对该列归一化输出做对称 clip(±5)，排除退化 group；concat(L0)/DWF 的 REPLACE 类回归修复、PATCH 类增益保留，但 independent_concat(L1)/reliability_gate(RG) 出现与 content_length 无直接语义关系的意外回退（DELAY 崩至 0.435），归因为 SVDD 共享 embedding 的连带效应，用户决定接受现状不做进一步归因 | `scripts/build_contract.py`, `artifacts/baseline_new_merge_*/metrics.json` |
 
 ---
 
@@ -76,7 +77,7 @@
 | `pyproject.toml` | 002 |
 | `history/` + `skills-local/` | 004 |
 | `Makefile` | 002 (环境), 004 (install-skills) |
-| 多模态融合（`src/fusion/`） | 005, 010, 012, 014（ReliabilityGatedFusion，偏离量门控路由）, 015（from_contract 钩子解耦）, 018（DeviationWeightedFusion，逐特征加权，零可学习参数，不达标）, 023（new_merge 上 L0/L1/L2/RG/DWF 全对比，softmax 坍缩未见复现） |
+| 多模态融合（`src/fusion/`） | 005, 010, 012, 014（ReliabilityGatedFusion，偏离量门控路由）, 015（from_contract 钩子解耦）, 018（DeviationWeightedFusion，逐特征加权，零可学习参数，不达标）, 023（new_merge 上 L0/L1/L2/RG/DWF 全对比，softmax 坍缩未见复现）, 024（content_length clip 修复后 L0/DWF 恢复但 L1/RG 出现无关回退，疑似 SVDD 共享 embedding 连带效应） |
 | 模型实现（`src/models/`） | 005 |
 | 数据 loader（`src/data/`） | 005, 014（`endpoint_baseline_stats.py`, `endpoint_id` 全链路打通） |
 | 评估指标细化（per-endpoint, phase 对齐） | 005 |
@@ -85,9 +86,9 @@
 | `configs/data/`（多数据源配置） | 006, 009, 019（`new_ep1.yaml`，独立数据集不与其他 root 合并）, 023（`new_merge.yaml`，27 case 单一批次，已剔除 `Lv_S_KILLPOD_gateway`） |
 | `src/data/dataset_config.py` | 006 |
 | `configs/contract/endpoint_to_service.yaml` | 006 |
-| `src/data/normalization.py`（Normalizer） | 007, 013（零方差 group 除零放大） |
+| `src/data/normalization.py`（Normalizer） | 007, 013（零方差 group 除零放大）, 024（本身未改动，但 fit-eval 电平错位问题由其 min-max 设计放大，见 024 遗留 TODO） |
 | `src/preprocessors/trace_preprocessor.py`（is_target_endpoint 传递） | 008 |
-| `scripts/build_contract.py`（label_granularity/is_endpoint_anomaly 标签路由，`_attach_label_columns`） | 006, 008, 014（训练池扩容吸收 fault baseline 行）, 015（fit_endpoint_baseline_stats 开关取代 contract_version 判据）, 016（`_write_v1` 改按 fraction 时序切分 fault baseline）, 022（`_write_v1` 追加 inject/recover 非目标行两路切分） |
+| `scripts/build_contract.py`（label_granularity/is_endpoint_anomaly 标签路由，`_attach_label_columns`） | 006, 008, 014（训练池扩容吸收 fault baseline 行）, 015（fit_endpoint_baseline_stats 开关取代 contract_version 判据）, 016（`_write_v1` 改按 fraction 时序切分 fault baseline）, 022（`_write_v1` 追加 inject/recover 非目标行两路切分）, 024（`content_length_mean` 归一化输出对称 clip，排除退化 group） |
 | `scripts/train_baseline_v0.py`（out_df 显式字段字典，新增列需手动传递） | 008, 014（`endpoint_id` 传递给 fusion，`fusion_checkpoint` 可选落盘）, 015（is_reliability_gate 分支移除） |
 | `scripts/eval_baseline_v0.py`（by_endpoint 分层） | 008 |
 
@@ -114,3 +115,5 @@
 - **门控坍缩根因定位为"初始尺度温和不对称+softmax竞争性放大"，不是鞍点**：逐 epoch 追踪显示 `w_svc` 全程单调爬升、`frac(w_svc<0.01)` 恒为 0，不是"早期坍缩卡死"的鞍点形态；根因是 `dev_ep`/`dev_svc` 中位数级仅 1.2 倍的温和初始不对称，被 softmax 竞争性归一化在无监督 SVDD loss 下持续放大。训练池扩容（838→6249 行）会显著加速/加剧这个放大过程（`frac(w_svc>0.99)` 从稳定 2.9% 升到 50.7%，已排除梯度步数不足的混杂因素），是坍缩的实质性放大因素，不是无关旁枝改动（014）
 - **eval 集合的类别比例是否合理，需要独立于训练侵入之外单独核查**：门控坍缩的梯度只来自训练循环，`eval_all` 从不参与反向传播，"eval 类别失衡导致坍缩"这条因果链机制上不成立；但反过来，训练池扩容改 `eval_all` 摘除逻辑时，容易在无意中破坏 eval 集合本身的类别平衡（本例中负样本占比从约50%降到16%，且与 `CLAUDE.md` 既定的评估协议冲突），这是独立于训练动态之外必须单独核查的正确性问题，不能因为"不影响训练"就忽略（014）（016 落实修复：baseline 行改为按 fraction 时序切分而非整段搬移，eval 类别比例从 ~84:16 回升至约 24.62:75.38，虽未完全回到 50:50，但不再是接近全负样本被掏空的失衡状态）（022 进一步吸收 inject/recover 非目标行，实际比例未重新核算，见 022）
 - **效果不达标的机制仍可合入 master，前提是不污染默认路径**：Reliability Gate Fusion 的核心机制（softmax 门控）已确认坍缩、高方差，不构成可用结论，但决定仍合入 master——因为负面结果记录（根因定位、归因实验）和配套基础设施（`EndpointBaselineStats`、`endpoint_id` 全链路、`expand_train_pool` 开关）有独立于机制成败的复用价值，且验证过默认 `fusion=concat`/`expand_train_pool=false` 路径数值不受影响。代价是留下几个明确的 RG 专属耦合点（`train_baseline_v0.py` 按类名特判、`build_contract.py` 无条件生成 RG 专属产物、`dvc.yaml` 默认 DAG 多出 3 个 stage），这些不是零成本隔离，作为技术债务显式记录、留给下一个专项 PR 处理，不能假设"标注废弃"本身就能防止误用（014）
+- **归一化特征的极端值排查要先验证是不是 fit-eval 电平错位，而不是默认当长尾分布处理**：`content_length_mean` 归一化后在 `order/refresh` 上出现 `|value|>10` 占比 0.80 的极端值，直觉上像长尾分布该用 `log1p` 压缩，但实测 `log1p` 反而更差——真实根因是 `Normalizer` 只在 Normal case 上 fit `[lo,hi]`，而该 endpoint 的 Normal case 采集时间早于故障批次、二者原始量纲本就落在不同电平（系统性采集时序漂移，非真实故障信号）。这类问题的正确诊断路径是先对比 fit 窗口与 eval 窗口的原始值分布是否处于不同电平，而不是看到极端值就假设是分布形状问题去套用变换；确认是电平错位后，能做的只有对归一化输出做边界 clip 封顶损害，无法用变换恢复干净信号（024）
+- **单一特征列的下游修复可能通过 One-Class SVDD 共享 embedding 产生与该特征无语义关联的连带效应（归因假设，未验证）**：对 `content_length_mean` 一列、一个 endpoint 做对称 clip 后，`concat`(L0)/`deviation_weighted`(DWF) 按预期修复了 REPLACE 类回归且保留 PATCH 类增益，但 `independent_concat`(L1) 全面下滑、`reliability_gate`(RG, softmax) 的 DELAY 类（与 content_length 无语义关系的纯延迟故障）AUROC 崩至 0.435。可能的解释框架：SVDD 是跨全部 endpoint 共享的单一超球面嵌入，改变一个特征在一个 endpoint 上的训练期分布会通过共享 encoder 的梯度反传重新分配整个嵌入空间对各 endpoint/各故障类型的判别能力——这是 [[decision_fusion_gradient_cannot_learn_feature_relevance]]（融合梯度学不到特征相关性）在训练动态层面的另一种表现形式。本次只做单 seed（42）观察，未排除随机噪声，用户决定接受现状不做多 seed 复测（024）；如果后续要给这个连带效应下结论或依赖它做架构决策，必须先补 seed{1,2,3} 验证是否为系统性效应

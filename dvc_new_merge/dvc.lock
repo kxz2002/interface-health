@@ -11,8 +11,8 @@ stages:
       size: 761
     - path: configs/contract/v1_new_merge.yaml
       hash: md5
-      md5: 2c127122e0e5a97c263e1d3a014190c7
-      size: 3643
+      md5: 6aa006e49d5ebd432804981f95da8fca
+      size: 3757
     - path: configs/data/new_merge.yaml
       hash: md5
       md5: 0023ff7f559ba82c0d32bc64d52db27a
@@ -24,12 +24,12 @@ stages:
       nfiles: 2268
     - path: scripts/build_contract.py
       hash: md5
-      md5: 447c3610c79106b079f7acd08b901fbd
-      size: 40229
+      md5: 2f2893c779937ec1b3721cedce36faa0
+      size: 42847
     - path: src/contracts/contract_v0.py
       hash: md5
-      md5: ce9df5ffbe143294f8a7ab2dbf6e6202
-      size: 3189
+      md5: fb1ad1133ea09a877d3571a840b5843b
+      size: 3241
     - path: src/contracts/split_fault_phase.py
       hash: md5
       md5: 4f44fb9931ada5a641d37fe487a78f38
@@ -52,8 +52,8 @@ stages:
       size: 5674
     - path: src/preprocessors
       hash: md5
-      md5: 1bd3736fd0de2abdb078da26c8429fb9.dir
-      size: 27094
+      md5: 66b951411af1d598edd9e63a402f18bd.dir
+      size: 28385
       nfiles: 5
     outs:
     - path: artifacts/contract_new_merge_expanded/drain3.bin
@@ -62,36 +62,36 @@ stages:
       size: 16620
     - path: artifacts/contract_new_merge_expanded/endpoint_baseline_stats.json
       hash: md5
-      md5: 65c4edc750b5a484e5cd07d28214e211
-      size: 10004
+      md5: 44379136e54db3ac61a45bfc97b7e08a
+      size: 11375
     - path: artifacts/contract_new_merge_expanded/eval_all.parquet
       hash: md5
-      md5: 921a21e14ddc58b1cad2bb082ca7048c
-      size: 864185
+      md5: 252c6322365f29de2d1a20c4a300ee85
+      size: 887430
     - path: artifacts/contract_new_merge_expanded/eval_normal_holdout.parquet
       hash: md5
-      md5: f4fed963cf092e86b681d0352b50e550
-      size: 40127
+      md5: 08a93661c0ac75cb06ffc99cdabd01bd
+      size: 43762
     - path: artifacts/contract_new_merge_expanded/normalization_stats.json
       hash: md5
-      md5: 14249781bf1934c62d1b05715e774aa3
-      size: 14416
+      md5: f4ccf61d459079cccad5d11251bcdee2
+      size: 16967
     - path: artifacts/contract_new_merge_expanded/schema.json
       hash: md5
-      md5: 9507016a38ff0a1b121b9171139f2b92
-      size: 1434
+      md5: 9e31b1e0e0aaf60cad0622a4c495c221
+      size: 1599
     - path: artifacts/contract_new_merge_expanded/train.parquet
       hash: md5
-      md5: e4e4e24c228048ac3ba0c406a63f53c1
-      size: 473409
+      md5: f907f0695aa5ae8eaa5978abc828ee2e
+      size: 486360
     - path: artifacts/contract_new_merge_expanded/train_fit.parquet
       hash: md5
-      md5: da08a266065d19b6b4da60440028177e
-      size: 61697
+      md5: 11d168bbc79fbe04b7f20c42d548621a
+      size: 66382
     - path: artifacts/contract_new_merge_expanded/train_val.parquet
       hash: md5
-      md5: 7a8f9c805cec78ecbd35728c2c22b3cb
-      size: 40480
+      md5: 894d6bcc1f2162bc35dce9769d04e3fd
+      size: 44152
   train_new_merge_concat:
     cmd: python scripts/train_baseline_v0.py
       contract_dir=artifacts/contract_new_merge_expanded
@@ -100,16 +100,16 @@ stages:
     deps:
     - path: artifacts/contract_new_merge_expanded/eval_all.parquet
       hash: md5
-      md5: 921a21e14ddc58b1cad2bb082ca7048c
-      size: 864185
+      md5: 252c6322365f29de2d1a20c4a300ee85
+      size: 887430
     - path: artifacts/contract_new_merge_expanded/schema.json
       hash: md5
-      md5: 9507016a38ff0a1b121b9171139f2b92
-      size: 1434
+      md5: 9e31b1e0e0aaf60cad0622a4c495c221
+      size: 1599
     - path: artifacts/contract_new_merge_expanded/train.parquet
       hash: md5
-      md5: e4e4e24c228048ac3ba0c406a63f53c1
-      size: 473409
+      md5: f907f0695aa5ae8eaa5978abc828ee2e
+      size: 486360
     - path: configs/base.yaml
       hash: md5
       md5: 3a9e113ef5cad881cbd753e96d1b1842
@@ -149,8 +149,8 @@ stages:
     outs:
     - path: artifacts/baseline_new_merge_concat/scores.parquet
       hash: md5
-      md5: bfd150bb2d3cf59964bc9c0b1dfd7b76
-      size: 289466
+      md5: d1dcc73e7e5b9fbad2fcdc58b57a658c
+      size: 290252
   train_new_merge_gated:
     cmd: python scripts/train_baseline_v0.py
       contract_dir=artifacts/contract_new_merge_expanded
@@ -159,16 +159,16 @@ stages:
     deps:
     - path: artifacts/contract_new_merge_expanded/eval_all.parquet
       hash: md5
-      md5: 921a21e14ddc58b1cad2bb082ca7048c
-      size: 864185
+      md5: 252c6322365f29de2d1a20c4a300ee85
+      size: 887430
     - path: artifacts/contract_new_merge_expanded/schema.json
       hash: md5
-      md5: 9507016a38ff0a1b121b9171139f2b92
-      size: 1434
+      md5: 9e31b1e0e0aaf60cad0622a4c495c221
+      size: 1599
     - path: artifacts/contract_new_merge_expanded/train.parquet
       hash: md5
-      md5: e4e4e24c228048ac3ba0c406a63f53c1
-      size: 473409
+      md5: f907f0695aa5ae8eaa5978abc828ee2e
+      size: 486360
     - path: configs/base.yaml
       hash: md5
       md5: 3a9e113ef5cad881cbd753e96d1b1842
@@ -208,8 +208,8 @@ stages:
     outs:
     - path: artifacts/baseline_new_merge_gated/scores.parquet
       hash: md5
-      md5: adb74e44627d24c1e97618e2408896e8
-      size: 290442
+      md5: c8dd71546b0363612701416a4c7a5612
+      size: 290567
   train_new_merge_independent_concat:
     cmd: python scripts/train_baseline_v0.py
       contract_dir=artifacts/contract_new_merge_expanded
@@ -218,16 +218,16 @@ stages:
     deps:
     - path: artifacts/contract_new_merge_expanded/eval_all.parquet
       hash: md5
-      md5: 921a21e14ddc58b1cad2bb082ca7048c
-      size: 864185
+      md5: 252c6322365f29de2d1a20c4a300ee85
+      size: 887430
     - path: artifacts/contract_new_merge_expanded/schema.json
       hash: md5
-      md5: 9507016a38ff0a1b121b9171139f2b92
-      size: 1434
+      md5: 9e31b1e0e0aaf60cad0622a4c495c221
+      size: 1599
     - path: artifacts/contract_new_merge_expanded/train.parquet
       hash: md5
-      md5: e4e4e24c228048ac3ba0c406a63f53c1
-      size: 473409
+      md5: f907f0695aa5ae8eaa5978abc828ee2e
+      size: 486360
     - path: configs/base.yaml
       hash: md5
       md5: 3a9e113ef5cad881cbd753e96d1b1842
@@ -267,8 +267,8 @@ stages:
     outs:
     - path: artifacts/baseline_new_merge_independent_concat/scores.parquet
       hash: md5
-      md5: 5854360c76faa9ef24ad2c491683d5b2
-      size: 289766
+      md5: 5fbbbeefee5895f7b8e7c7be1dbb37f7
+      size: 290763
   eval_new_merge_independent_concat:
     cmd: python scripts/eval_baseline_v0.py --scores
       artifacts/baseline_new_merge_independent_concat/scores.parquet --out
@@ -276,22 +276,22 @@ stages:
     deps:
     - path: artifacts/baseline_new_merge_independent_concat/scores.parquet
       hash: md5
-      md5: 5854360c76faa9ef24ad2c491683d5b2
-      size: 289766
+      md5: 5fbbbeefee5895f7b8e7c7be1dbb37f7
+      size: 290763
     - path: scripts/eval_baseline_v0.py
       hash: md5
       md5: 57d40b8c355e9280d6cd6117b0ed7d87
       size: 4466
     - path: src/contracts
       hash: md5
-      md5: 3e9101f4d6955dffbc591581778a1e8c.dir
-      size: 28082
+      md5: 7f5beb80d9686cdcd6b0f939303d55cd.dir
+      size: 28134
       nfiles: 8
     outs:
     - path: artifacts/baseline_new_merge_independent_concat/metrics.json
       hash: md5
-      md5: 1ce90a1d13d3e7af2d42c8b61dcba1e3
-      size: 4582
+      md5: 1054157f1ab42bf2c0c7fb41b9ca8d68
+      size: 4576
   eval_new_merge_gated:
     cmd: python scripts/eval_baseline_v0.py --scores
       artifacts/baseline_new_merge_gated/scores.parquet --out
@@ -299,22 +299,22 @@ stages:
     deps:
     - path: artifacts/baseline_new_merge_gated/scores.parquet
       hash: md5
-      md5: adb74e44627d24c1e97618e2408896e8
-      size: 290442
+      md5: c8dd71546b0363612701416a4c7a5612
+      size: 290567
     - path: scripts/eval_baseline_v0.py
       hash: md5
       md5: 57d40b8c355e9280d6cd6117b0ed7d87
       size: 4466
     - path: src/contracts
       hash: md5
-      md5: 3e9101f4d6955dffbc591581778a1e8c.dir
-      size: 28082
+      md5: 7f5beb80d9686cdcd6b0f939303d55cd.dir
+      size: 28134
       nfiles: 8
     outs:
     - path: artifacts/baseline_new_merge_gated/metrics.json
       hash: md5
-      md5: 46257e9b95c4017a99b2a64a9436ee61
-      size: 4519
+      md5: 6ee709012182542ca82f664a8bfc839c
+      size: 4538
   eval_new_merge_concat:
     cmd: python scripts/eval_baseline_v0.py --scores
       artifacts/baseline_new_merge_concat/scores.parquet --out
@@ -322,22 +322,22 @@ stages:
     deps:
     - path: artifacts/baseline_new_merge_concat/scores.parquet
       hash: md5
-      md5: bfd150bb2d3cf59964bc9c0b1dfd7b76
-      size: 289466
+      md5: d1dcc73e7e5b9fbad2fcdc58b57a658c
+      size: 290252
     - path: scripts/eval_baseline_v0.py
       hash: md5
       md5: 57d40b8c355e9280d6cd6117b0ed7d87
       size: 4466
     - path: src/contracts
       hash: md5
-      md5: 3e9101f4d6955dffbc591581778a1e8c.dir
-      size: 28082
+      md5: 7f5beb80d9686cdcd6b0f939303d55cd.dir
+      size: 28134
       nfiles: 8
     outs:
     - path: artifacts/baseline_new_merge_concat/metrics.json
       hash: md5
-      md5: 59bf76571335c566f879215291f845a9
-      size: 4519
+      md5: d390df50fb0c90120dd0b37b54f3a703
+      size: 4563
   train_new_merge_reliability_gate:
     cmd: python scripts/train_baseline_v0.py
       contract_dir=artifacts/contract_new_merge_expanded
@@ -346,20 +346,20 @@ stages:
     deps:
     - path: artifacts/contract_new_merge_expanded/endpoint_baseline_stats.json
       hash: md5
-      md5: 65c4edc750b5a484e5cd07d28214e211
-      size: 10004
+      md5: 44379136e54db3ac61a45bfc97b7e08a
+      size: 11375
     - path: artifacts/contract_new_merge_expanded/eval_all.parquet
       hash: md5
-      md5: 921a21e14ddc58b1cad2bb082ca7048c
-      size: 864185
+      md5: 252c6322365f29de2d1a20c4a300ee85
+      size: 887430
     - path: artifacts/contract_new_merge_expanded/schema.json
       hash: md5
-      md5: 9507016a38ff0a1b121b9171139f2b92
-      size: 1434
+      md5: 9e31b1e0e0aaf60cad0622a4c495c221
+      size: 1599
     - path: artifacts/contract_new_merge_expanded/train.parquet
       hash: md5
-      md5: e4e4e24c228048ac3ba0c406a63f53c1
-      size: 473409
+      md5: f907f0695aa5ae8eaa5978abc828ee2e
+      size: 486360
     - path: configs/base.yaml
       hash: md5
       md5: 3a9e113ef5cad881cbd753e96d1b1842
@@ -407,8 +407,8 @@ stages:
     outs:
     - path: artifacts/baseline_new_merge_reliability_gate/scores.parquet
       hash: md5
-      md5: 054cf0b01b379eb8a72dac03ef13d482
-      size: 283640
+      md5: 3b90d815da19bfae7b833c2ea2ba6023
+      size: 285582
   eval_new_merge_reliability_gate:
     cmd: python scripts/eval_baseline_v0.py --scores
       artifacts/baseline_new_merge_reliability_gate/scores.parquet --out
@@ -416,22 +416,22 @@ stages:
     deps:
     - path: artifacts/baseline_new_merge_reliability_gate/scores.parquet
       hash: md5
-      md5: 054cf0b01b379eb8a72dac03ef13d482
-      size: 283640
+      md5: 3b90d815da19bfae7b833c2ea2ba6023
+      size: 285582
     - path: scripts/eval_baseline_v0.py
       hash: md5
       md5: 57d40b8c355e9280d6cd6117b0ed7d87
       size: 4466
     - path: src/contracts
       hash: md5
-      md5: 3e9101f4d6955dffbc591581778a1e8c.dir
-      size: 28082
+      md5: 7f5beb80d9686cdcd6b0f939303d55cd.dir
+      size: 28134
       nfiles: 8
     outs:
     - path: artifacts/baseline_new_merge_reliability_gate/metrics.json
       hash: md5
-      md5: 78d322213673165ecc5cb1706e00eae4
-      size: 4583
+      md5: dcd2316dc797f87dd2d2016539c5427b
+      size: 4573
   train_new_merge_reliability_gate_indep_sigmoid:
     cmd: python scripts/train_baseline_v0.py
       contract_dir=artifacts/contract_new_merge_expanded
@@ -441,20 +441,20 @@ stages:
     deps:
     - path: artifacts/contract_new_merge_expanded/endpoint_baseline_stats.json
       hash: md5
-      md5: 65c4edc750b5a484e5cd07d28214e211
-      size: 10004
+      md5: 44379136e54db3ac61a45bfc97b7e08a
+      size: 11375
     - path: artifacts/contract_new_merge_expanded/eval_all.parquet
       hash: md5
-      md5: 921a21e14ddc58b1cad2bb082ca7048c
-      size: 864185
+      md5: 252c6322365f29de2d1a20c4a300ee85
+      size: 887430
     - path: artifacts/contract_new_merge_expanded/schema.json
       hash: md5
-      md5: 9507016a38ff0a1b121b9171139f2b92
-      size: 1434
+      md5: 9e31b1e0e0aaf60cad0622a4c495c221
+      size: 1599
     - path: artifacts/contract_new_merge_expanded/train.parquet
       hash: md5
-      md5: e4e4e24c228048ac3ba0c406a63f53c1
-      size: 473409
+      md5: f907f0695aa5ae8eaa5978abc828ee2e
+      size: 486360
     - path: configs/base.yaml
       hash: md5
       md5: 3a9e113ef5cad881cbd753e96d1b1842
@@ -503,8 +503,8 @@ stages:
     - path:
         artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/scores.parquet
       hash: md5
-      md5: 38f92144e0718ad0a7a94a4862623134
-      size: 285952
+      md5: b98136d62ac2c9137e3a9e95a2989c50
+      size: 210874
   eval_new_merge_reliability_gate_indep_sigmoid:
     cmd: python scripts/eval_baseline_v0.py --scores
       artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/scores.parquet
@@ -514,23 +514,23 @@ stages:
     - path:
         artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/scores.parquet
       hash: md5
-      md5: 38f92144e0718ad0a7a94a4862623134
-      size: 285952
+      md5: b98136d62ac2c9137e3a9e95a2989c50
+      size: 210874
     - path: scripts/eval_baseline_v0.py
       hash: md5
       md5: 57d40b8c355e9280d6cd6117b0ed7d87
       size: 4466
     - path: src/contracts
       hash: md5
-      md5: 3e9101f4d6955dffbc591581778a1e8c.dir
-      size: 28082
+      md5: 7f5beb80d9686cdcd6b0f939303d55cd.dir
+      size: 28134
       nfiles: 8
     outs:
     - path:
         artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/metrics.json
       hash: md5
-      md5: 2e07b45c0b564ae43c2137a115fd74f0
-      size: 4564
+      md5: 4bbe66478582f2f1657cd5969b55e511
+      size: 4555
   train_new_merge_deviation_weighted:
     cmd: python scripts/train_baseline_v0.py
       contract_dir=artifacts/contract_new_merge_expanded
@@ -539,20 +539,20 @@ stages:
     deps:
     - path: artifacts/contract_new_merge_expanded/endpoint_baseline_stats.json
       hash: md5
-      md5: 65c4edc750b5a484e5cd07d28214e211
-      size: 10004
+      md5: 44379136e54db3ac61a45bfc97b7e08a
+      size: 11375
     - path: artifacts/contract_new_merge_expanded/eval_all.parquet
       hash: md5
-      md5: 921a21e14ddc58b1cad2bb082ca7048c
-      size: 864185
+      md5: 252c6322365f29de2d1a20c4a300ee85
+      size: 887430
     - path: artifacts/contract_new_merge_expanded/schema.json
       hash: md5
-      md5: 9507016a38ff0a1b121b9171139f2b92
-      size: 1434
+      md5: 9e31b1e0e0aaf60cad0622a4c495c221
+      size: 1599
     - path: artifacts/contract_new_merge_expanded/train.parquet
       hash: md5
-      md5: e4e4e24c228048ac3ba0c406a63f53c1
-      size: 473409
+      md5: f907f0695aa5ae8eaa5978abc828ee2e
+      size: 486360
     - path: configs/base.yaml
       hash: md5
       md5: 3a9e113ef5cad881cbd753e96d1b1842
@@ -600,8 +600,8 @@ stages:
     outs:
     - path: artifacts/baseline_new_merge_deviation_weighted/scores.parquet
       hash: md5
-      md5: 88510e10895df2c5b8ad49db58cef759
-      size: 290295
+      md5: 4da570adb9518aa4722bc676f827ec13
+      size: 289761
   eval_new_merge_deviation_weighted:
     cmd: python scripts/eval_baseline_v0.py --scores
       artifacts/baseline_new_merge_deviation_weighted/scores.parquet --out
@@ -609,19 +609,19 @@ stages:
     deps:
     - path: artifacts/baseline_new_merge_deviation_weighted/scores.parquet
       hash: md5
-      md5: 88510e10895df2c5b8ad49db58cef759
-      size: 290295
+      md5: 4da570adb9518aa4722bc676f827ec13
+      size: 289761
     - path: scripts/eval_baseline_v0.py
       hash: md5
       md5: 57d40b8c355e9280d6cd6117b0ed7d87
       size: 4466
     - path: src/contracts
       hash: md5
-      md5: 3e9101f4d6955dffbc591581778a1e8c.dir
-      size: 28082
+      md5: 7f5beb80d9686cdcd6b0f939303d55cd.dir
+      size: 28134
       nfiles: 8
     outs:
     - path: artifacts/baseline_new_merge_deviation_weighted/metrics.json
       hash: md5
-      md5: 3e3eb21a7aad8b32ab887fb2a1dcaa46
-      size: 4516
+      md5: f719f8fb1771f8baed8d7bcd2c01b944
+      size: 4504

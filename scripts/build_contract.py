@@ -472,6 +472,28 @@ def main() -> None:
             )
     full[rate_feature_cols] = full[rate_feature_cols].clip(lower=0.0, upper=1.0)
 
+    # content_length_mean 的 Normal fit 窗口（单一 case，采集时间早于故障批次）与故障
+    # case 运行时基线电平系统性错位（详见 history/entries/024），导致该列在非退化
+    # endpoint（order/refresh）上归一化后出现远超其他特征量级的极端值（|value|>10
+    # 占比 0.80，全特征集里其余列均 <0.01），在 L0/L1 等直接消费 Normalizer 输出的
+    # 融合方式下主导 SVDD 距离、掩盖其他模态贡献。对称裁剪压制幅值同时保留方向性。
+    # 只对真正走过 min-max 归一化的 group 生效——退化 group（该列在 6/8 endpoint 上
+    # 因 Normal fit 零方差被跳过归一化，见上方 skipped 告警）走 raw passthrough，
+    # 裁剪会把这些 endpoint 本就是原始字节数量纲、彼此互不可比的真实取值（如
+    # 61~459 字节）压扁成同一常数，抹掉其内部尚存的可区分信息，属于此前已知悉、
+    # 单独接受的风险（同上方非 rate 列告警），不在本次修复范围内。
+    # 裁剪边界 ±5：travel/trips-left 唯一非退化的另一 endpoint，其在真实故障（如
+    # HTTPABORT）注入期的归一化取值实测最大幅度 ≈3.2，5 留出安全余量不误伤真实信号；
+    # order/refresh 本身因错位问题几乎全部落在边界外，裁剪对它是预期中的按下限幅。
+    _CONTENT_LENGTH_COL = "endpoint_red__client_content_length_mean"
+    _CONTENT_LENGTH_CLIP_BOUND = 5.0
+    if _CONTENT_LENGTH_COL in feature_cols:
+        degenerate_groups = set(skipped.get(_CONTENT_LENGTH_COL, []))
+        clip_mask = ~full["endpoint_key"].isin(degenerate_groups)
+        full.loc[clip_mask, _CONTENT_LENGTH_COL] = full.loc[clip_mask, _CONTENT_LENGTH_COL].clip(
+            lower=-_CONTENT_LENGTH_CLIP_BOUND, upper=_CONTENT_LENGTH_CLIP_BOUND
+        )
+
     validate_contract_df(full, args.config)
 
     if cfg.contract_version == "v1":
