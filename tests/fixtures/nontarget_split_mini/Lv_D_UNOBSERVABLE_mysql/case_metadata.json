@@ -1,0 +1,8 @@
+{
+  "case_id": "Lv_D_UNOBSERVABLE_mysql",
+  "anomaly_type": "Lv_D_UNOBSERVABLE_mysql",
+  "anomaly_level": "database",
+  "target_service": "tsdb-mysql",
+  "inject_start_ms": 1796300075000,
+  "inject_end_ms": 1796300135000
+}

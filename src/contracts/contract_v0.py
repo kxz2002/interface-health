@@ -27,7 +27,13 @@ REQUIRED_LABEL_COLUMNS = [
     "anomaly_level",
     "label_granularity",
     "is_endpoint_anomaly",
+    "label_target_observable",
 ]
+# label_granularity 的合法取值（entry 025 从二元 endpoint/case 扩到三元）。校验这个
+# 枚举而不是只查列存在性：下游 _write_v1 的 recover 吸收判据、eval 分层都按具体字符串
+# 分支，拼错一个值（如写成 "svc"）不会报错，只会让那批 case 静默走进 else 分支、
+# 行为与预期相反。
+VALID_LABEL_GRANULARITY = frozenset({"endpoint", "service", "case"})
 RATE_COLUMNS = [
     "endpoint_red__trace_error_rate",
     "endpoint_red__trace_5xx_rate",
@@ -87,6 +93,26 @@ def validate_contract_df(df: pd.DataFrame, config_path: str) -> ContractV0:
         errors.append(
             f"phase 与 is_anomaly 不一致：{int(inconsistent.sum())} 行 "
             "（is_anomaly 必须等价于 phase == 'inject'）"
+        )
+
+    bad_granularity = sorted(set(df["label_granularity"].dropna()) - VALID_LABEL_GRANULARITY)
+    if bad_granularity:
+        errors.append(
+            f"label_granularity 出现非法取值 {bad_granularity}，"
+            f"合法取值为 {sorted(VALID_LABEL_GRANULARITY)}"
+        )
+
+    # is_endpoint_anomaly 必须蕴含 is_anomaly：正样本只能出现在 inject 窗口内。三档
+    # label_granularity 的正样本判据都是 is_anomaly 与某个 target 条件的 AND，故该
+    # 蕴含关系恒成立；这里校验它是为了挡住未来某档判据被改成不带 is_anomaly 的形式
+    # （那会让 baseline/recover 行被标成正样本，评估协议直接失真而不报错）。
+    positive_outside_inject = df["is_endpoint_anomaly"].astype(bool) & ~df["is_anomaly"].astype(
+        bool
+    )
+    if positive_outside_inject.any():
+        errors.append(
+            f"is_endpoint_anomaly 在 inject 窗口外为 True：{int(positive_outside_inject.sum())} 行"
+            "（正样本必须是 is_anomaly 的子集）"
         )
 
     if errors:

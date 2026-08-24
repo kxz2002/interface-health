@@ -56,6 +56,7 @@ def _make_valid_row():
         "anomaly_level": "none",
         "label_granularity": "case",
         "is_endpoint_anomaly": False,
+        "label_target_observable": True,
     }
 
 
@@ -92,4 +93,41 @@ def test_inconsistent_anomaly_label_raises():
     row["phase"] = "inject"
     row["is_anomaly"] = False  # 矛盾
     with pytest.raises(ContractV0Error, match="phase.*is_anomaly"):
+        validate_contract_df(pd.DataFrame([row]), REPO_ROOT / "configs/contract/v0.yaml")
+
+
+def test_service_label_granularity_is_valid():
+    """entry 025 新增的 "service" 档必须被校验放行——它是三档枚举里的合法值，
+    不是拼写错误。这条测试防止未来有人"收紧"枚举时把 service 档误删。"""
+    row = _make_valid_row()
+    row["label_granularity"] = "service"
+    validated = validate_contract_df(pd.DataFrame([row]), REPO_ROOT / "configs/contract/v0.yaml")
+    assert len(validated) == 1
+
+
+def test_unknown_label_granularity_raises():
+    """label_granularity 拼错（如 "svc"）必须报错而不是静默放行。
+
+    下游 _write_v1 的 recover 吸收判据与 eval 分层都按具体字符串分支，非法值不会
+    触发异常、只会让那批 case 悄悄走进 else 分支，行为与预期相反且无任何提示。
+    """
+    row = _make_valid_row()
+    row["label_granularity"] = "svc"
+    with pytest.raises(ContractV0Error, match="label_granularity.*非法取值"):
+        validate_contract_df(pd.DataFrame([row]), REPO_ROOT / "configs/contract/v0.yaml")
+
+
+def test_positive_label_outside_inject_window_raises():
+    """is_endpoint_anomaly 必须是 is_anomaly 的子集：正样本只能落在 inject 窗口内。
+
+    三档 label_granularity 的正样本判据都形如 `is_anomaly & <target 条件>`，故该
+    蕴含关系恒成立。校验它是为了挡住未来某档判据被改成不带 is_anomaly 的形式——
+    那会让 baseline/recover 行被标成正样本，评估协议（CLAUDE.md：正样本 = inject
+    阶段内的 endpoint × 时间窗）直接失真且不报错。
+    """
+    row = _make_valid_row()
+    row["phase"] = "recover"
+    row["is_anomaly"] = False
+    row["is_endpoint_anomaly"] = True  # 矛盾：recover 阶段不可能有正样本
+    with pytest.raises(ContractV0Error, match="is_endpoint_anomaly.*inject 窗口外"):
         validate_contract_df(pd.DataFrame([row]), REPO_ROOT / "configs/contract/v0.yaml")

@@ -225,12 +225,16 @@ _NTGT_DATASET = "tests/fixtures/nontarget_split_mini.yaml"
 
 
 def test_inject_nontarget_rows_partially_absorbed_into_train(tmp_path):
-    """inject 阶段非目标 endpoint 行按 fraction 部分吸收进训练池。
+    """inject 阶段非目标行按 fraction 部分吸收进训练池。
 
-    nontarget_split_mini 的 Lv_E_NTGT_travel 有 5 个 inject 窗口 × 1 个非目标
-    endpoint = 5 行候选，int(5*0.2)=1 窗 → 1 行进 train、4 行留 eval。
-    Lv_D_CASELVL_travel（case 级标签）在 inject 阶段所有行 is_endpoint_anomaly
-    都 fallback 为 True，不进候选池，故总候选恒为 5 行而非 10 行。
+    两个故障 case 各贡献 5 窗 × 1 个非目标 endpoint = 5 行候选，int(5*0.2)=1 窗 →
+    每个 case 1 行进 train、4 行留 eval，合计 2 行 train / 8 行 eval。
+
+    entry 025 前这里只有 Lv_E_NTGT_travel 贡献候选（1 行 train / 4 行 eval），因为
+    Lv_D_CASELVL_travel 走 case 级 fallback、inject 阶段 is_endpoint_anomaly 恒 True，
+    判据 ~is_endpoint_anomaly 选不出任何行。修复后该 case 走 service 档
+    （target_service=ts-travel-service），其非目标 service（travel2）的 inject 行不再
+    是正样本，因而进入候选池——这正是修复的目的：那些行确实是未受冲击的正常数据。
     """
     out_dir = tmp_path / "contract_v1"
     cfg = _cfg_with_fractions(tmp_path, "inject_02", fault_inject_nontarget_train_fraction=0.2)
@@ -240,27 +244,38 @@ def test_inject_nontarget_rows_partially_absorbed_into_train(tmp_path):
     eval_all = pd.read_parquet(out_dir / "eval_all.parquet")
 
     absorbed = train[train["source_phase"] == "fault_inject_nontarget"]
-    assert len(absorbed) == 1, f"应吸收最早 1 窗 × 1 endpoint = 1 行，实际 {len(absorbed)}"
+    assert (
+        len(absorbed) == 2
+    ), f"两个 case 各吸收最早 1 窗 × 1 endpoint = 2 行，实际 {len(absorbed)}"
     assert (absorbed["phase"] == "inject").all()
-    assert (absorbed["case_id"] == "Lv_E_NTGT_travel").all()
+    assert set(absorbed["case_id"]) == {"Lv_E_NTGT_travel", "Lv_D_CASELVL_travel"}
     assert not absorbed["is_endpoint_anomaly"].any()
+    # 被吸收的必须都是非目标行：两个 case 的 target 都落在 ts-travel-service 上
+    assert (absorbed["service_name"] != "ts-travel-service").all()
 
     eval_inject_nontarget = eval_all[
         (eval_all["phase"] == "inject") & (~eval_all["is_endpoint_anomaly"])
     ]
-    # 剩 4 行来自 Lv_E_NTGT_travel，另 0 行来自 case 级 case（其 inject 行全是正样本）
+    # 18 行 = 两个可观测 case 各留 4 行未吸收（8） + 不可观测 case 的全部 10 行 inject
+    # （被 label_target_observable 闸门挡在候选池外，整段留 eval，见
+    # test_unobservable_target_inject_rows_never_absorbed）
     assert (
-        len(eval_inject_nontarget) == 4
-    ), f"应留 4 行未吸收的非目标 inject 行，实际 {len(eval_inject_nontarget)}"
+        len(eval_inject_nontarget) == 18
+    ), f"应留 8 行未吸收 + 10 行不可观测 inject 行，实际 {len(eval_inject_nontarget)}"
 
 
 def test_inject_target_rows_never_absorbed_regardless_of_fraction(tmp_path):
-    """正样本（inject 阶段目标 endpoint 行）不管 fraction 多高都不进训练池。
+    """正样本（inject 阶段命中 target 的行）不管 fraction 多高都不进训练池。
 
-    这是 is_endpoint_anomaly 判据的核心保护：若实现误用 is_target_endpoint==False
-    作为 inject 侧判据，case 级标签 case（is_target_endpoint 全 False）的全部
-    inject 行都会被当成"非目标"吸收——而它们的 is_endpoint_anomaly 是 True，
-    就是正样本。fraction=1.0 让这个 bug 必然暴露。
+    这是 is_endpoint_anomaly 判据的核心保护。fraction=1.0 让任何判据错误必然暴露：
+    - 若 inject 侧误用 is_target_endpoint==False，service 档 case（该列全 NaN）的
+      正样本会被当成"非目标"吸收；
+    - 若漏掉 label_target_observable 闸门，target 不可观测 case 的全部 inject 行
+      （正样本恒为 0）会整段被吸收。
+
+    正样本 10 行（entry 025 前是 15 行）：Lv_E_NTGT_travel 贡献 5（目标 endpoint），
+    Lv_D_CASELVL_travel 贡献 5（target_service=ts-travel-service 命中的那个 endpoint）。
+    差额 5 行正是修复掉的——CASELVL 的 travel2 行原先被 case 级 fallback 误标为正样本。
     """
     out_dir = tmp_path / "contract_v1"
     cfg = _cfg_with_fractions(tmp_path, "inject_10", fault_inject_nontarget_train_fraction=1.0)
@@ -270,14 +285,14 @@ def test_inject_target_rows_never_absorbed_regardless_of_fraction(tmp_path):
     eval_all = pd.read_parquet(out_dir / "eval_all.parquet")
 
     assert not train["is_endpoint_anomaly"].any(), "训练池吸收了正样本"
-    # 两个故障 case 各 5 窗 inject：endpoint 级 case 贡献 5 个正样本（目标 endpoint），
-    # case 级 case 的 10 行 inject 全是正样本（fallback），合计 15 行必须全留 eval
     positives = eval_all[eval_all["is_endpoint_anomaly"]]
-    assert len(positives) == 15, f"正样本应恒为 15 行，实际 {len(positives)}"
+    assert len(positives) == 10, f"正样本应恒为 10 行，实际 {len(positives)}"
+    # 正样本必须全部落在 target service 上（两个 case 的 target_service 都是 travel）
+    assert (positives["service_name"] == "ts-travel-service").all()
     # 正向对照：证明 fraction 确实被消费了，否则上面的"未被吸收"断言在 fraction
-    # 静默退化为 0.0 时会 vacuously 通过——fraction=1.0 应吸收 Lv_E_NTGT_travel
-    # 的全部 5 个非目标 inject 窗口进 train
-    assert (train["source_phase"] == "fault_inject_nontarget").sum() == 5
+    # 静默退化为 0.0 时会 vacuously 通过——fraction=1.0 应吸收两个 case 各 5 个
+    # 非目标 inject 窗口，共 10 行
+    assert (train["source_phase"] == "fault_inject_nontarget").sum() == 10
 
 
 def test_recover_nontarget_rows_partially_absorbed_into_train(tmp_path):
@@ -326,13 +341,17 @@ def test_recover_target_endpoint_rows_never_absorbed(tmp_path):
     assert (train["source_phase"] == "fault_recover_nontarget").sum() == 5
 
 
-def test_case_level_label_recover_rows_never_absorbed(tmp_path):
-    """label_granularity=='case' 的 case，其 recover 行不管 fraction 多高都不被吸收。
+def test_non_endpoint_granularity_recover_rows_never_absorbed(tmp_path):
+    """label_granularity != 'endpoint' 的 case，其 recover 行不管 fraction 多高都不吸收。
 
-    这是本轮最容易被静默破坏的行为：case 级标签 case 没有 target_endpoint 字段、
-    is_target_endpoint 全为 False，若实现漏掉 label_granularity=='endpoint' 这层
-    过滤，这批 recover 行会全部被当成"非目标"吸收进训练池——其中可能包含实际就是
-    故障发生地的 endpoint，污染训练池对"正常"的定义。
+    entry 025 的显式决策：service 档 case 虽然理论上可用 service_name != target_service
+    区分目标/非目标，但 recover 侧不纳入——本次只修 inject 侧的标签 bug，多改一处会让
+    AUROC 变化无法归因；且 recover 阶段本就是保守排除的（系统未验证回到正常态）。
+    实现上靠 `label_granularity == "endpoint"` 这个既有判据天然挡住，无需额外代码。
+
+    这是本轮最容易被静默破坏的行为：若实现漏掉那层过滤，这批 recover 行会全部被当成
+    "非目标"吸收进训练池——其中可能包含实际就是故障发生地的 endpoint，污染训练池对
+    "正常"的定义。
     """
     out_dir = tmp_path / "contract_v1"
     cfg = _cfg_with_fractions(
@@ -345,26 +364,28 @@ def test_case_level_label_recover_rows_never_absorbed(tmp_path):
 
     assert not (
         (train["case_id"] == "Lv_D_CASELVL_travel") & (train["phase"] == "recover")
-    ).any(), "case 级标签 case 的 recover 行被吸收了"
+    ).any(), "service 档 case 的 recover 行被吸收了"
     # 该 case 的 10 行 recover（5 窗 × 2 endpoint）必须整段留在 eval_all
     case_recover_eval = eval_all[
         (eval_all["case_id"] == "Lv_D_CASELVL_travel") & (eval_all["phase"] == "recover")
     ]
     assert (
         len(case_recover_eval) == 10
-    ), f"case 级标签 case 的 recover 行应整段留 eval，实际 {len(case_recover_eval)}"
+    ), f"service 档 case 的 recover 行应整段留 eval，实际 {len(case_recover_eval)}"
     # 正向对照：证明 fraction 确实被消费了，否则上面的"未被吸收"断言在 fraction
     # 静默退化为 0.0 时会 vacuously 通过——fraction=1.0 应吸收 Lv_E_NTGT_travel
     # 的全部 5 个非目标 recover 窗口进 train
     assert (train["source_phase"] == "fault_recover_nontarget").sum() == 5
 
 
-def test_label_granularity_derives_from_target_endpoint_not_anomaly_level(tmp_path):
-    """label_granularity 的判据是 target_endpoint 字段是否存在，不是 anomaly_level。
+def test_label_granularity_derives_from_target_fields_not_anomaly_level(tmp_path):
+    """label_granularity 的判据是 case_meta 里有哪一级 target 字段，不是 anomaly_level。
 
     fixture 里 Lv_D_CASELVL_travel 的 anomaly_level 故意写成 'endpoint' 却没有
-    target_endpoint 字段。若实现（现在或将来）改用 anomaly_level 判断，这个 case
-    会被误判为 endpoint 级精确标签，其 recover 行会被错误纳入吸收候选。
+    target_endpoint 字段（只有 target_service）。若实现（现在或将来）改用 anomaly_level
+    判断，这个 case 会被误判为 endpoint 级精确标签，其正样本判据会错用
+    is_target_endpoint（该列在这个 case 上全 NaN），且 recover 行会被错误纳入吸收候选。
+    正确结果是 service 档——entry 025 前这里断言的是 'case'，那是二元设计下的旧预期。
     """
     out_dir = tmp_path / "contract_v1"
     _run_v1_build(out_dir, config="configs/contract/v1_expanded_pool.yaml", dataset=_NTGT_DATASET)
@@ -372,10 +393,60 @@ def test_label_granularity_derives_from_target_endpoint_not_anomaly_level(tmp_pa
     eval_all = pd.read_parquet(out_dir / "eval_all.parquet")
     case_rows = eval_all[eval_all["case_id"] == "Lv_D_CASELVL_travel"]
     assert (case_rows["anomaly_level"] == "endpoint").all(), "fixture 前提变了"
-    assert (case_rows["label_granularity"] == "case").all()
+    assert (case_rows["label_granularity"] == "service").all()
 
     ntgt_rows = eval_all[eval_all["case_id"] == "Lv_E_NTGT_travel"]
     assert (ntgt_rows["label_granularity"] == "endpoint").all()
+
+
+def test_unobservable_target_inject_rows_never_absorbed(tmp_path):
+    """target 不可观测的 case（tsdb-mysql 类基础设施组件）的 inject 行不进训练池。
+
+    entry 025 的 label_target_observable 闸门存在的唯一理由。这类 case 正样本恒为 0
+    （target_service 不在 endpoint→service 映射的值域里），于是 ~is_endpoint_anomaly
+    对其**全部** inject 行恒为 True——少了这道闸，fraction=1.0 会把整段 inject 行吸进
+    训练池。而数据库/网关挂掉时 8 个 service 无一不受影响，根本不存在"未受冲击的非目标
+    service"，吸收进去等于把故障数据当正常数据喂给 One-Class 模型、污染正常边界。
+
+    评估侧仍保持诚实：这批行留在 eval_all 当负样本，该 case 分层 AUROC 为 null
+    （单一类别），与 entry 016/023 对 Lv_S_KILLPOD_gateway 的处理惯例一致。
+    """
+    out_dir = tmp_path / "contract_v1"
+    cfg = _cfg_with_fractions(
+        tmp_path,
+        "unobs_all_10",
+        fault_inject_nontarget_train_fraction=1.0,
+        fault_recover_nontarget_train_fraction=1.0,
+    )
+    _run_v1_build(out_dir, config=cfg, dataset=_NTGT_DATASET)
+
+    train = pd.read_parquet(out_dir / "train.parquet")
+    eval_all = pd.read_parquet(out_dir / "eval_all.parquet")
+    unobs = "Lv_D_UNOBSERVABLE_mysql"
+
+    # fixture 前提：该 case 确实被判定为不可观测且零正样本
+    unobs_eval = eval_all[eval_all["case_id"] == unobs]
+    assert not unobs_eval.empty
+    assert not unobs_eval["label_target_observable"].any()
+    assert int(unobs_eval["is_endpoint_anomaly"].sum()) == 0
+
+    # 核心断言：一行 inject 都没被吸收
+    absorbed_inject = train[
+        (train["case_id"] == unobs) & (train["source_phase"] == "fault_inject_nontarget")
+    ]
+    assert (
+        len(absorbed_inject) == 0
+    ), f"不可观测 case 的 inject 行被吸收了 {len(absorbed_inject)} 行"
+    assert (
+        not (train["case_id"] == unobs).any()
+        or (train[train["case_id"] == unobs]["phase"] != "inject").all()
+    )
+
+    # 行守恒：全部 10 行 inject（5 窗 × 2 endpoint）必须留在 eval_all，不能被静默丢弃
+    assert (
+        int((unobs_eval["phase"] == "inject").sum()) == 10
+    ), "不可观测 case 的 inject 行漏出了 eval_all"
+    assert set(train["sample_id"]) & set(eval_all["sample_id"]) == set()
 
 
 def test_all_three_fractions_together_keep_sample_id_disjoint(tmp_path):
@@ -398,10 +469,13 @@ def test_all_three_fractions_together_keep_sample_id_disjoint(tmp_path):
 
     assert set(train["sample_id"]) & set(eval_all["sample_id"]) == set()
     # 无行丢失：三路全吸收后，两侧行数之和必须等于 fixture 总行数（12 Normal +
-    # 30 + 30 = 72）减去 train_val（Normal 三路切分里既不进 train 也不进 eval_all
-    # 的那一份，6 窗 × int(6*0.2)=1 窗 × 2 endpoint = 2 行）
+    # 3 个故障 case × 30 = 102）减去 train_val（Normal 三路切分里既不进 train 也不进
+    # eval_all 的那一份，6 窗 × int(6*0.2)=1 窗 × 2 endpoint = 2 行）。
+    # entry 025 新增 Lv_D_UNOBSERVABLE_mysql 后故障 case 从 2 个变 3 个，总数 72→102。
+    # 这条断言同时守住不可观测 case 的 inject 行不被静默丢弃——它们既不进训练池、
+    # 又不是正样本，若 eval_all 的分段拼接漏收这一段，行数就会短 10 行。
     assert (
-        len(train) + len(eval_all) == 72 - 2
+        len(train) + len(eval_all) == 102 - 2
     ), f"三路全吸收后行数不守恒：train={len(train)} eval_all={len(eval_all)}"
 
 
@@ -427,6 +501,7 @@ def test_nontarget_fractions_are_noop_when_expand_train_pool_false(tmp_path):
     assert "source_phase" not in train.columns
 
     eval_all = pd.read_parquet(out_dir / "eval_all.parquet")
-    # 故障 case 的 inject/recover 行必须全留 eval（各 20 行）
-    assert (eval_all["phase"] == "inject").sum() == 20
-    assert (eval_all["phase"] == "recover").sum() == 20
+    # 故障 case 的 inject/recover 行必须全留 eval（3 个故障 case × 5 窗 × 2 endpoint
+    # = 30 行each；entry 025 新增第 3 个 fixture case 后从 20 涨到 30）
+    assert (eval_all["phase"] == "inject").sum() == 30
+    assert (eval_all["phase"] == "recover").sum() == 30
