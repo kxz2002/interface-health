@@ -1,9 +1,11 @@
-# 024 · content_length_mean 归一化尺度爆炸修复（对称 clip）+ 六融合方式三方对比
+# 026 · content_length_mean 归一化尺度爆炸修复（对称 clip）+ 六融合方式三方对比
 
 - **日期**: 2026-08-22
-- **PR**: 待开 PR（branch: `feature/content-length-bodyhash-features`，同 PR，非新分支）
+- **PR**: #25（branch: `feature/content-length-bodyhash-features`）
 - **类型**: Bugfix + Experiment
 - **影响域**: `scripts/build_contract.py`, `artifacts/baseline_new_merge_*/metrics.json`, `dvc_new_merge/dvc.lock`
+
+> ⚠️ **数字失效声明**：本 entry 记录的三方对比数字（baseline/unfixed/fixed）建立在 025（service 级标签粒度修复）**之前**的标签口径上，与 master 合并后已过期。本次 merge 的 6 个 `metrics.json` 冲突已采用 master（PR #24，含 025 的标签修复）落地的版本，不含本 entry 描述的 content_length clip 改动。合并后需在新标签口径下重新跑一遍 `dvc repro dvc_new_merge/dvc.yaml` 才能确认 content_length clip 修复在新口径下的实际效果。
 
 ## 做了什么
 

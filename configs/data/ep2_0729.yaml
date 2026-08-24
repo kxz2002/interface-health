@@ -1,0 +1,24 @@
+# configs/data/ep2_0729.yaml
+# ep2_0729：2026-07-28/29 单批次重采数据集（28 case），当前最干净的一批。
+#
+# 相对历史批次的改进（决定了它值得单独立一个 dataset config 而不是并入 merged_*）：
+# - 单批次采集：28 个 case 全部落在 2026-07-28/29 一次连续采集内，Normal 与故障
+#   case 同批。这直接消掉 entry 017 记录的跨 run 混杂——旧协议拿 07-11 采的 Normal
+#   当 07-04 故障 case 的负样本，service_only 对 ABORT 从 0.822 虚高到 0.922，测的
+#   是"哪个 run"而非故障。
+# - 三阶段时序统一：全部故障 case baseline 1200s / inject 600s / recover 120s
+#   （Normal 1800s 单阶段），不像 new_ep1 的 baseline 1500s 需要重新校准 fraction。
+# - Lv_E 家族补齐：HTTP{ABORT,DELAY,PATCH,REPLACE} × {assurance,order,travel,travel2}
+#   完整 4×4=16 case，全部带 target_endpoint（endpoint 级精确标签）。new_ep1 缺
+#   assurance 家族与 PATCH_order 组合，只有 11 个。
+# - 另有 11 个 case 级故障（Lv_S×5 / Lv_P×3 / Lv_D×3）+ 1 个 Normal。
+#
+# 数据仍在 AnoMod 采集仓库、未同步进本仓库 data/ 与 DVC，故 roots 指向仓库外绝对
+# 路径。这是显式的临时状态：入库前该路径在别的设备上不存在，凡消费本 config 的
+# stage 都不可进 dvc.yaml 默认 DAG。
+name: ep2_0729
+description: 2026-07-28/29 单批次重采数据集（16 个 endpoint 级 Lv_E + 11 个 case 级 + 1 Normal，共 28 case，无跨 run 混杂）
+roots:
+  - /tmp/ep2_0729_nolog
+normal_source: /tmp/ep2_0729_nolog
+fused_window: 15s

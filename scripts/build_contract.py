@@ -278,7 +278,19 @@ def _attach_label_columns(ep_df: pd.DataFrame, case_meta: dict) -> None:
     ep_df["anomaly_type"] = case_meta.get("anomaly_type", "Normal")
     ep_df["anomaly_level"] = case_meta.get("anomaly_level", "none")
 
+    # 标签粒度三档，判据是"case_meta 里拿得到哪一级 target 字段"，不是 anomaly_level
+    # （后者是故障类型描述，语义不等价，见 CLAUDE.md per-endpoint 标签精度 gotcha）：
+    #   endpoint — 有 target_endpoint，正样本 = 目标 endpoint × inject
+    #   service  — 只有 target_service，正样本 = 目标 service × inject
+    #   case     — 两者都无（Normal case，或未来缺 target 字段的数据源），整个 inject
+    #              窗口一视同仁标正
+    # "service" 这一档是 entry 025 补的：原实现只有 endpoint/case 二分，没有
+    # target_endpoint 就 fallback 到"整个 case 全标正"，把已经存在于 case_meta 的
+    # target_service 丢掉了。后果是 service 级特征（service_metric/service_log）的
+    # 判别力被无关 service 的行严重稀释——entry 024 实测 Lv_P_CPU_preserve 的
+    # cpu_usage_rate AUROC 0.534，限定 service_name==target_service 重算后 0.906。
     target_endpoint = case_meta.get("target_endpoint")
+    target_service = case_meta.get("target_service")
     if target_endpoint is not None:
         ep_df["label_granularity"] = "endpoint"
         # is_target_endpoint 由 trace_preprocessor.py 保证总是存在（缺失时填 False），
@@ -301,9 +313,53 @@ def _attach_label_columns(ep_df: pd.DataFrame, case_meta: dict) -> None:
                 "请检查 target_endpoint 是否在 v0 endpoint 白名单内，或 endpoint_key 是否对齐。",
                 target_endpoint,
             )
+    elif target_service is not None:
+        # service 级精确标签：正样本收窄到目标 service 的行。service_name 由
+        # endpoint_to_service.yaml 映射而来，故只覆盖 8 个客户端入口 service；
+        # target_service 落在 mysql/gateway 这类基础设施组件上时这里一行都匹配不上，
+        # 由下方 label_target_observable 统一处理，不在此处特判。
+        ep_df["label_granularity"] = "service"
+        ep_df["is_endpoint_anomaly"] = ep_df["is_anomaly"] & (
+            ep_df["service_name"] == target_service
+        )
     else:
         ep_df["label_granularity"] = "case"
         ep_df["is_endpoint_anomaly"] = ep_df["is_anomaly"]
+
+    # label_target_observable：该 case 声明的注入目标是否落在 endpoint→service 映射的
+    # 可观测范围内。区别于逐行的 is_endpoint_anomaly，这一列在整个 case 内恒定，只在
+    # "声明了 target、有 inject 行、但一行都匹配不上"时为 False。
+    #
+    # 为什么要单独一列，而不是让下游现场用 is_endpoint_anomaly.any() 推断：该列的两个
+    # 消费方诉求方向相反。评估侧要诚实——mysql/gateway 这类基础设施 target 不在
+    # endpoint_to_service.yaml 的 8 个客户端入口里（它们本就不对应任何客户端 endpoint），
+    # 正样本理应为 0、分层 AUROC 理应无定义，与 entry 016/023 对 Lv_S_KILLPOD_gateway
+    # 的处理惯例一致，不能为凑出一个数字而放宽判据。但训练侧不能跟着"诚实"——
+    # _write_v1 的 inject 非目标行吸收判据是 ~is_endpoint_anomaly，正样本为 0 会让该
+    # case 的**全部** inject 行摇身变成"非目标行"候选，在 fraction=1.0 下整段吸进
+    # 训练池。而这类 case（如 tsdb-mysql 挂掉）的故障是全局性的，8 个 service 无一
+    # 不受影响，根本不存在"未受影响的非目标 service"，吸收进去等于把故障数据当正常
+    # 数据喂给 One-Class 模型、污染正常边界的定义。故用这一列在吸收侧单独设闸，让
+    # "评估产出 null"与"训练不吸收"两件事各自达成，而不是二者只能取其一。
+    has_inject_rows = bool(ep_df["is_anomaly"].any())
+    declares_target = target_endpoint is not None or target_service is not None
+    # 无 inject 行（Normal case）或未声明 target 时恒 True：该列语义是"是否已知不可
+    # 观测"，不是"是否有正样本"。Normal case 既无 target 也无 inject 行，不属于不可
+    # 观测，标 False 会把它从吸收/评估里莫名排除。
+    observable = bool(ep_df["is_endpoint_anomaly"].any()) or not (
+        has_inject_rows and declares_target
+    )
+    ep_df["label_target_observable"] = observable
+    if not observable:
+        LOG.warning(
+            "case target_endpoint=%s / target_service=%s 声明了注入目标，但 inject 阶段内"
+            "没有任何行匹配上该目标：该 case 正样本为 0、分层 AUROC 将为 null，且其 inject "
+            "行不参与训练池吸收（label_target_observable=False）。若 target 是 mysql/gateway "
+            "这类基础设施组件，这是 configs/contract/endpoint_to_service.yaml 只覆盖 8 个"
+            "客户端入口 service 的已知结构性限制（见 history/entries/024、025），不是数据缺陷。",
+            target_endpoint,
+            target_service,
+        )
 
 
 def _build_normalizer_rules(cfg: ContractConfig) -> dict[str, tuple[Scope, Method]]:
@@ -558,19 +614,27 @@ def _write_v1(
     history/entries/019）。
 
     两路的"非目标"判据**不同**，不能互换：
-    - inject 侧用 `is_endpoint_anomaly == False`。该列已统一处理两种
-      label_granularity——case 级标签下它 fallback 等于 is_anomaly，inject 阶段恒
-      True，故该判据在 case 级 case 上自动选不出任何行，不会把正样本误吸收进
-      训练池，也因此不需要额外按 label_granularity 分支。
+    - inject 侧用 `is_endpoint_anomaly == False`，再叠加
+      `label_target_observable == True`。该列已统一处理三种 label_granularity：
+      endpoint 级收窄到目标 endpoint、service 级（entry 025 新增）收窄到目标 service、
+      case 级（仅 Normal 或缺 target 字段的数据源）才 fallback 成整个 inject 窗全标正。
+      **entry 025 前这里有一条已失效的不变量**：当时注释写着"case 级标签的 case 在此
+      自动选不出任何行"——那是因为 case 级 fallback 让 inject 阶段 is_endpoint_anomaly
+      恒 True、取反恒空。引入 service 档后该 fallback 只剩 Normal case 会走到，故障
+      case 的非目标 service 行现在**会**真实进入候选池（这正是修复的目的：那些行确实
+      是未受冲击的正常数据）。代价是 target 不可观测的 case（mysql/gateway，正样本恒
+      为 0）会把全部 inject 行暴露成候选，必须靠 label_target_observable 挡住。
     - recover 侧必须用 `is_target_endpoint == False`，且只对
       `label_granularity == "endpoint"` 的 case 生效。原因：is_anomaly 定义为
       phase == "inject"，recover 阶段恒 False，导致 is_endpoint_anomaly 对 recover
       阶段所有 endpoint（含目标）恒为 False，拿它筛"非目标"是空操作；而
-      is_target_endpoint 只在有 target_endpoint 字段的 case 上有精确含义，case 级
-      标签的 case 该列在真实数据里全为 0.0 或 NaN（缺列时 trace_preprocessor.py
-      填 False，Normal case 该列存在但全 NaN，两条不同路径）、无法区分目标/非目标，
-      其 recover 行整段排除在本切分外、原样留在 eval_all（否则会把"实际就是故障
-      发生地"的 endpoint 的 recover 行也吸收进训练池，污染训练池对"正常"的定义）。
+      is_target_endpoint 只在有 target_endpoint 字段的 case 上有精确含义。
+      service 级 case 虽然理论上可用 `service_name != target_service` 区分目标/非目标，
+      但 entry 025 决定**不纳入** recover 吸收：本次只修 inject 侧的标签 bug，多改一处
+      会让 AUROC 变化无法归因；且 recover 阶段本就是保守排除的（系统未验证回到正常态，
+      分布未知，沿用 entry 014 的既有决策）。service/case 两档的 recover 行因此整段
+      留在 eval_all——`label_granularity == "endpoint"` 这个既有判据天然把它们挡在外面，
+      无需额外改动。
     目标 endpoint 自身的 recover 行始终不被吸收，沿用上述保守排除理由。
 
     EndpointBaselineStats 必须 fit 在 parts["train_fit"]（归一化之后的尺度）上，
@@ -614,10 +678,14 @@ def _write_v1(
             fault_baseline_df, fault_baseline_train_fraction, "fault_baseline"
         )
 
-        # inject 阶段非目标 endpoint 行（fan-out 残留）。判据 is_endpoint_anomaly==False
-        # 兼容两种 label_granularity，见 docstring；case 级标签的 case 在此自动选不出行。
+        # inject 阶段非目标行（fan-out 残留）。判据 ~is_endpoint_anomaly 兼容三种
+        # label_granularity，见 docstring。label_target_observable 是必需的第二道闸：
+        # target 不可观测的 case（mysql/gateway）正样本恒为 0，若不挡住，其全部 inject
+        # 行会被当成"非目标行"整段吸进训练池，见 _attach_label_columns 处的详细理由。
         fault_inject_nontarget_df = anomaly_df[
-            (anomaly_df["phase"] == "inject") & (~anomaly_df["is_endpoint_anomaly"])
+            (anomaly_df["phase"] == "inject")
+            & (~anomaly_df["is_endpoint_anomaly"])
+            & anomaly_df["label_target_observable"]
         ].copy()
         fault_inject_nontarget_train, fault_inject_nontarget_eval = _absorb_phase_rows(
             fault_inject_nontarget_df,
@@ -664,38 +732,54 @@ def _write_v1(
         )
         train_pool.to_parquet(out / "train.parquet", index=False)
 
-        # eval_all 六段拼接。inject/recover 两个阶段各自被拆成"被吸收进 train 的部分"
-        # 与"留在 eval 的部分"，这里只收后者；写成显式六段而不是 phase != baseline 的
-        # 粗筛，是为了让每一段的归属理由可读、可断言。六段依次是：
-        # ① inject 阶段正样本；② inject 阶段非目标 endpoint 留在 eval 的部分；
-        # ③ recover 阶段未参与新切分的行；④ recover 阶段非目标 endpoint 留在 eval
-        #   的部分；⑤ baseline 阶段留在 eval 的部分；⑥ Normal holdout。
+        # eval_all 七段拼接。inject/recover 两个阶段各自被拆成"被吸收进 train 的部分"
+        # 与"留在 eval 的部分"，这里只收后者；写成显式七段而不是 phase != baseline 的
+        # 粗筛，是为了让每一段的归属理由可读、可断言。七段依次是：
+        # ① inject 阶段正样本；② inject 阶段非目标行留在 eval 的部分；
+        # ③ inject 阶段 target 不可观测 case 的行（entry 025 新增）；
+        # ④ recover 阶段未参与新切分的行；⑤ recover 阶段非目标 endpoint 留在 eval
+        #   的部分；⑥ baseline 阶段留在 eval 的部分；⑦ Normal holdout。
         # ① inject 阶段正样本（is_endpoint_anomaly==True）——永不被吸收，是评估的
         #    唯一正样本来源。
         eval_inject_positive = anomaly_df[
             (anomaly_df["phase"] == "inject") & anomaly_df["is_endpoint_anomaly"]
         ]
-        # ③ recover 阶段未参与新切分的行：case 级标签 case 的全部 recover 行（判据
-        #    无法区分目标/非目标，整段保留）+ endpoint 级标签 case 里的目标 endpoint
-        #    recover 行（保守排除，不吸收）。is_target_endpoint_bool 复用上面已转好的
-        #    干净 bool 列，避免同一个 NaN 问题在这里再犯一次。
+        # ③ target 不可观测 case（label_target_observable==False，如 mysql/gateway）的
+        #    inject 行：既不是正样本（匹配不上 target，is_endpoint_anomaly 全 False），
+        #    又被吸收侧的第二道闸挡在候选池外，若不在这里显式收回来就会整段漏出
+        #    eval_all。它们留在 eval 当负样本——注意这批行的标签语义本身是可疑的
+        #    （数据库/网关挂掉时 8 个 service 全受影响，标成负样本并不准确），但
+        #    "留在 eval 当负样本"至少不污染训练池；该 case 的分层 AUROC 恒为 null，
+        #    不会因这批行产出误导性数字。彻底解法需要扩展 endpoint→service 映射覆盖
+        #    基础设施组件，属更大的架构改动，见 history/entries/024、025 的遗留 TODO。
+        eval_inject_unobservable = anomaly_df[
+            (anomaly_df["phase"] == "inject") & (~anomaly_df["label_target_observable"])
+        ]
+        # ④ recover 阶段未参与新切分的行：service/case 级标签 case 的全部 recover 行
+        #    （entry 025 决定不纳入吸收，整段保留）+ endpoint 级标签 case 里的目标
+        #    endpoint recover 行（保守排除，不吸收）。is_target_endpoint_bool 复用上面
+        #    已转好的干净 bool 列，避免同一个 NaN 问题在这里再犯一次。
         recover_mask = anomaly_df["phase"] == "recover"
         eval_recover_untouched = anomaly_df[
             recover_mask
             & ((anomaly_df["label_granularity"] != "endpoint") | is_target_endpoint_bool)
         ]
 
-        # 行守恒检查：上面六段里源自 anomaly_df 的 5 段——展开成 7 个互斥子集
-        # （inject 的 train/eval 两部分各算一个、recover 同理、baseline 算 train+eval
-        # 总和一个）——理论上应精确覆盖 anomaly_df 的全部行。若有 case 的 anomaly_type
-        # 非 Normal 但缺 inject_start_ms/inject_end_ms（_attach_label_columns 会把
-        # 这种行的 phase 填成 "normal"，与 normal_mask 是两条独立计算路径，不保证
-        # 恒一致），这类行不落在 inject/recover/baseline 任何一段里，会被静默漏出
-        # eval_all——目前真实数据上不存在这种 case（已核实），但不代表以后不会出现，
-        # 必须在这里主动告警而不是让它悄悄发生。
+        # 行守恒检查：上面七段里源自 anomaly_df 的 6 段——展开成互斥子集（inject 的
+        # positive/nontarget-train/nontarget-eval/unobservable 四部分、recover 的
+        # train/eval 两部分、baseline 算 train+eval 总和一个）——理论上应精确覆盖
+        # anomaly_df 的全部行。若有 case 的 anomaly_type 非 Normal 但缺
+        # inject_start_ms/inject_end_ms（_attach_label_columns 会把这种行的 phase 填成
+        # "normal"，与 normal_mask 是两条独立计算路径，不保证恒一致），这类行不落在
+        # inject/recover/baseline 任何一段里，会被静默漏出 eval_all——目前真实数据上
+        # 不存在这种 case（已核实），但不代表以后不会出现，必须在这里主动告警而不是
+        # 让它悄悄发生。
+        # ①③ 两段在"正样本"与"不可观测"上互斥（不可观测 case 的正样本恒为空），
+        # 故可直接相加，不会重复计数。
         n_partitioned = (
             len(eval_inject_positive)
             + len(fault_inject_nontarget_eval)
+            + len(eval_inject_unobservable)
             + len(eval_recover_untouched)
             + len(fault_recover_nontarget_eval)
             + len(fault_baseline_df)
@@ -704,7 +788,7 @@ def _write_v1(
         )
         if n_partitioned != len(anomaly_df):
             LOG.warning(
-                "anomaly_df 六段划分未覆盖全部行：总 %d 行，已划分 %d 行，"
+                "anomaly_df 七段划分未覆盖全部行：总 %d 行，已划分 %d 行，"
                 "未覆盖 phase=%s——检查是否有 anomaly_type 非 Normal 但缺 inject 边界的 case",
                 len(anomaly_df),
                 n_partitioned,
@@ -715,6 +799,7 @@ def _write_v1(
             [
                 eval_inject_positive,
                 fault_inject_nontarget_eval,
+                eval_inject_unobservable,
                 eval_recover_untouched,
                 fault_recover_nontarget_eval,
                 fault_baseline_eval,
