@@ -261,10 +261,13 @@ def main() -> None:
         ntgt_health,
     )
 
-    # Lv_D_CASELVL_travel：case 级近似标签（**无** target_endpoint 字段）。
+    # Lv_D_CASELVL_travel：service 级标签（有 target_service、**无** target_endpoint）。
     # anomaly_level 故意写成 "endpoint" 而与缺失的 target_endpoint 矛盾——
-    # CLAUDE.md 明确 label_granularity 的判据是 target_endpoint 是否存在、不是
-    # anomaly_level，这个 fixture 主动钉死实现不会退回用 anomaly_level 判断。
+    # CLAUDE.md 明确 label_granularity 的判据是 target 字段而非 anomaly_level，
+    # 这个 fixture 主动钉死实现不会退回用 anomaly_level 判断。
+    # target_service=ts-travel-service 命中 TARGET_EP 所属 service，NONTARGET_EP
+    # （travel2）不命中，构成 service 级 fan-out：inject 阶段前者是正样本、后者是
+    # 可吸收的非目标行。entry 025 前两者都被 case 级 fallback 误标为正样本。
     case_base = 1_796_200_000_000
     case_trace, case_health = _make_rows(
         case_id="Lv_D_CASELVL_travel",
@@ -293,6 +296,41 @@ def main() -> None:
         },
         case_trace,
         case_health,
+    )
+
+    # Lv_D_UNOBSERVABLE_mysql：target_service 落在 endpoint→service 映射覆盖范围外
+    # （tsdb-mysql 不是任何客户端 endpoint 的宿主 service），复刻真实数据里 Lv_D_* 与
+    # Lv_S_KILLPOD_gateway 的形态。预期行为（entry 025 决策 2a）：正样本恒为 0、
+    # label_target_observable=False、分层 AUROC 为 null，且其 inject 行**不**参与训练池
+    # 吸收——后者是关键，若少了 label_target_observable 这道闸，该 case 全部 inject 行
+    # （正样本为 0 → ~is_endpoint_anomaly 恒 True）会在 fraction=1.0 下整段被吸进训练池，
+    # 把"数据库挂掉时 8 个 service 全受影响"的故障数据当成正常数据喂给 One-Class 模型。
+    unobs_base = 1_796_300_000_000
+    unobs_trace, unobs_health = _make_rows(
+        case_id="Lv_D_UNOBSERVABLE_mysql",
+        anomaly_type="Lv_D_UNOBSERVABLE_mysql",
+        base_ts=unobs_base,
+        n_windows=15,
+        inject_window_idx=set(range(5, 10)),
+        recover_window_idx=set(range(10, 15)),
+        target_endpoint=None,
+        target_service="tsdb-mysql",
+        inject_start_ms=unobs_base + 5 * 15_000,
+        inject_end_ms=unobs_base + 9 * 15_000,
+    )
+    unobs_trace = unobs_trace.drop(columns=["is_target_endpoint"])
+    _write_case(
+        _HERE / "Lv_D_UNOBSERVABLE_mysql",
+        {
+            "case_id": "Lv_D_UNOBSERVABLE_mysql",
+            "anomaly_type": "Lv_D_UNOBSERVABLE_mysql",
+            "anomaly_level": "database",
+            "target_service": "tsdb-mysql",
+            "inject_start_ms": unobs_base + 5 * 15_000,
+            "inject_end_ms": unobs_base + 9 * 15_000,
+        },
+        unobs_trace,
+        unobs_health,
     )
 
 
