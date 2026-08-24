@@ -1,7 +1,7 @@
 # 025 · service 级标签粒度补齐：三档 `label_granularity` + `label_target_observable` 吸收闸门
 
 - **日期**: 2026-08-22
-- **PR**: #NN（工作分支 `feature/service-level-label-granularity`）· **Commit**: <short-hash>
+- **PR**: #24（工作分支 `feature/service-level-label-granularity`）· **Commit**: `b7dd22a`（不含本次占位符补全 commit）
 - **类型**: Bugfix + Experiment
 - **影响域**: `scripts/build_contract.py`（`_attach_label_columns` 三档路由 + `_write_v1` 吸收闸门与 eval_all 七段拼接）, `src/contracts/contract_v0.py`（新增必需列 + 两条校验）, `tests/test_build_contract_endpoint_labels.py`, `tests/test_contract_v1_train_pool.py`, `tests/test_contract_v0_schema.py`, `tests/fixtures/nontarget_split_mini/`, `artifacts/contract_new_merge_expanded/`, `artifacts/baseline_new_merge_*`, `data/new_merge`（恢复落盘）, `CLAUDE.md`
 
