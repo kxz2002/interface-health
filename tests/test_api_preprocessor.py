@@ -87,3 +87,34 @@ def _trace_p95_for(endpoint_key: str, ts_ms: int) -> float:
     trace = pd.read_csv(TRACE_FIXTURE)
     row = trace[(trace["endpoint_key"] == endpoint_key) & (trace["timestamp_window"] == ts_ms)]
     return float(row["trace_latency_p95"].iloc[0])
+
+
+def test_api_transform_fills_nan_for_legacy_batch_missing_content_length_body_hash(
+    tmp_path, caplog
+):
+    """旧批次（new_ep1/anomod_v1）的 tt_endpoint_health_15s.csv 没有 content_length/
+    body_hash 三列，transform() 必须降级填 NaN 而不是 KeyError，且要有 warning 日志
+    可供排查（而非静默降级）。mini fixture 本身已经带全三列，本测试单独构造一份
+    缺列的 legacy 格式 CSV 来精确复现这条此前完全没有测试覆盖的路径。"""
+    legacy_csv = tmp_path / "legacy_tt_endpoint_health_15s.csv"
+    legacy_csv.write_text(
+        "case_id,anomaly_type,timestamp_window,endpoint_key,request_count,error_rate,"
+        "latency_mean,latency_p50,latency_p95,latency_p99,status_2xx_rate,status_4xx_rate,"
+        "status_5xx_rate,method,normalized_path\n"
+        "Normal_planA,Normal,2026-06-09T02:29:45Z,POST:/api/v1/travelservice/trips/left,"
+        "12,0.0,2268.70,2100.00,3100.50,3500.00,1.0,0.0,0.0,POST,"
+        "/api/v1/travelservice/trips/left\n"
+    )
+
+    pre = _make_preprocessor()
+    with caplog.at_level("WARNING"):
+        df = pre.transform(legacy_csv, case_meta={"case_id": "Normal_planA"})
+
+    for col in (
+        "endpoint_red__client_content_length_mean",
+        "endpoint_red__client_content_length_rel_shift",
+        "endpoint_red__client_body_hash_mismatch_rate",
+    ):
+        assert col in df.columns
+        assert df[col].isna().all()
+    assert any("content_length" in record.message for record in caplog.records)

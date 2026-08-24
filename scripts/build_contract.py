@@ -529,7 +529,7 @@ def main() -> None:
     full[rate_feature_cols] = full[rate_feature_cols].clip(lower=0.0, upper=1.0)
 
     # content_length_mean 的 Normal fit 窗口（单一 case，采集时间早于故障批次）与故障
-    # case 运行时基线电平系统性错位（详见 history/entries/024），导致该列在非退化
+    # case 运行时基线电平系统性错位（详见 history/entries/026），导致该列在非退化
     # endpoint（order/refresh）上归一化后出现远超其他特征量级的极端值（|value|>10
     # 占比 0.80，全特征集里其余列均 <0.01），在 L0/L1 等直接消费 Normalizer 输出的
     # 融合方式下主导 SVDD 距离、掩盖其他模态贡献。对称裁剪压制幅值同时保留方向性。
@@ -851,17 +851,7 @@ def _write_v1(
         return
 
     train_fit_normalized = parts["train_fit"]
-    # red_cols/svc_cols 必须锁定 contract 声明的特征列（cfg.modalities[...].features），
-    # 不能扫描 dataframe 里所有 endpoint_red__ 前缀列——预处理器可能产出比 contract
-    # 声明更多的原始列（如未在 v1_expanded_pool.yaml 里声明的 content_length/
-    # body_hash 派生特征），此时按前缀扫描会把未声明列也吸收进 EndpointBaselineStats，
-    # 其维度与 schema.json 的 feature_groups（严格按 cfg 声明派生）产生静默错位，
-    # 下游 ReliabilityGatedFusion/DeviationWeightedFusion 用 schema.json 的列表重建
-    # red_cols/svc_cols 时维度对不上，报出一个离真正病灶很远的 tensor shape 错误。
-    red_cols = [f"endpoint_red__{f}" for f in cfg.modalities["endpoint_red"].features]
-    svc_cols = [f"service_metric__{f}" for f in cfg.modalities["service_metric"].features] + [
-        f"service_log__{f}" for f in cfg.modalities["service_log"].features
-    ]
+    red_cols, svc_cols = cfg.endpoint_baseline_columns()
     baseline_stats = EndpointBaselineStats(red_cols=red_cols, svc_cols=svc_cols)
     baseline_stats.fit(train_fit_normalized)
     for branch in ("ep", "svc"):
