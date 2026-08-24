@@ -94,8 +94,14 @@ def test_endpoint_baseline_stats_values_match_train_fit_only_recomputation(tmp_p
         train_fit["endpoint_key"].unique()
     ), "fixture 结构变了，需要更新本测试的目标 endpoint"
 
-    red_cols = [c for c in train_fit.columns if c.startswith("endpoint_red__")]
-    svc_cols = [c for c in train_fit.columns if c.startswith(("service_metric__", "service_log__"))]
+    # red_cols/svc_cols 必须锁定 v1_expanded_pool.yaml 声明的特征列，不能扫描
+    # dataframe 列名前缀——ApiPreprocessor 现在无条件产出 content_length/body_hash
+    # 派生列，即使该 config 未声明它们，train_fit 里也会多出这几列
+    # endpoint_red__ 前缀列。复用 ContractConfig.endpoint_baseline_columns()（与
+    # build_contract.py _write_v1() 同一派生逻辑），避免测试和实现各写一份、
+    # 日后改动一方漂移导致假阴性。
+    cfg = load_contract_config(str(REPO_ROOT / "configs/contract/v1_expanded_pool.yaml"))
+    red_cols, svc_cols = cfg.endpoint_baseline_columns()
 
     stats = EndpointBaselineStats.load(out_dir / "endpoint_baseline_stats.json")
     persisted_mean, persisted_std = stats.branch_stats(ep, "ep")

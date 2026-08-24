@@ -95,6 +95,19 @@ class ContractConfig:
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"{field_name} 必须落在 [0.0, 1.0]，实际 {value}")
 
+    def endpoint_baseline_columns(self) -> tuple[list[str], list[str]]:
+        """EndpointBaselineStats 消费的 (red_cols, svc_cols)，从 modalities 声明派生。
+
+        必须从这里派生、不能按 dataframe 列名前缀扫描——预处理器可能产出比 contract
+        声明更多的原始列，按前缀扫描会把未声明列也吸收进来，与 schema.json 的
+        feature_groups（同样严格按 modalities 声明派生）产生静默维度错位。
+        """
+        red_cols = [f"endpoint_red__{f}" for f in self.modalities["endpoint_red"].features]
+        svc_cols = [f"service_metric__{f}" for f in self.modalities["service_metric"].features] + [
+            f"service_log__{f}" for f in self.modalities["service_log"].features
+        ]
+        return red_cols, svc_cols
+
 
 def load_contract_config(path: str | Path) -> ContractConfig:
     raw = yaml.safe_load(Path(path).read_text())

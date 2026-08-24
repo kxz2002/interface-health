@@ -50,6 +50,9 @@ modalities:
       - client_error_rate
       - client_5xx_rate
       - latency_divergence
+      - client_content_length_mean
+      - client_content_length_rel_shift
+      - client_body_hash_mismatch_rate
     normalization: per_endpoint_min_max
     candidates_pool: []
 
