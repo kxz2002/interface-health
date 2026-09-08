@@ -67,6 +67,13 @@ jobs:
       - name: Install dependencies
         run: |
           pip install torch --index-url https://download.pytorch.org/whl/cpu
+          # Pin the data-stack versions to the ones that were green on master
+          # as of 2026-08-24. The bare pyproject.toml floor (pandas>=2.0,
+          # numpy>=1.24) otherwise allows the resolver to pick up pandas 3.0.5
+          # / numpy 2.5.3, which trip a pre-existing read-only-array bug in
+          # src/data/endpoint_baseline_stats.py:82 and src/fusion/deviation_weighted.py.
+          # That bug is not in this PR's scope; tracked as a follow-up.
+          pip install -r requirements-ci.txt
           pip install -e ".[dev]"
       - name: pytest
         run: pytest tests/ -v

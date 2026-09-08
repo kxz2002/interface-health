@@ -1,0 +1,30 @@
+{
+  "model": "deep_svdd",
+  "feature_set": "missing_indicator_only",
+  "pool_mode": "expanded",
+  "seed": 2,
+  "n_features": 2,
+  "n_train": 11960,
+  "n_eval": 11284,
+  "n_pos_eval": 639,
+  "elapsed_sec": 1.1489362716674805,
+  "metrics": {
+    "overall_auroc": 0.6787326222351593,
+    "overall_auprc": 0.1179242152081549,
+    "per_case_auroc_macro": 0.667148458530267,
+    "per_case_auprc_macro": 0.24388512524314357,
+    "n_cases_with_both_classes_for_auroc": 16,
+    "n_cases_with_both_classes_for_auprc": 16,
+    "_internal_only_rel_pos_overall_auroc": 0.5800628624310973,
+    "_internal_only_rel_pos_per_case_auroc_macro": 0.5785895112599797,
+    "_internal_only_zscore_overall_auroc": 0.6775697554672012,
+    "_internal_only_zscore_per_case_auroc_macro": 0.667148458530267
+  },
+  "git_commit": "2ec7460664a166a5b7b72bb1cc73902a8302af47",
+  "data_root": "data/new_merge",
+  "feature_columns": [
+    "client_body_hash_mismatch_rate",
+    "client_content_length_rel_shift"
+  ],
+  "n_cases_loaded": 26
+}
