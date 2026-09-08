@@ -1,84 +1,56 @@
 """Sweep runner for scripts/benchmark_downstream.py.
 
-Iterates the full 48-cell grid (2 feature arms × 2 pool modes × 3 models × 4 seeds)
-with checkpoint/resume support. Logs each run's outcome to artifacts/downstream_benchmark/_sweep.log
-and writes a running summary to artifacts/downstream_benchmark/_summary.tsv.
+Iterates the full grid (2 feature arms × 2 pool modes × 3 models × 4 seeds = 48
+cells) plus a small missing-value-confound ablation (2 extra feature arms ×
+4 seeds, restricted to model=deep_svdd / pool_mode=expanded, the paper's
+headline cell = 8 cells) with checkpoint/resume support. Logs each run's
+outcome to artifacts/downstream_benchmark/_sweep.log and writes a running
+summary to artifacts/downstream_benchmark/_summary.tsv.
 
-The 48 cells:
+The 48 main cells:
   - feature_set ∈ {inherited, full}        (F-inherited=18 dims, F-full=21 dims)
-  - pool_mode  ∈ {normal_only, expanded}   (817 rows vs 15,104 rows)
+  - pool_mode  ∈ {normal_only, expanded}   (817 rows vs 15,104 rows under the
+                                             old all-into-train pool; both pool
+                                             sizes shrink under the temporal
+                                             hold-out fix in build_train_pool,
+                                             see benchmark_downstream.py)
   - model      ∈ {deep_svdd, ocsvm, iforest}
   - seed       ∈ {1, 2, 3, 42}
+
+The 8 ablation cells (PR #26 review, Critical #2 — isolate how much of
+F-full's AUROC gain is the model keying on "this field went missing here"
+vs real content-integrity signal):
+  - feature_set ∈ {missing_indicator_only, full_with_missing_indicator}
+  - pool_mode = expanded, model = deep_svdd, seed ∈ {1, 2, 3, 42}
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Iterable
 
-CELLS = [
-    # (feature_set, pool_mode, model, seed)
-    ("inherited", "normal_only", "deep_svdd", 42),
-    ("inherited", "normal_only", "deep_svdd", 1),
-    ("inherited", "normal_only", "deep_svdd", 2),
-    ("inherited", "normal_only", "deep_svdd", 3),
-    ("inherited", "normal_only", "ocsvm", 42),
-    ("inherited", "normal_only", "iforest", 42),
-    ("inherited", "normal_only", "iforest", 1),
-    ("inherited", "normal_only", "iforest", 2),
-    ("inherited", "normal_only", "iforest", 3),
-    ("inherited", "expanded", "deep_svdd", 42),
-    ("inherited", "expanded", "deep_svdd", 1),
-    ("inherited", "expanded", "deep_svdd", 2),
-    ("inherited", "expanded", "deep_svdd", 3),
-    ("inherited", "expanded", "ocsvm", 42),
-    ("inherited", "expanded", "iforest", 42),
-    ("inherited", "expanded", "iforest", 1),
-    ("inherited", "expanded", "iforest", 2),
-    ("inherited", "expanded", "iforest", 3),
-    ("full", "normal_only", "deep_svdd", 42),
-    ("full", "normal_only", "deep_svdd", 1),
-    ("full", "normal_only", "deep_svdd", 2),
-    ("full", "normal_only", "deep_svdd", 3),
-    ("full", "normal_only", "ocsvm", 42),
-    ("full", "normal_only", "iforest", 42),
-    ("full", "normal_only", "iforest", 1),
-    ("full", "normal_only", "iforest", 2),
-    ("full", "normal_only", "iforest", 3),
-    ("full", "expanded", "deep_svdd", 42),
-    ("full", "expanded", "deep_svdd", 1),
-    ("full", "expanded", "deep_svdd", 2),
-    ("full", "expanded", "deep_svdd", 3),
-    ("full", "expanded", "ocsvm", 42),
-    ("full", "expanded", "iforest", 42),
-    ("full", "expanded", "iforest", 1),
-    ("full", "expanded", "iforest", 2),
-    ("full", "expanded", "iforest", 3),
-    # Note: ocsvm is only run at seed=42 because it is deterministic for a given nu/gamma
-    # (sklearn OneClassSVM random_state is unused in rbf mode), so multi-seed is
-    # meaningless. Same for iforest with bootstrap=False effect on scores.
-    # Only DeepSVDD benefits from multi-seed. We still run IF at 4 seeds for the
-    # variance estimate (IF score_samples is deterministic given data, but bootstrap
-    # subsampling introduces a tiny variance).
-]
-
-# Re-balance: 2*2*3*4=48. Replace the rough sketch above with a proper grid.
 FEATURE_SETS = ["inherited", "full"]
 POOL_MODES = ["normal_only", "expanded"]
 MODELS = ["deep_svdd", "ocsvm", "iforest"]
 SEEDS = [1, 2, 3, 42]
 
+# Missing-value-confound ablation feature sets — only meaningful against the
+# headline cell (deep_svdd / expanded); see module docstring.
+ABLATION_FEATURE_SETS = ["missing_indicator_only", "full_with_missing_indicator"]
+
 
 def build_full_grid() -> list[tuple[str, str, str, int]]:
-    return [
+    main_grid = [
         (fs, pm, m, s) for fs in FEATURE_SETS for pm in POOL_MODES for m in MODELS for s in SEEDS
     ]
+    ablation_grid = [
+        (fs, "expanded", "deep_svdd", s) for fs in ABLATION_FEATURE_SETS for s in SEEDS
+    ]
+    return main_grid + ablation_grid
 
 
 def run_dir(out_root: Path, fs: str, pm: str, m: str, s: int) -> Path:
@@ -86,8 +58,33 @@ def run_dir(out_root: Path, fs: str, pm: str, m: str, s: int) -> Path:
 
 
 def already_done(out_root: Path, fs: str, pm: str, m: str, s: int) -> bool:
+    """True only if both output files exist AND are readable/non-empty.
+
+    Existence-only used to be sufficient, but a process killed mid-write left
+    a truncated metrics.json that still satisfied `.exists()`; resuming then
+    crashed later on `json.load` (line ~176) with no chance to retry the cell.
+    Validating parseability here means a corrupt run is treated as not-done
+    and simply re-run (PR #26 review, Important #3). scores.parquet is opened
+    with pyarrow's metadata-only footer read (cheap, no full column load) to
+    catch a truncated write there too.
+    """
     rd = run_dir(out_root, fs, pm, m, s)
-    return (rd / "metrics.json").exists() and (rd / "scores.parquet").exists()
+    metrics_path, scores_path = rd / "metrics.json", rd / "scores.parquet"
+    if not (metrics_path.exists() and scores_path.exists()):
+        return False
+    try:
+        with open(metrics_path) as f:
+            json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return False
+    try:
+        import pyarrow.parquet as pq
+
+        if pq.ParquetFile(scores_path).metadata.num_rows < 1:
+            return False
+    except Exception:
+        return False
+    return True
 
 
 def run_one(
