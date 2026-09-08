@@ -1,0 +1,23 @@
+{
+  "model": "iforest",
+  "feature_set": "inherited",
+  "pool_mode": "normal_only",
+  "seed": 3,
+  "n_features": 18,
+  "n_train": 817,
+  "n_eval": 22427,
+  "n_pos_eval": 639,
+  "elapsed_sec": 0.41275978088378906,
+  "metrics": {
+    "overall_auroc": 0.5672536791439948,
+    "overall_auprc": 0.032323939748384,
+    "per_case_auroc_macro": 0.547121707027378,
+    "per_case_auprc_macro": 0.06981352200801128,
+    "n_cases_with_both_classes_for_auroc": 16,
+    "n_cases_with_both_classes_for_auprc": 16,
+    "_internal_only_rel_pos_overall_auroc": 0.7993811398673747,
+    "_internal_only_rel_pos_per_case_auroc_macro": 0.7997790403328868,
+    "_internal_only_zscore_overall_auroc": 0.7628008324922507,
+    "_internal_only_zscore_per_case_auroc_macro": 0.7352258108615511
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "model": "ocsvm",
+  "feature_set": "inherited",
+  "pool_mode": "expanded",
+  "seed": 3,
+  "n_features": 18,
+  "n_train": 15104,
+  "n_eval": 8140,
+  "n_pos_eval": 639,
+  "elapsed_sec": 1.6383733749389648,
+  "metrics": {
+    "overall_auroc": 0.7948681438197391,
+    "overall_auprc": 0.2530968780442851,
+    "per_case_auroc_macro": 0.8317061920423727,
+    "per_case_auprc_macro": 0.6385649620431855,
+    "n_cases_with_both_classes_for_auroc": 16,
+    "n_cases_with_both_classes_for_auprc": 16,
+    "_internal_only_rel_pos_overall_auroc": 0.4172796783068465,
+    "_internal_only_rel_pos_per_case_auroc_macro": 0.4057223654251362,
+    "_internal_only_zscore_overall_auroc": 0.7385087309172549,
+    "_internal_only_zscore_per_case_auroc_macro": 0.7184260719173043
+  }
+}

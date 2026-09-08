@@ -1,0 +1,66 @@
+==> inherited_expanded_ocsvm_seed1
+   overall_auroc=0.7948681438197391 per_case_auroc=0.8317061920423727 overall_auprc=0.2530968780442851 per_case_auprc=0.6385649620431855
+==> inherited_expanded_ocsvm_seed2
+   overall_auroc=0.7948681438197391 per_case_auroc=0.8317061920423727 overall_auprc=0.2530968780442851 per_case_auprc=0.6385649620431855
+==> inherited_expanded_ocsvm_seed3
+   overall_auroc=0.7948681438197391 per_case_auroc=0.8317061920423727 overall_auprc=0.2530968780442851 per_case_auprc=0.6385649620431855
+==> inherited_expanded_ocsvm_seed42
+   overall_auroc=0.7948681438197391 per_case_auroc=0.8317061920423727 overall_auprc=0.2530968780442851 per_case_auprc=0.6385649620431855
+==> inherited_expanded_iforest_seed1
+   overall_auroc=0.7075684640065727 per_case_auroc=0.7272124989222197 overall_auprc=0.1327969336460346 per_case_auprc=0.28212900207538316
+==> inherited_expanded_iforest_seed2
+   overall_auroc=0.6988173094917547 per_case_auroc=0.7188737806552371 overall_auprc=0.1286466966037559 per_case_auprc=0.2785601119192952
+==> inherited_expanded_iforest_seed3
+   overall_auroc=0.7040589684547016 per_case_auroc=0.7285095310202971 overall_auprc=0.1305845445676514 per_case_auprc=0.2842776010506044
+==> inherited_expanded_iforest_seed42
+   overall_auroc=0.672653244564783 per_case_auroc=0.7030207177671265 overall_auprc=0.11716245050094386 per_case_auprc=0.26657486679512316
+==> full_normal_only_deep_svdd_seed1
+   overall_auroc=0.7460976207488695 per_case_auroc=0.7332021370763447 overall_auprc=0.07676931241302688 per_case_auprc=0.1786790188288987
+==> full_normal_only_deep_svdd_seed2
+   overall_auroc=0.7496066089128042 per_case_auroc=0.7292901805887859 overall_auprc=0.07793472908248618 per_case_auprc=0.1596427938813887
+==> full_normal_only_deep_svdd_seed3
+   overall_auroc=0.765383911489663 per_case_auroc=0.7411773059242772 overall_auprc=0.08484860476430911 per_case_auprc=0.1732013877435165
+==> full_normal_only_deep_svdd_seed42
+   overall_auroc=0.7487552192374204 per_case_auroc=0.7167616264323853 overall_auprc=0.07619860836525931 per_case_auprc=0.1556729018629521
+==> full_normal_only_ocsvm_seed1
+   overall_auroc=0.8143291751816408 per_case_auroc=0.78265903670325 overall_auprc=0.0863209341699136 per_case_auprc=0.1580053719438439
+==> full_normal_only_ocsvm_seed2
+   overall_auroc=0.8143291751816408 per_case_auroc=0.78265903670325 overall_auprc=0.0863209341699136 per_case_auprc=0.1580053719438439
+==> full_normal_only_ocsvm_seed3
+   overall_auroc=0.8143291751816408 per_case_auroc=0.78265903670325 overall_auprc=0.0863209341699136 per_case_auprc=0.1580053719438439
+==> full_normal_only_ocsvm_seed42
+   overall_auroc=0.8143291751816408 per_case_auroc=0.78265903670325 overall_auprc=0.0863209341699136 per_case_auprc=0.1580053719438439
+==> full_normal_only_iforest_seed1
+   overall_auroc=0.6055634851476728 per_case_auroc=0.5710093003104844 overall_auprc=0.03363525482927003 per_case_auprc=0.06467726877719918
+==> full_normal_only_iforest_seed2
+   overall_auroc=0.6124196733755038 per_case_auroc=0.587442958532275 overall_auprc=0.0337538188951295 per_case_auprc=0.06633000378272705
+==> full_normal_only_iforest_seed3
+   overall_auroc=0.6071813302350463 per_case_auroc=0.5806579897799686 overall_auprc=0.03352006676646434 per_case_auprc=0.06468709181749675
+==> full_normal_only_iforest_seed42
+   overall_auroc=0.5999954965088248 per_case_auroc=0.5637457632059398 overall_auprc=0.032829017385250195 per_case_auprc=0.06259534311585438
+==> full_expanded_deep_svdd_seed1
+   overall_auroc=0.8991648270580094 per_case_auroc=0.950659297377936 overall_auprc=0.28326801835251914 per_case_auprc=0.7181962628087011
+==> full_expanded_deep_svdd_seed2
+   overall_auroc=0.90339337123334 per_case_auroc=0.9378255654638117 overall_auprc=0.29515896569645345 per_case_auprc=0.6854860099114579
+==> full_expanded_deep_svdd_seed3
+   overall_auroc=0.9105239802142187 per_case_auroc=0.9556303037274485 overall_auprc=0.31168577359334904 per_case_auprc=0.7740534090774177
+==> full_expanded_deep_svdd_seed42
+   overall_auroc=0.9071358039063753 per_case_auroc=0.958244265449014 overall_auprc=0.29939468353215676 per_case_auprc=0.7527099813788303
+==> full_expanded_ocsvm_seed1
+   overall_auroc=0.9079651143019218 per_case_auroc=0.9407331715372362 overall_auprc=0.3058492837419194 per_case_auprc=0.7027381846478483
+==> full_expanded_ocsvm_seed2
+   overall_auroc=0.9079651143019218 per_case_auroc=0.9407331715372362 overall_auprc=0.3058492837419194 per_case_auprc=0.7027381846478483
+==> full_expanded_ocsvm_seed3
+   overall_auroc=0.9079651143019218 per_case_auroc=0.9407331715372362 overall_auprc=0.3058492837419194 per_case_auprc=0.7027381846478483
+==> full_expanded_ocsvm_seed42
+   overall_auroc=0.9079651143019218 per_case_auroc=0.9407331715372362 overall_auprc=0.3058492837419194 per_case_auprc=0.7027381846478483
+==> full_expanded_iforest_seed1
+   overall_auroc=0.7487379356200603 per_case_auroc=0.7734398164404179 overall_auprc=0.13021062156111862 per_case_auprc=0.26556318728265593
+==> full_expanded_iforest_seed2
+   overall_auroc=0.7638257517672657 per_case_auroc=0.7946094964799606 overall_auprc=0.1381084646551183 per_case_auprc=0.2926667900590363
+==> full_expanded_iforest_seed3
+   overall_auroc=0.7344126677736657 per_case_auroc=0.7529429447535018 overall_auprc=0.12494078960389525 per_case_auprc=0.2561965750187343
+==> full_expanded_iforest_seed42
+   overall_auroc=0.7420786253017073 per_case_auroc=0.7636452696448228 overall_auprc=0.12811066139102875 per_case_auprc=0.26019968968466806
+
+Wrote summary: artifacts/downstream_benchmark/_summary.tsv
