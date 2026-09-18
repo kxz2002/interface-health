@@ -15,8 +15,17 @@ class ModalitySpec:
     normalization: str
     candidates_pool: tuple[str, ...] = ()
 
+    # per_case_endpoint_z_score / per_case_service_z_score 只被 v2 build 路径消费
+    # （contract_version == "v2" 的 per-case 归一化，见 Task 11/14）；v1 config 若
+    # 配了这两个值，当前没有加载期守卫，会在 build 阶段由 v1 归一化逻辑报错。
     _VALID_NORMALIZATIONS: ClassVar[frozenset[str]] = frozenset(
-        {"per_endpoint_min_max", "per_service_min_max", "global_min_max"}
+        {
+            "per_endpoint_min_max",
+            "per_service_min_max",
+            "global_min_max",
+            "per_case_endpoint_z_score",
+            "per_case_service_z_score",
+        }
     )
 
     def __post_init__(self) -> None:

@@ -57,6 +57,26 @@ def test_invalid_normalization_raises():
         )
 
 
+def test_per_case_zscore_normalization_accepted():
+    spec = ModalitySpec(
+        preprocessor="X",
+        preprocessor_version="1",
+        features=("a",),
+        normalization="per_case_endpoint_z_score",
+    )
+    assert spec.normalization == "per_case_endpoint_z_score"
+
+
+def test_unknown_normalization_still_rejected():
+    with pytest.raises(ValueError, match="未知 normalization"):
+        ModalitySpec(
+            preprocessor="X",
+            preprocessor_version="1",
+            features=("a",),
+            normalization="per_case_endpoint_minmax_typo",
+        )
+
+
 def test_fit_endpoint_baseline_stats_defaults_false(tmp_path):
     """新增开关默认 False(与 expand_train_pool 同款模式):config 不写该字段时,
     build 不产出 endpoint_id 列与 endpoint_baseline_stats.json。"""
