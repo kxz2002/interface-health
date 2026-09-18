@@ -280,8 +280,8 @@ stages:
       size: 263764
     - path: scripts/eval_baseline_v0.py
       hash: md5
-      md5: ee80c6d171da4a5770f30ee130a3a674
-      size: 5574
+      md5: fb2d4c4d0cfb7894f5d0508f51da47d4
+      size: 5834
     - path: src/contracts
       hash: md5
       md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
@@ -291,7 +291,7 @@ stages:
     - path: artifacts/baseline_new_merge_independent_concat/metrics.json
       hash: md5
       md5: a9a1d034214cc0917d93321c417c9533
-      size: 4564
+      size: 4565
   eval_new_merge_gated:
     cmd: python scripts/eval_baseline_v0.py --scores
       artifacts/baseline_new_merge_gated/scores.parquet --out
@@ -303,8 +303,8 @@ stages:
       size: 263914
     - path: scripts/eval_baseline_v0.py
       hash: md5
-      md5: ee80c6d171da4a5770f30ee130a3a674
-      size: 5574
+      md5: fb2d4c4d0cfb7894f5d0508f51da47d4
+      size: 5834
     - path: src/contracts
       hash: md5
       md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
@@ -314,7 +314,7 @@ stages:
     - path: artifacts/baseline_new_merge_gated/metrics.json
       hash: md5
       md5: 8d328a55a59e584ca0e65fd7edc8f16a
-      size: 4547
+      size: 4548
   eval_new_merge_concat:
     cmd: python scripts/eval_baseline_v0.py --scores
       artifacts/baseline_new_merge_concat/scores.parquet --out
@@ -326,8 +326,8 @@ stages:
       size: 263335
     - path: scripts/eval_baseline_v0.py
       hash: md5
-      md5: ee80c6d171da4a5770f30ee130a3a674
-      size: 5574
+      md5: fb2d4c4d0cfb7894f5d0508f51da47d4
+      size: 5834
     - path: src/contracts
       hash: md5
       md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
@@ -337,7 +337,7 @@ stages:
     - path: artifacts/baseline_new_merge_concat/metrics.json
       hash: md5
       md5: 08255ce01a04e22cf5e0ffb842ea97e5
-      size: 4587
+      size: 4588
   train_new_merge_reliability_gate:
     cmd: python scripts/train_baseline_v0.py
       contract_dir=artifacts/contract_new_merge_expanded
@@ -420,8 +420,8 @@ stages:
       size: 258405
     - path: scripts/eval_baseline_v0.py
       hash: md5
-      md5: ee80c6d171da4a5770f30ee130a3a674
-      size: 5574
+      md5: fb2d4c4d0cfb7894f5d0508f51da47d4
+      size: 5834
     - path: src/contracts
       hash: md5
       md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
@@ -431,7 +431,7 @@ stages:
     - path: artifacts/baseline_new_merge_reliability_gate/metrics.json
       hash: md5
       md5: a131b0b80f4a17d83d3a22251d053fb4
-      size: 4611
+      size: 4612
   train_new_merge_reliability_gate_indep_sigmoid:
     cmd: python scripts/train_baseline_v0.py
       contract_dir=artifacts/contract_new_merge_expanded
@@ -518,8 +518,8 @@ stages:
       size: 153231
     - path: scripts/eval_baseline_v0.py
       hash: md5
-      md5: ee80c6d171da4a5770f30ee130a3a674
-      size: 5574
+      md5: fb2d4c4d0cfb7894f5d0508f51da47d4
+      size: 5834
     - path: src/contracts
       hash: md5
       md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
@@ -613,8 +613,8 @@ stages:
       size: 263018
     - path: scripts/eval_baseline_v0.py
       hash: md5
-      md5: ee80c6d171da4a5770f30ee130a3a674
-      size: 5574
+      md5: fb2d4c4d0cfb7894f5d0508f51da47d4
+      size: 5834
     - path: src/contracts
       hash: md5
       md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
@@ -624,7 +624,7 @@ stages:
     - path: artifacts/baseline_new_merge_deviation_weighted/metrics.json
       hash: md5
       md5: 8b9c3372c278b6a608ae1404b85b45fb
-      size: 4578
+      size: 4579
   score_trivial_rel_pos:
     cmd: python scripts/score_trivial_baselines.py --contract-dir
       artifacts/contract_new_merge_expanded --baseline rel_pos --out
@@ -721,8 +721,8 @@ stages:
       size: 161365
     - path: scripts/eval_baseline_v0.py
       hash: md5
-      md5: ee80c6d171da4a5770f30ee130a3a674
-      size: 5574
+      md5: fb2d4c4d0cfb7894f5d0508f51da47d4
+      size: 5834
     - path: src/contracts
       hash: md5
       md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
@@ -732,7 +732,7 @@ stages:
     - path: artifacts/trivial_baseline_rel_pos/metrics.json
       hash: md5
       md5: 50e5e71a633c88cbbde7e47072e932bd
-      size: 4574
+      size: 4575
   eval_trivial_zscore_l2:
     cmd: python scripts/eval_baseline_v0.py --scores
       artifacts/trivial_baseline_zscore_l2/scores.parquet --out
@@ -744,8 +744,8 @@ stages:
       size: 291366
     - path: scripts/eval_baseline_v0.py
       hash: md5
-      md5: ee80c6d171da4a5770f30ee130a3a674
-      size: 5574
+      md5: fb2d4c4d0cfb7894f5d0508f51da47d4
+      size: 5834
     - path: src/contracts
       hash: md5
       md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
@@ -755,7 +755,7 @@ stages:
     - path: artifacts/trivial_baseline_zscore_l2/metrics.json
       hash: md5
       md5: cd5e7460672cab94a378157d3af1f211
-      size: 4579
+      size: 4580
   eval_trivial_zscore_max:
     cmd: python scripts/eval_baseline_v0.py --scores
       artifacts/trivial_baseline_zscore_max/scores.parquet --out
@@ -767,8 +767,8 @@ stages:
       size: 251264
     - path: scripts/eval_baseline_v0.py
       hash: md5
-      md5: ee80c6d171da4a5770f30ee130a3a674
-      size: 5574
+      md5: fb2d4c4d0cfb7894f5d0508f51da47d4
+      size: 5834
     - path: src/contracts
       hash: md5
       md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
@@ -778,4 +778,4 @@ stages:
     - path: artifacts/trivial_baseline_zscore_max/metrics.json
       hash: md5
       md5: 29f5db8bcf15033d973b1a93f05bb34f
-      size: 4578
+      size: 4579

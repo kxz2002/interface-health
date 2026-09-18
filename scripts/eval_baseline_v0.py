@@ -129,7 +129,10 @@ def main():
     validate_metrics_dict(metrics)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(metrics, indent=2))
+    # 末尾换行必须由生产者自带：否则 pre-commit 的 end-of-file-fixer 改写后，
+    # git 里的 metrics.json 与 DVC 原生产出不同字节，dvc.lock 条目会沦为
+    # md5=有换行/size=无换行的混合体（entry 029）。
+    args.out.write_text(json.dumps(metrics, indent=2) + "\n")
     logger.info("Metrics written to %s", args.out)
 
 
