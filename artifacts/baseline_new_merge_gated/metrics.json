@@ -5,6 +5,9 @@
   "has_labels": true,
   "auroc": 0.9120144924197799,
   "auprc": 0.7154610336592655,
+  "per_case_auroc_macro": 0.9131242349682371,
+  "per_case_auprc_macro": 0.7140691728072904,
+  "n_cases_with_both_classes": 23,
   "stratified": {
     "overall": {
       "auroc": 0.9120144924197799
