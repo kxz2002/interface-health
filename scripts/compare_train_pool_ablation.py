@@ -31,10 +31,12 @@ from __future__ import annotations
 
 import argparse
 import logging
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 # 以 `python scripts/xxx.py` 直接执行时 sys.path[0] 是 scripts/ 目录本身，
@@ -46,6 +48,8 @@ from scripts.eval_baseline_v0 import compute_stratified_metrics  # noqa: E402
 logger = logging.getLogger(__name__)
 
 SEEDS = [42, 1, 2, 3]
+# |delta macro AUROC| 小于此值视为两口径持平，用于结论节的符号计数
+DELTA_TIE_EPS = 0.005
 FUSIONS = {
     "concat (L0)": "concat",
     "deviation_weighted (DWF)": "deviation_weighted",
@@ -125,9 +129,23 @@ def _row_for_pair(pair: RunPair, common_ids: set[str]) -> dict:
 
 
 def _fmt_mean_std(vals: list[float]) -> str:
-    import numpy as np
-
     return f"{np.mean(vals):.4f} ± {np.std(vals, ddof=0):.4f}"
+
+
+def _git_head() -> str:
+    """报告生成时的代码 commit（项目 Reproducibility 规则：实验记录须含 git commit hash）。"""
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=Path(__file__).resolve().parent.parent,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return out.stdout.strip()
+    except (subprocess.CalledProcessError, OSError) as exc:
+        logger.warning("取 git HEAD 失败：%s", exc)
+        return "unknown"
 
 
 def main() -> None:
@@ -141,7 +159,19 @@ def main() -> None:
 
     exp_eval = pd.read_parquet(args.expanded_contract / "eval_all.parquet", columns=["sample_id"])
     inj_eval = pd.read_parquet(args.inject0_contract / "eval_all.parquet", columns=["sample_id"])
-    common_ids = set(exp_eval["sample_id"]) & set(inj_eval["sample_id"])
+    exp_ids = set(exp_eval["sample_id"])
+    inj_ids = set(inj_eval["sample_id"])
+    # 共有子集口径的隐含前提：交集必须等于整个 expanded eval_all（Task 7 已核验
+    # 14186 ⊆ 19566）。若两个 contract 版本拿反（或误用了别的数据集），交集会
+    # 变成真子集，限制后的"expanded"分数将与历史口径不可比——直接失败比静默
+    # 产出一张误导性对照表安全。
+    if not exp_ids <= inj_ids:
+        raise SystemExit(
+            "共有子集口径要求 expanded eval_all ⊆ inject0 eval_all，"
+            f"但 expanded 有 {len(exp_ids - inj_ids)} 行不在 inject0 eval_all 中，"
+            "请确认 --expanded-contract / --inject0-contract 两个版本拿对"
+        )
+    common_ids = exp_ids & inj_ids
     logger.info(
         "expanded eval_all=%d, inject0 eval_all=%d, 交集=%d",
         len(exp_eval),
@@ -159,8 +189,11 @@ def main() -> None:
     rows = [_row_for_pair(p, common_ids) for p in pairs]
     df = pd.DataFrame(rows)
 
+    head_sha = _git_head()
     lines: list[str] = [
         "# 训练池 inject 非目标行吸收对照（entry 027 P0 / Task 8）",
+        "",
+        f"- 生成时代码 commit：`{head_sha}`",
         "",
         "重跑命令：",
         "",
@@ -252,7 +285,8 @@ def main() -> None:
         }
     )
     lines += [
-        "## 2. 全量口径（附注：两版 eval 集构成不同，14186 vs 19566，**不可直接比较，仅供参考**）",
+        f"## 2. 全量口径（附注：两版 eval 集构成不同，{len(exp_eval)} vs {len(inj_eval)} 行，"
+        "**不可直接比较，仅供参考**）",
         "",
         "```",
         full.round(4).to_string(index=False),
@@ -266,6 +300,11 @@ def main() -> None:
         sub = df[df["fusion"] == label]
         md = sub["delta_macro"].mean()
         ds = sub["delta_macro"].std(ddof=0)
+        # 符号计数：|delta|<DELTA_TIE_EPS 视为持平；让"方向跨 seed 反转"直接可读，
+        # 避免只凭均值下结论（entry 025：RG 单 seed 方向判反）。
+        n_pos = int((sub["delta_macro"] > DELTA_TIE_EPS).sum())
+        n_neg = int((sub["delta_macro"] < -DELTA_TIE_EPS).sum())
+        n_tie = int(len(sub) - n_pos - n_neg)
         direction = "净损害（去掉后更好）" if md > 0 else "净收益（去掉后更差）"
         strength = "超过" if abs(md) > ds else "未超过"
         concl_lines += [
@@ -275,6 +314,9 @@ def main() -> None:
             f"{_fmt_mean_std(sub['exp_macro'].tolist())} → inject0 "
             f"{_fmt_mean_std(sub['inj_macro'].tolist())}，"
             f"mean delta = {md:+.4f}（delta std {ds:.4f}）",
+            f"- 4 seed delta 符号：delta>0 {n_pos} 个 / ≈0（|delta|<{DELTA_TIE_EPS}）"
+            f" {n_tie} 个 / <0 {n_neg} 个"
+            f"{'——方向跨 seed 反转' if n_pos > 0 and n_neg > 0 else ''}",
             f"- 判定：inject 非目标行吸收在 4 seed 均值上是**{direction}**；"
             f"|mean delta| {strength} 1 个 delta std，"
             f"{'方向较稳' if abs(md) > ds else '种子间波动与均值同量级，结论需谨慎'}",
