@@ -1,7 +1,7 @@
 # 027 · 时间混淆诊断：平凡基线打败全部融合机制，重采延期后转入待办
 
 - **日期**: 2026-08-25
-- **PR**: 待定 · **Commit**: 待定（分支 `exp/new-merge-rerun-pr24-pr25`）
+- **PR**: 待 Task 3 建 PR 后回填 · **Commit**: `56c4561`（分支 `exp/new-merge-rerun-pr24-pr25`）
 - **类型**: Experiment + Docs
 - **影响域**: `scripts/analyze_temporal_confounding.py`, `artifacts/baseline_new_merge_*`, `artifacts/temporal_confounding/`, 研究方向/论文 framing, 数据采集协议（`data/new_merge` 重采计划）
 
@@ -50,7 +50,7 @@ rel_pos 平凡基线（只用"窗口在 case 内的相对时间位置"，不看�
 - **零参数 z-score 基线打败全部学习模型**：`L2 ||z||` 0.9415 > DWF 0.9238（+0.0177）。该基线用每个 `(case, endpoint)` **自己 baseline 阶段**的 mean/std 做参照，漂移自动抵消，无需 Normal case、无需全局归一化统计量、无需 SVDD 球心、无需训练。这正是 [Quo Vadis, Unsupervised TAD (ICML'24)](https://arxiv.org/html/2405.02678v1) 的 L2-norm 简单基线，也是 AIOps 的标准做法（StepWise、DCASE per-section 同思路）。**含义是：Deep SVDD + 全局归一化这套架构在本任务上没有挣到它的复杂度。**
 - **单特征最高只有 0.71，但 z-score 范数能到 0.94**：`client_5xx_rate`/`client_error_rate` 各 0.7139、`client_request_count` 0.7105，其余多在 0.5~0.6。说明信号是**分散在多特征上的弱信号需要聚合**；Deep SVDD 把它们压进低维球心距离时反而损失了信息。这也解释了本轮"L0 与门控不相上下"——融合机制间的差异被这个更上游的问题盖住了。
 - **训练池里 5380 行 inject 阶段行被当作正常数据**：`fault_inject_nontarget_train_fraction=1.0` 下，故障 case 的"非目标 endpoint" inject 行整段吸进 One-Class 训练池。但故障会传播，非目标 endpoint 在故障期间并不真的正常 ⇒ 正常边界被故障数据污染。当初设 1.0 是为了平衡类别比例（entry 019/022），代价可能大于收益，需实测检验。z-score 基线不训练，所以免疫这个问题。
-- **RG `independent_sigmoid` 完全塌陷，根因是退化列 z-score 爆炸压垮 sigmoid**：`EndpointBaselineStats` 的 ep 分支有 4 个零方差退化列（`trace_error_rate`/`trace_5xx_rate`/`client_error_rate`/`client_5xx_rate`），std 兜底为 epsilon（既有已知行为，本轮运行时有 WARNING 记录），使 z-score 爆到 ~1e9、`gate_mlp` logits 达 ~1e8、`sigmoid()` 饱和到恰好 0 或 1、梯度消失，训练从第一步就冻死。**`softmax` 变体因输出必须和为 1 而受保护**（两路不可能同时饱和到 0），`independent_sigmoid` 无此约束。这是 025（标签修复）与 026（content_length 新特征）**首次共同在位**才暴露的集成问题，任一 PR 单独测试都不会出现。本轮不修（见上）。
+- **RG `independent_sigmoid` 完全塌陷，根因是退化列 z-score 爆炸压垮 sigmoid**：`EndpointBaselineStats` 的 ep 分支有 4 个零方差退化列（`trace_error_rate`/`trace_5xx_rate`/`client_error_rate`/`client_5xx_rate`），std 兜底为 epsilon（既有已知行为，本轮运行时有 WARNING 记录），使 z-score 爆到 ~1e9、`gate_mlp` logits 达 ~1e8、`sigmoid()` 饱和到恰好 0 或 1、梯度消失，训练从第一步就冻死。**`softmax` 变体因输出必须和为 1 而受保护**（两路不可能同时饱和到 0），`independent_sigmoid` 无此约束。这是 025（标签修复）与 026（content_length 新特征）**首次共同在位**才暴露的集成问题，任一 PR 单独测试都不会出现。**2026-09-18 定案：RG 整体退役、不再修复**——one-class loss 下没有任何梯度把门控权重与检测质量绑定，softmax 坍缩与本次 sigmoid 饱和是同一结构性病根的两种表象，改参照系救不了"门控学无可学"（设计文档 D5：`docs/plans/2026-09-18-contract-v2-percase-design.md`）。
 - **`artifacts/baseline_new_merge_*/metrics.json` 已被本轮重跑覆盖**：旧的仅-025 口径数字已不在工作区，只在 git 历史里。上表已保留两个口径的对照，引用旧数字请查 git。
 
 ## 遗留 TODO
@@ -59,8 +59,10 @@ rel_pos 平凡基线（只用"窗口在 case 内的相对时间位置"，不看�
 
 **P0 — 不依赖重采，可立即做**
 
+> **2026-09-18 定案**：P0 已整体转入 contract v2 迭代——决策与规格见 `docs/plans/2026-09-18-contract-v2-percase-design.md`（D1–D6），18 个 TDD 任务的拆分与排期见 `docs/plans/2026-09-18-contract-v2-percase-implementation.md`，PR-4 起实施；以下条目保留为原始需求记录，后续进展以两份文档为准。
+
 - **把 `rel_pos` 平凡基线与 z-score 基线写进 `eval_baseline_v0.py` 作为强制对照**。以后每个实验的 AUROC 旁边必须并列这两个数字。这不是为了投稿好看，是为了每次改动都能判断"有没有真的超过平凡规则"。目前它们只在一次性诊断脚本里，容易被遗忘。
-- **改归一化参照系为 per-case baseline 自适应，然后重跑六机制**。这是预期收益最大的单项改动——把 z-score 基线的漂移免疫特性搬进 pipeline。做成 contract 配置开关，与现有全局归一化并列作为消融维度，**不要直接替换**：per-case 归一化会丢弃"绝对水平"信息，而资源型故障的信号恰在绝对水平上（`Lv_P_CPU_preserve` 的 `cpu_usage_rate` 修正后 AUROC 0.9993，是很好的 canary，改完必须核查它有没有掉）。
+- **改归一化参照系为 per-case baseline 自适应，然后重跑六机制**。这是预期收益最大的单项改动——把 z-score 基线的漂移免疫特性搬进 pipeline。做成 contract 配置开关，与现有全局归一化并列作为消融维度，**不要直接替换**：per-case 归一化会丢弃"绝对水平"信息，而资源型故障的信号恰在绝对水平上（`Lv_P_CPU_preserve` 的 `cpu_usage_rate` 修正后 AUROC 0.9993，是很好的 canary，改完必须核查它有没有掉）。**2026-09-18 定案：用 per-case z-score 而非 min-max**——实测 fit 子集 per-(case,endpoint) baseline 共 208 组，取前 20% 窗口后 median 仅 16 行、26/208 组（12.5%）不足 5 行，min-max 只用两个极值统计量，此规模下单个离群窗口即可扭曲 scale；且打败本系统的平凡基线本身就是 per-case mean/std 参照，用同一参照系才能 apples-to-apples 回答"SVDD 比 L2 范数强在哪"（设计文档 D1）。
 - **把 `fault_inject_nontarget_train_fraction` 退回 0.0 重跑**，检验"污染 One-Class 边界"与"平衡类别比例"哪个代价大。成本只是重跑一次。
 - **per-case 宏平均升为主指标，pooled 降为附注；AUPRC 补为并列主指标**。本轮两者未背离，但这是正确口径且成本为零。AUPRC 的理由是 [对抗压力测试](https://arxiv.org/html/2607.11969v2) 证明 ROC 家族在少量异常段下方差大到可被 seed 挑选（N=9 即可刷到 SOTA），而 PR 家族有 prevalence 地板刷不上去——本项目已独立踩过一次（RG softmax seed42 单点 0.6015 vs 四 seed 0.858~0.878，entry 025）。
 - **补 seed{1,2,3}** 给本轮 5 个未塌陷机制，确认方向性结论不是单 seed 运气。entry 025 的教训：单 seed 报告高方差机制连"方向"都会错。
