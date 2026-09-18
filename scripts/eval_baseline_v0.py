@@ -84,6 +84,22 @@ def compute_stratified_metrics(df: pd.DataFrame) -> dict:
     # 此时 auroc/auprc 均为 None，契约要求两者也为 None，逻辑自洽。
     has_labels = auroc is not None
 
+    # per-case 宏平均升为主指标（entry 027 P0）：pooled AUROC 会被 case 间基线
+    # 差异影响，per-case 口径的正负样本都来自同一 case，是更严格的度量。只统计
+    # 同时含正负类的 case——单类 case 的 AUROC 无定义，计入会静默拉偏均值
+    # （PR #26 的 benchmark 已按同一规则处理，此处保持一致以便两套口径可比）。
+    case_aurocs: list[float] = []
+    case_auprcs: list[float] = []
+    for _case_id, sub in df.groupby("case_id"):
+        y = sub["is_endpoint_anomaly"].astype(int)
+        if y.nunique() < 2:
+            continue
+        case_aurocs.append(roc_auc_score(y, sub["score"]))
+        case_auprcs.append(average_precision_score(y, sub["score"]))
+
+    per_case_auroc_macro = float(sum(case_aurocs) / len(case_aurocs)) if case_aurocs else None
+    per_case_auprc_macro = float(sum(case_auprcs) / len(case_auprcs)) if case_auprcs else None
+
     return {
         "protocol_version": "v0",
         "higher_is_more_anomalous": True,
@@ -91,6 +107,9 @@ def compute_stratified_metrics(df: pd.DataFrame) -> dict:
         "has_labels": has_labels,
         "auroc": auroc,
         "auprc": auprc,
+        "per_case_auroc_macro": per_case_auroc_macro,
+        "per_case_auprc_macro": per_case_auprc_macro,
+        "n_cases_with_both_classes": len(case_aurocs),
         "stratified": stratified,
     }
 
