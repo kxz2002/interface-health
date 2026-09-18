@@ -32,7 +32,22 @@ def test_per_case_macro_skips_single_class_cases():
     ]
     m = compute_stratified_metrics(pd.DataFrame(rows))
     assert m["per_case_auroc_macro"] == 1.0
+    assert m["per_case_auprc_macro"] == 1.0
     assert m["n_cases_with_both_classes"] == 1
+
+
+def test_per_case_macro_all_single_class_returns_none():
+    # 两个 case 全部只有负样本：没有任何双类 case，宏平均无定义，必须为 None
+    rows = [
+        _row("caseB", "b1", 0.5, False),
+        _row("caseB", "b2", 0.6, False),
+        _row("caseD", "d1", 0.4, False),
+        _row("caseD", "d2", 0.7, False),
+    ]
+    m = compute_stratified_metrics(pd.DataFrame(rows))
+    assert m["per_case_auroc_macro"] is None
+    assert m["per_case_auprc_macro"] is None
+    assert m["n_cases_with_both_classes"] == 0
 
 
 def test_per_case_macro_averages_across_cases():
