@@ -1,7 +1,7 @@
 # 027 · 时间混淆诊断：平凡基线打败全部融合机制，重采延期后转入待办
 
 - **日期**: 2026-08-25
-- **PR**: 待 Task 3 建 PR 后回填 · **Commit**: `56c4561`（分支 `exp/new-merge-rerun-pr24-pr25`）
+- **PR**: [#27](https://github.com/kxz2002/interface-health/pull/27) · **Commit**: `56c4561`（分支 `exp/new-merge-rerun-pr24-pr25`，rebase 后为 `4ff6708`）
 - **类型**: Experiment + Docs
 - **影响域**: `scripts/analyze_temporal_confounding.py`, `artifacts/baseline_new_merge_*`, `artifacts/temporal_confounding/`, 研究方向/论文 framing, 数据采集协议（`data/new_merge` 重采计划）
 
