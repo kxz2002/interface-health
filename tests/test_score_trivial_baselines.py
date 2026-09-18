@@ -47,12 +47,21 @@ def test_zscore_uses_only_allowed_rows_no_leakage():
 
 
 def test_zscore_degenerate_std_does_not_explode():
-    """fit 段零方差列不得用 1e-9 兜底（会放大 1e9 倍——history 013 的爆值与
-    entry 027 的 RG sigmoid 饱和同源），须用 1.0 哨兵。"""
+    """fit 段零方差列须用 1.0 哨兵，不得用 1e-9 兜底（会放大 1e9 倍——
+    history 013 的爆值与 entry 027 的 RG sigmoid 饱和同源）。
+
+    有意偏离计划模板：原模板 fit/eval 两侧 f__const 恒为 5.0，分子永远是 0，
+    哨兵取 1.0 还是 1e-9 得分都为 0——即使实现退回 1e-9 该测试也通过，没有
+    判别力（reviewer 实测）。eval 侧 inject 行改为 6.0 制造非零分子后，
+    (6-5)/1.0 恰为 1.0：哨兵若是 1e-9 得分会是 1e9（>1e3 断言兜住），哨兵若
+    取其他 >1 的值也不会恰好等于 1.0，两个方向同时锁死。
+    """
     df = _contract_frame()
     df["f__const"] = 5.0
+    df.loc[df["timestamp_window_ms"] >= 3000, "f__const"] = 6.0
     fit_df = df[df["timestamp_window_ms"] <= 2000]
     out = compute_zscore_scores(df, fit_df=fit_df, feature_cols=["f__const"], agg="max")
+    assert out["score"].max() == 1.0
     assert out["score"].max() < 1e3
 
 

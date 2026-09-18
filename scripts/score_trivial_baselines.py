@@ -10,6 +10,12 @@ entry 027 实测这两个不含任何学习过程的基线打败了全部六种�
 eval 侧留作负样本的 baseline 行。entry 027 诊断脚本里的 transductive 版
 （用全 baseline 段）留在那个一次性脚本里作附注，不进本 stage——拿一个偷看过
 eval 的参照来审判模型，赢输都说不清。
+
+**y_true 口径**：本脚本输出的 y_true 取 `is_endpoint_anomaly`（与
+eval_baseline_v0.py 实际消费的标签列一致），而 train_baseline_v0.py 的 y_true
+取 `is_anomaly`（phase == "inject"）——两个 scores 生产者的 y_true 口径不同。
+eval_baseline_v0.py 不读 y_true 列（只用 is_endpoint_anomaly），当前影响为零；
+但未来直接按 scores_v0 契约读 y_true 的消费方需注意此差异（entry 029 记录）。
 """
 
 from __future__ import annotations
@@ -158,6 +164,10 @@ def main() -> None:
     # （接口墙不打洞：eval 仍只读 scores.parquet）。
     diag = eval_df[["sample_id", *DIAGNOSTIC_COLUMNS]].copy()
     out_df = diag.merge(scores[["sample_id", "score"]], on="sample_id", validate="one_to_one")
+    # inner merge 必须保行：每个 eval 行都该拿到一个分数，少了说明 sample_id 对不上
+    assert len(out_df) == len(
+        eval_df
+    ), f"scores 行数 {len(out_df)} != eval_all 行数 {len(eval_df)}：有 eval 行未匹配到分数"
     out_df["y_true"] = out_df["is_endpoint_anomaly"].astype(int)
     out_df = out_df[
         [
