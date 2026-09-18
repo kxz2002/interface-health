@@ -512,9 +512,13 @@ def main() -> None:
         # v1 fit 只见纯 Normal，吸收进训练池的 fault baseline 行不参与 min/max；
         # v2 的 per-case z-score 需要每 case 自身的故障前基线，故 baseline-train 行
         # 既在训练池、也在 fit 集合，两者行集严格对齐（fit ⊆ train 由测试钉死）。
-        # 刻意不 reset_index：预算帧必须保留 full 的原始行号，_write_v1 才能在归一化
-        # 原地覆盖特征列之后按 index 取回"同批行的归一化后值"落盘（直接写预算帧会把
-        # 归一化之前的原始尺度写进 parquet）。fit 不关心 index 是否连续。
+        # 预算帧（normal_parts / fault_baseline_*）切在归一化之前，装的是原始尺度。
+        # 两个 split 内部 concat(ignore_index=True)，输出自带 0..n-1 新 index，与
+        # 归一化原地覆盖之后的 full 之间**无法靠行号关联**，唯一稳定的行身份是
+        # sample_id。故 _write_v1 不能直接落盘预算帧（那会把毫秒级原始量纲写进
+        # parquet），必须经 _reselect_rows_by_sample_id 按 sample_id 从归一化后的
+        # full 取回同批行再写（见该函数注释）。这里 reset 与否都不影响该机制，
+        # 不 reset 只是少一次无意义的拷贝。
         normal_parts = split_normal_rows_temporal(full.loc[normal_mask], seed=args.seed)
         fit_frames = [normal_parts["train_fit"]]
         fault_baseline_train = None
