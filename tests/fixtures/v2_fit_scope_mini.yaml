@@ -1,0 +1,5 @@
+name: v2_fit_scope_mini
+roots:
+  - tests/fixtures/v2_fit_scope_mini
+normal_source: tests/fixtures/v2_fit_scope_mini
+fused_window: 15s
