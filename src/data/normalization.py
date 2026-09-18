@@ -49,6 +49,22 @@ _SHRINKAGE_K = 10.0
 # 既不除零也不放大，是单位正态尺度下的中性选择。
 _FALLBACK_STD_SENTINEL = 1.0
 
+# 合法 scope×method 配对白名单。z_score 的三级回退链要求分组键至少是
+# (case_id, endpoint/service) 两级组合，或无分组（global 单级、链尾即哨兵）；
+# per_endpoint/per_service 只有单列分组键，回退链（组 → 跨 case 汇总 → 全局）
+# 无从定义——配上 z_score 时旧实现 fit 静默成功、transform 才在 group_cols[1]
+# 抛裸 IndexError，故在构造期按此表白名单拒绝。
+_VALID_SCOPE_METHOD: frozenset[tuple[Scope, Method]] = frozenset(
+    {
+        ("global", "min_max"),
+        ("per_endpoint", "min_max"),
+        ("per_service", "min_max"),
+        ("global", "z_score"),
+        ("per_case_endpoint", "z_score"),
+        ("per_case_service", "z_score"),
+    }
+)
+
 
 def _is_degenerate(lo: float, hi: float) -> bool:
     """lo/hi 为 NaN（fit 集合全 NaN）或 hi-lo<eps（fit 集合零方差）时，min-max 无法
@@ -64,7 +80,8 @@ class _Stats:
     method: Method
     # min_max：key=group_value（per-case 组合键为 "case::endpoint"），value=[min, max]；
     # scope=global 时 key 为 "__global__"。
-    # z_score：value=[mean, std, n]（std 已按收缩/回退链解析为有效值，见 _resolve_z）。
+    # z_score：value=[mean, std, n]（mean/std 已在 fit 期按收缩/回退链解析为有效值，
+    # 见 Normalizer._fit_zscore）。
     by_group: dict[str, list[float]]
     # 仅 z_score：汇总回退层。per_case_endpoint 按 endpoint_key 跨 case 汇总；
     # per_case_service 按 service_name 跨 case 汇总；per-case 以外的 z_score 不用。
@@ -90,6 +107,20 @@ def _stat_mean_std_n(series: pd.Series) -> tuple[float, float, int]:
 
 class Normalizer:
     def __init__(self, rules: dict[str, tuple[Scope, Method]]):
+        illegal = [
+            (col, scope, method)
+            for col, (scope, method) in rules.items()
+            if (scope, method) not in _VALID_SCOPE_METHOD
+        ]
+        if illegal:
+            detail = ", ".join(f"{c}: ({s}, {m})" for c, s, m in illegal)
+            raise ValueError(
+                f"不支持的 scope×method 配对: {detail}。合法配对："
+                "min_max 仅配 global/per_endpoint/per_service；"
+                "z_score 仅配 global/per_case_endpoint/per_case_service"
+                "（z_score 的两级回退需要 (case_id, endpoint/service) 组合键，"
+                "单列分组的 per_endpoint/per_service 无法定义回退链）。"
+            )
         self.rules = rules
         self._stats: dict[str, _Stats] = {}
 
@@ -160,8 +191,13 @@ class Normalizer:
                 else:
                     fb_mean, fb_std = global_mean, global_effective_std
 
-                # 均值收缩（mean 总是按 n 收缩；n=0 的全 NaN 组无组内估计，
-                # 等价 w=0，直接取上层均值——上层均值也 NaN 时落到 0.0 哨兵）。
+                # mean 一律按 w=n/(n+k) 向上层收缩，**包括零方差大 n 组**——这是
+                # 有意偏离 EndpointBaselineStats（EBS 对退化组保留局部均值原值）：
+                # 小 n 组的噪声均值收缩到上层是 shrinkage 的本职；大 n 常数列的局部
+                # 均值虽可靠，但 (1-w) 级别的偏移有界且轻微，且恰好给"绝对水平"
+                # 保留残余信号（资源型故障的信号在绝对水平上，见设计文档 canary），
+                # 完全钉死局部均值反而丢掉这一层。n=0（全 NaN）组无组内估计，
+                # 等价 w=0 直接取上层均值；上层也 NaN 时落到 0.0 哨兵。
                 w = n / (n + _SHRINKAGE_K) if n > 0 else 0.0
                 base_mean = g_mean if not pd.isna(g_mean) else fb_mean
                 if pd.isna(base_mean):
@@ -174,8 +210,9 @@ class Normalizer:
                     std_eff = w * g_std + (1.0 - w) * fb_std
                 else:
                     # 组内零方差/无法估计 std：局部 std 无定义，不取加权平均
-                    # （对未定义量加权没有意义，与 EndpointBaselineStats 同哲学），
-                    # 直接退化到上层已解析的 std（其内部可能已退化到全局/哨兵）。
+                    # （对未定义量加权没有意义）——这一点与 EndpointBaselineStats
+                    # 同哲学；直接退化到上层已解析的 std（其内部可能已退化到全局/
+                    # 哨兵）。注意分歧只在 mean：std 退化不加权，mean 恒收缩。
                     std_eff = fb_std
 
             by_group[key] = [float(mean_eff), float(std_eff), float(n)]
@@ -278,7 +315,8 @@ class Normalizer:
     def _group_mask(out: pd.DataFrame, group_cols: tuple[str, ...], key: str) -> pd.Series:
         if len(group_cols) == 1:
             return out[group_cols[0]] == key
-        values = key.split(_COMPOSITE_SEP)
+        # maxsplit=1 与 fit 侧的 key.split(_COMPOSITE_SEP, 1) 保持同一拆法
+        values = key.split(_COMPOSITE_SEP, 1)
         mask = pd.Series(True, index=out.index)
         for c, v in zip(group_cols, values):
             mask &= out[c].astype(str) == v
@@ -291,6 +329,9 @@ class Normalizer:
             if s.method == "z_score":
                 spec["by_endpoint"] = s.by_endpoint
                 spec["global"] = s.global_stat
+                # 记录性字段：落盘当时的收缩强度，仅供审计/溯源；load 不读它——
+                # by_group 里存的是已解析的有效 mean/std（收缩在 fit 期完成），
+                # 重载后 transform 无需也不会重放收缩，故改 k 不影响旧产物的复现。
                 spec["shrinkage_k"] = _SHRINKAGE_K
             payload[col] = spec
         Path(path).write_text(json.dumps(payload, indent=2))

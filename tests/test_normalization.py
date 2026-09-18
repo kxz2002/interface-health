@@ -453,3 +453,103 @@ def test_old_minmax_json_format_still_loads(tmp_path):
         pd.DataFrame({"endpoint_key": ["ep1"], "endpoint_red__trace_request_count": [60.0]})
     )
     assert out["endpoint_red__trace_request_count"].iloc[0] == pytest.approx(2.0)
+
+
+# ---------------------------------------------------------------------------
+# scope×method 合法配对守卫 + 小样本边界（Task 11 review 追加）
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "scope",
+    ["per_endpoint", "per_service"],
+)
+def test_grouped_scope_rejects_z_score_at_construction(scope):
+    """per_endpoint/per_service 只有单列分组键，z_score 的两级回退
+    （组 → 跨 case 汇总 → 全局）无从定义：旧实现 fit 静默成功、transform 才在
+    group_cols[1] 抛裸 IndexError。必须在构造期就带说明地拒绝。"""
+    with pytest.raises(ValueError, match="z_score"):
+        Normalizer({_ZCOL: (scope, "z_score")})
+
+
+def test_legal_scope_method_combos_accepted():
+    """合法配对白名单：三 scope × min_max + （global / 两 per-case scope）× z_score。"""
+    df = _zscore_df(
+        [
+            ("cA", "ep1", "svc1", 10.0),
+            ("cA", "ep1", "svc1", 30.0),
+            ("cB", "ep1", "svc1", 1010.0),
+            ("cB", "ep1", "svc1", 1030.0),
+        ]
+    )
+    # 不应抛异常即通过；global z_score 走单级（无上层）路径，确认其确实可用
+    for rules in (
+        {_ZCOL: ("global", "min_max")},
+        {_ZCOL: ("per_endpoint", "min_max")},
+        {_ZCOL: ("per_service", "min_max")},
+        {_ZCOL: ("per_case_endpoint", "z_score")},
+        {_ZCOL: ("per_case_service", "z_score")},
+        {_ZCOL: ("global", "z_score")},
+    ):
+        Normalizer(rules).fit(df)
+
+    g = Normalizer({_ZCOL: ("global", "z_score")})
+    g.fit(df)
+    out = g.transform(df)[_ZCOL]
+    # 全局 z=(x-global_mean)/global_std，全局 mean=520
+    assert np.isfinite(out).all()
+    assert (out[df[_ZCOL] < 520] < 0).all()
+    assert (out[df[_ZCOL] > 520] > 0).all()
+
+
+def test_zscore_all_nan_group_n0_uses_upper_stats_and_passes_nan_through():
+    """n=0（某 (case,endpoint) 组在 fit 段全 NaN）：组内无统计量，w=0 直接取
+    endpoint 跨 case 汇总层；该组的 NaN 输入行 transform 后仍透传 NaN（不被
+    填成 0 或放大）。另一正常组不受影响。"""
+    fit_df = _zscore_df(
+        [
+            ("cA", "ep1", "svc1", float("nan")),
+            ("cA", "ep1", "svc1", float("nan")),  # cA/ep1 全 NaN → n=0
+            ("cB", "ep1", "svc1", 10.0),
+            ("cB", "ep1", "svc1", 30.0),  # ep1 汇总层唯一有效来源
+        ]
+    )
+    norm = Normalizer({_ZCOL: ("per_case_endpoint", "z_score")})
+    norm.fit(fit_df)
+
+    eval_df = _zscore_df(
+        [
+            ("cA", "ep1", "svc1", float("nan")),
+            ("cA", "ep1", "svc1", 20.0),  # 未知行值，但 cA/ep1 是已知退化组→走汇总层
+            ("cB", "ep1", "svc1", 20.0),
+        ]
+    )
+    out = norm.transform(eval_df)[_ZCOL].tolist()
+    assert out[0] != out[0]  # NaN 透传
+    # cA/ep1 与 cB/ep1 都落在 ep1 汇总层（mean=20, std=sqrt(200)=14.14，ddof=1）
+    # cB 组 n=2 仍向汇总层收缩；cA 退化等价 w=0 完全用汇总层
+    assert np.isfinite(out[1]) and np.isfinite(out[2])
+    assert abs(out[1]) < 1e3
+    # 20 是 ep1 汇总均值 → cA（纯汇总层）z 恰为 0
+    assert out[1] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_zscore_single_row_group_n1_std_falls_back_output_finite():
+    """n=1：单样本无法估 std（ddof=1 下 NaN），std 必须走上层回退而非除零/放大；
+    输出有限、量级正常。组内 mean 取该行值，但按 w=1/11 向汇总层收缩。"""
+    fit_df = _zscore_df(
+        [
+            ("cA", "ep1", "svc1", 20.0),  # cA/ep1 只有 1 行 → n=1, std=NaN
+            ("cB", "ep1", "svc1", 10.0),
+            ("cB", "ep1", "svc1", 30.0),  # 提供 ep1 汇总层方差
+        ]
+    )
+    norm = Normalizer({_ZCOL: ("per_case_endpoint", "z_score")})
+    norm.fit(fit_df)
+
+    eval_df = _zscore_df([("cA", "ep1", "svc1", 120.0)])
+    out = norm.transform(eval_df)[_ZCOL].iloc[0]
+    assert np.isfinite(out)
+    assert abs(out) < 1e3  # 不得出现 1e9 爆值（std 走了上层，不是 1e-9 托底）
+    # 120 远高于 ep1 正常区间，应为正偏离
+    assert out > 1.0
