@@ -1,0 +1,81 @@
+# contract v2（new_merge，27 case 单一批次）。
+# 与 v1_new_merge.yaml 的**唯一差异是归一化参照系**：v1 用单一 Normal case 上 fit
+# 的 per-endpoint/per-service 全局 min-max（跨批次参照系错位——某 endpoint 在
+# fit Normal 里恰好静默/零方差时，eval 侧任意非零差值被放大或被 clip 抹平）；
+# v2 改为 per-case z-score，统计量在同一 case 内部按 (case_id, endpoint_key) /
+# (case_id, service_name) 组合键计算，并带三级 shrinkage 回退
+# （组 → 跨 case 汇总 → 全局 → 1.0 哨兵，见 src/data/normalization.py）。
+#
+# 行等价红线：split / 标签 / 吸收闸门逻辑与 v1 逐行一致（时序切分提到归一化
+# 之前，归一化只改特征值、不参与任何行去向决策），三个 fraction 沿用
+# 0.2 / 1.0 / 1.0 即为此服务——因此 train/eval_all 的行集与全部标签列必须与
+# v1（artifacts/contract_new_merge_expanded）逐行相等，由
+# tests/test_contract_v1_v2_row_equivalence.py 强制；v1↔v2 的 AUROC 差异只可能
+# 来自特征值本身。
+#
+# 其他与 v1 的行为差异（均不影响行集）：
+# - rate 类 [0,1] 校验与两段 clip（rate clip(0,1)、content_length ±5σ）退役，
+#   换成全特征列 |x| <= 1e6 的量级 sanity（1e6 是兜底不是常态：只兜 entry 013
+#   式 1e9 数值爆炸，最大真实信号 z≈2000（HTTPDELAY 3s 注入 vs 极稳定
+#   baseline），余量 500x；z 分布应大部分在个位数）；
+# - 不产 endpoint_baseline_stats.json（D6：v2 无 sidecar，per-case 参照系下
+#   EBS 的跨 case 全局基线失去消费方）。
+#
+# 产物目录隔离：artifacts/contract_new_merge_v2。
+contract_version: "v2"
+window_size_s: 15
+# 训练池扩容：与 v1 同参（expand + 0.2/1.0/1.0），保证吸收行集逐行相等。
+expand_train_pool: true
+# v2 不产 endpoint_baseline_stats sidecar（D6）。
+fit_endpoint_baseline_stats: false
+# fraction 口径与 v1_new_merge.yaml 完全一致，注释见该文件（issue #16 /
+# history/entries/016/022/023）；v2 改它们没有任何归一化上的理由，改了就破坏
+# 行等价红线。
+fault_baseline_train_fraction: 0.2
+fault_inject_nontarget_train_fraction: 1.0
+fault_recover_nontarget_train_fraction: 1.0
+
+modalities:
+  endpoint_red:
+    preprocessor: TracePreprocessor
+    preprocessor_version: v0
+    features:
+      - trace_request_count
+      - trace_latency_p50
+      - trace_latency_p95
+      - trace_error_rate
+      - trace_5xx_rate
+      - client_request_count
+      - client_latency_p95
+      - client_error_rate
+      - client_5xx_rate
+      - latency_divergence
+      - client_content_length_mean
+      - client_content_length_rel_shift
+      - client_body_hash_mismatch_rate
+    # 必须与 endpoint 粒度配对（ContractConfig 加载期守卫强制，
+    # 错配会静默按错误分组算 z 值）。
+    normalization: per_case_endpoint_z_score
+    candidates_pool: []
+
+  service_metric:
+    preprocessor: MetricPreprocessor
+    preprocessor_version: v0
+    features:
+      - cpu_usage_rate
+      - memory_usage_ratio
+      - net_rx_error_rate
+      - net_tx_error_rate
+      - process_count
+    normalization: per_case_service_z_score
+    candidates_pool: []
+
+  service_log:
+    preprocessor: LogPreprocessor
+    preprocessor_version: v0
+    features:
+      - event_rate
+      - error_ratio
+      - template_diversity
+    normalization: per_case_service_z_score
+    candidates_pool: []

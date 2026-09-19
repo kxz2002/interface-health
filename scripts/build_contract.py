@@ -16,6 +16,7 @@ import argparse
 import json
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
@@ -45,6 +46,10 @@ _SCOPE_MAP: dict[str, tuple[Scope, Method]] = {
     "per_endpoint_min_max": ("per_endpoint", "min_max"),
     "per_service_min_max": ("per_service", "min_max"),
     "global_min_max": ("global", "min_max"),
+    # v2 per-case z-score（设计文档 D1）：group 键含 case_id，统计量在同一 case
+    # 内部计算，消除跨批次参照系错位。仅 contract_version=="v2" 路径消费。
+    "per_case_endpoint_z_score": ("per_case_endpoint", "z_score"),
+    "per_case_service_z_score": ("per_case_service", "z_score"),
 }
 
 
@@ -399,7 +404,8 @@ def main() -> None:
         raise ValueError(
             "fit_endpoint_baseline_stats=true 只在 contract_version='v1' 下有意义"
             f"（当前 contract_version={cfg.contract_version!r}）——RG 专属统计量依赖 v1 的"
-            "train_fit 时序切分，v0 无此切分概念"
+            "train_fit 时序切分，v0 无此切分概念；v2 已整体退役 EndpointBaselineStats"
+            "（设计文档 D6），不产 endpoint_baseline_stats.json sidecar"
         )
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -473,9 +479,17 @@ def main() -> None:
     normal_cases = full.loc[normal_mask, "case_id"].unique()
     LOG.info("Normal case 数=%d，来自 %s", len(normal_cases), dataset_cfg.normal_source)
 
+    is_v2 = cfg.contract_version == "v2"
     normalizer = Normalizer(_build_normalizer_rules(cfg))
-    # 分组归一化需要 endpoint_key / service_name 列，故传完整子集而非仅特征列
-    group_cols = ["endpoint_key", "service_name"]
+    # 分组归一化需要 endpoint_key / service_name 列，故传完整子集而非仅特征列。
+    # v2 的 per-case scope group 键含 case_id（(case_id, endpoint_key) /
+    # (case_id, service_name)），transform 侧必须带上该列。
+    group_cols = ["endpoint_key", "service_name"] + (["case_id"] if is_v2 else [])
+
+    # v2 专用：切分提到归一化之前（设计文档 §4.2）。_write_v1 复用这份预算结果，
+    # 不再自行切第二次——两处独立切分虽确定性等价，但依赖"两次调用参数恰好一致"
+    # 是脆弱的，单一事实源杜绝参数漂移。v1 路径不经过这里，行为零改动。
+    precomputed: _PrecomputedV1Splits | None = None
     if cfg.contract_version == "v1":
         # v1 把 Normal 行时序切分成 train_fit/train_val/eval_normal_holdout，
         # eval_normal_holdout 是留给评估的"未来"数据。若 Normalizer 在全部 Normal 行
@@ -489,6 +503,41 @@ def main() -> None:
         fit_df = split_normal_rows_temporal(
             full[normal_mask].reset_index(drop=True), seed=args.seed
         )["train_fit"]
+    elif is_v2:
+        # v2（D2 泄漏红线）：Normalizer 只在"会进 train.parquet 的行"上 fit——
+        # Normal 的 train_fit ∪ 扩容时各故障 case baseline 最早 fraction 窗。
+        # eval_all 里剩下的 80% baseline 负样本、Normal holdout、inject/recover 行
+        # （含被训练池吸收的 inject/recover 非目标行——它们进训练池，但 v2 不允许
+        # 故障期数值参与参照系统计量）一律不进 fit。这与 v1 expanded 的关键差异：
+        # v1 fit 只见纯 Normal，吸收进训练池的 fault baseline 行不参与 min/max；
+        # v2 的 per-case z-score 需要每 case 自身的故障前基线，故 baseline-train 行
+        # 既在训练池、也在 fit 集合，两者行集严格对齐（fit ⊆ train 由测试钉死）。
+        # 预算帧（normal_parts / fault_baseline_*）切在归一化之前，装的是原始尺度。
+        # 两个 split 内部 concat(ignore_index=True)，输出自带 0..n-1 新 index，与
+        # 归一化原地覆盖之后的 full 之间**无法靠行号关联**，唯一稳定的行身份是
+        # sample_id。故 _write_v1 不能直接落盘预算帧（那会把毫秒级原始量纲写进
+        # parquet），必须经 _reselect_rows_by_sample_id 按 sample_id 从归一化后的
+        # full 取回同批行再写（见该函数注释）。这里 reset 与否都不影响该机制，
+        # 不 reset 只是少一次无意义的拷贝。
+        normal_parts = split_normal_rows_temporal(full.loc[normal_mask], seed=args.seed)
+        fit_frames = [normal_parts["train_fit"]]
+        fault_baseline_train = None
+        fault_baseline_eval = None
+        if cfg.expand_train_pool:
+            anomaly_df = full.loc[~normal_mask]
+            fault_baseline_df = anomaly_df[anomaly_df["phase"] == "baseline"].copy()
+            # 不在此处打 source_phase：打标是写出侧（_write_v1）的职责，预算帧只
+            # 携带行身份。fit 只读特征列与 group 列，多不多该列无影响。
+            fault_baseline_train, fault_baseline_eval = split_fault_phase_temporal(
+                fault_baseline_df, fraction=cfg.fault_baseline_train_fraction
+            )
+            fit_frames.append(fault_baseline_train)
+        precomputed = _PrecomputedV1Splits(
+            normal_parts=normal_parts,
+            fault_baseline_train=fault_baseline_train,
+            fault_baseline_eval=fault_baseline_eval,
+        )
+        fit_df = pd.concat(fit_frames, ignore_index=True)
     else:
         # v0：train 的定义本身就是"全部 Normal 行"，fit 范围与 train 一致，没有泄漏问题，
         # 保持原行为不变
@@ -508,52 +557,63 @@ def main() -> None:
     # 会以原始尺度（可能是数千 ms）静默进入模型、主导 SVDD 距离，且不像旧的 1e13
     # 爆值那样显眼，反而更难排查。这里逐类分别告警：rate 列强调 clip 语义失真，
     # 非 rate 列强调原始量纲无兜底地进入下游。
-    for col, groups in skipped.items():
-        if col in rate_feature_cols:
-            # rate 列下方会被 clip(0,1)，但 clip 的"超上界即完全异常"语义只对归一化后
-            # 的值成立，对未归一化的原始量纲不成立。
-            LOG.warning(
-                "%s 在 group=%s 上因 Normal fit 退化（全 NaN 或零方差）跳过归一化，"
-                "clip(0,1) 会按原始量纲裁剪，可能误判正常原始值为完全异常",
-                col,
-                groups,
-            )
-        else:
-            LOG.warning(
-                "%s 在 group=%s 上因 Normal fit 退化（全 NaN 或零方差）跳过归一化，"
-                "且非 rate 列不做 clip、不受 contract [0,1] 校验，将以原始量纲进入模型"
-                "（可能主导 SVDD 距离），请确认该列原始尺度可接受",
-                col,
-                groups,
-            )
-    full[rate_feature_cols] = full[rate_feature_cols].clip(lower=0.0, upper=1.0)
+    # v2 不做 clip（见下方），z_score 的退化也已由三级 shrinkage 回退吸收、
+    # skipped_groups() 恒不含 z_score 列，故 v2 下整段告警自然为空。
+    if not is_v2:
+        for col, groups in skipped.items():
+            if col in rate_feature_cols:
+                # rate 列下方会被 clip(0,1)，但 clip 的"超上界即完全异常"语义只对归一化后
+                # 的值成立，对未归一化的原始量纲不成立。
+                LOG.warning(
+                    "%s 在 group=%s 上因 Normal fit 退化（全 NaN 或零方差）跳过归一化，"
+                    "clip(0,1) 会按原始量纲裁剪，可能误判正常原始值为完全异常",
+                    col,
+                    groups,
+                )
+            else:
+                LOG.warning(
+                    "%s 在 group=%s 上因 Normal fit 退化（全 NaN 或零方差）跳过归一化，"
+                    "且非 rate 列不做 clip、不受 contract [0,1] 校验，将以原始量纲进入模型"
+                    "（可能主导 SVDD 距离），请确认该列原始尺度可接受",
+                    col,
+                    groups,
+                )
+        full[rate_feature_cols] = full[rate_feature_cols].clip(lower=0.0, upper=1.0)
 
-    # content_length_mean 的 Normal fit 窗口（单一 case，采集时间早于故障批次）与故障
-    # case 运行时基线电平系统性错位（详见 history/entries/026），导致该列在非退化
-    # endpoint（order/refresh）上归一化后出现远超其他特征量级的极端值（|value|>10
-    # 占比 0.80，全特征集里其余列均 <0.01），在 L0/L1 等直接消费 Normalizer 输出的
-    # 融合方式下主导 SVDD 距离、掩盖其他模态贡献。对称裁剪压制幅值同时保留方向性。
-    # 只对真正走过 min-max 归一化的 group 生效——退化 group（该列在 6/8 endpoint 上
-    # 因 Normal fit 零方差被跳过归一化，见上方 skipped 告警）走 raw passthrough，
-    # 裁剪会把这些 endpoint 本就是原始字节数量纲、彼此互不可比的真实取值（如
-    # 61~459 字节）压扁成同一常数，抹掉其内部尚存的可区分信息，属于此前已知悉、
-    # 单独接受的风险（同上方非 rate 列告警），不在本次修复范围内。
-    # 裁剪边界 ±5：travel/trips-left 唯一非退化的另一 endpoint，其在真实故障（如
-    # HTTPABORT）注入期的归一化取值实测最大幅度 ≈3.2，5 留出安全余量不误伤真实信号；
-    # order/refresh 本身因错位问题几乎全部落在边界外，裁剪对它是预期中的按下限幅。
-    _CONTENT_LENGTH_COL = "endpoint_red__client_content_length_mean"
-    _CONTENT_LENGTH_CLIP_BOUND = 5.0
-    if _CONTENT_LENGTH_COL in feature_cols:
-        degenerate_groups = set(skipped.get(_CONTENT_LENGTH_COL, []))
-        clip_mask = ~full["endpoint_key"].isin(degenerate_groups)
-        full.loc[clip_mask, _CONTENT_LENGTH_COL] = full.loc[clip_mask, _CONTENT_LENGTH_COL].clip(
-            lower=-_CONTENT_LENGTH_CLIP_BOUND, upper=_CONTENT_LENGTH_CLIP_BOUND
-        )
+        # content_length_mean 的 Normal fit 窗口（单一 case，采集时间早于故障批次）与故障
+        # case 运行时基线电平系统性错位（详见 history/entries/026），导致该列在非退化
+        # endpoint（order/refresh）上归一化后出现远超其他特征量级的极端值（|value|>10
+        # 占比 0.80，全特征集里其余列均 <0.01），在 L0/L1 等直接消费 Normalizer 输出的
+        # 融合方式下主导 SVDD 距离、掩盖其他模态贡献。对称裁剪压制幅值同时保留方向性。
+        # 只对真正走过 min-max 归一化的 group 生效——退化 group（该列在 6/8 endpoint 上
+        # 因 Normal fit 零方差被跳过归一化，见上方 skipped 告警）走 raw passthrough，
+        # 裁剪会把这些 endpoint 本就是原始字节数量纲、彼此互不可比的真实取值（如
+        # 61~459 字节）压扁成同一常数，抹掉其内部尚存的可区分信息，属于此前已知悉、
+        # 单独接受的风险（同上方非 rate 列告警），不在本次修复范围内。
+        # 裁剪边界 ±5：travel/trips-left 唯一非退化的另一 endpoint，其在真实故障（如
+        # HTTPABORT）注入期的归一化取值实测最大幅度 ≈3.2，5 留出安全余量不误伤真实信号；
+        # order/refresh 本身因错位问题几乎全部落在边界外，裁剪对它是预期中的按下限幅。
+        _CONTENT_LENGTH_COL = "endpoint_red__client_content_length_mean"
+        _CONTENT_LENGTH_CLIP_BOUND = 5.0
+        if _CONTENT_LENGTH_COL in feature_cols:
+            degenerate_groups = set(skipped.get(_CONTENT_LENGTH_COL, []))
+            clip_mask = ~full["endpoint_key"].isin(degenerate_groups)
+            full.loc[clip_mask, _CONTENT_LENGTH_COL] = full.loc[
+                clip_mask, _CONTENT_LENGTH_COL
+            ].clip(lower=-_CONTENT_LENGTH_CLIP_BOUND, upper=_CONTENT_LENGTH_CLIP_BOUND)
+    # v2 两段 clip 全部退役（设计文档 §4.3）：rate clip(0,1) 与 content_length ±5
+    # clip 治的都是 min-max 跨批次参照系错位的症状；per-case z-score 在 case 内部
+    # 建立参照系、消除病因后，裁剪反而会把真实的大幅偏离信号压平（误伤异常得分）。
 
     validate_contract_df(full, args.config)
 
     if cfg.contract_version == "v1":
         _write_v1(out, full, normal_mask, args.seed, cfg)
+    elif is_v2:
+        # v2 复用 _write_v1 的切分/落盘逻辑（D3：不新造并行实现），但传入归一化之前
+        # 预算好的切分结果；fit_endpoint_baseline_stats 在入口已被守卫为 false，
+        # 不会产出 endpoint_baseline_stats.json sidecar（D6）。
+        _write_v1(out, full, normal_mask, args.seed, cfg, precomputed=precomputed)
     else:
         # v0：train=全部 Normal，eval_all=全部行（保持向后兼容，train ⊆ eval_all）
         full[normal_mask].reset_index(drop=True).to_parquet(out / "train.parquet", index=False)
@@ -587,12 +647,51 @@ def _absorb_phase_rows(
     return train, eval_
 
 
+def _reselect_rows_by_sample_id(full: pd.DataFrame, frame: pd.DataFrame) -> pd.DataFrame:
+    """按 frame 的 sample_id 序列从 full 取回同批行，行序与 frame 一致、列序与 full 一致。
+
+    v2 预算切分发生在归一化之前，预算帧携带的是原始尺度；落盘必须取归一化原地
+    覆盖之后的 full 行。两个 split 函数内部 concat(ignore_index=True)，行号无法
+    跨切分关联，故用 sample_id 做身份键。sample_id 唯一性已由先于 _write_v1 执行的
+    validate_contract_df 强制（重复即抛错中止构建），这里再显式断言一次防御未来
+    调用顺序变化——不能用 isin() 直接筛：full 内若有重复 id，isin 会静默取回多行。
+    """
+    full_ids = full["sample_id"]
+    if full_ids.duplicated().any():
+        raise ContractV0Error("v2 预算切分复用要求 sample_id 唯一，但 full 中存在重复")
+    id_to_pos = {sid: i for i, sid in enumerate(full_ids)}
+    positions = [id_to_pos[sid] for sid in frame["sample_id"]]
+    return full.iloc[positions].reset_index(drop=True)
+
+
+@dataclass
+class _PrecomputedV1Splits:
+    """归一化之前预算好的切分结果（仅 v2 传入）。
+
+    v2 的 Normalizer fit 必须发生在切分之后（fit 行集 = train_fit ∪ baseline-train），
+    故切分在 main() 里提前完成；_write_v1 复用同一份结果，不再各切一次。v1 路径
+    传 None，_write_v1 维持"自己切"的原行为不变。
+
+    - normal_parts：split_normal_rows_temporal 的三路结果（归一化之前的行，行身份
+      与归一化之后逐行一致）。
+    - fault_baseline_train/eval：baseline 行按 fault_baseline_train_fraction 的
+      整窗时序切分；非扩容形态两者均为 None（fit 不含故障行，也无需预算）。
+    inject/recover 两路吸收不在预算范围内——那些行永不参与 v2 fit，留在
+    _write_v1 内于归一化之后切，行为与预算前逐行一致。
+    """
+
+    normal_parts: dict[str, pd.DataFrame]
+    fault_baseline_train: pd.DataFrame | None
+    fault_baseline_eval: pd.DataFrame | None
+
+
 def _write_v1(
     out: Path,
     full: pd.DataFrame,
     normal_mask: pd.Series,
     seed: int,
     cfg: ContractConfig,
+    precomputed: _PrecomputedV1Splits | None = None,
 ) -> None:
     """v1：Normal 行按时间窗三路切分。`expand_train_pool=False`（默认，与 entry 012
     既有实验数字可比）时 train.parquet=train_fit、eval_all=全部故障阶段+holdout，
@@ -656,7 +755,17 @@ def _write_v1(
 
     normal_df = full[normal_mask].reset_index(drop=True)
     anomaly_df = full[~normal_mask].reset_index(drop=True)
-    parts = split_normal_rows_temporal(normal_df, seed=seed)
+    if precomputed is not None:
+        # v2：复用 main() 在归一化之前预算的 Normal 三路切分。预算帧的数值是归一化
+        # 之前的——写出必须落归一化之后的当前值，故按 sample_id 从 full 取回同批行，
+        # 不直接写预算帧。行序与现切路径逐行一致（full 按 case/endpoint/ts 排序，
+        # 整窗切分保持该序）。
+        parts = {
+            name: _reselect_rows_by_sample_id(full, frame)
+            for name, frame in precomputed.normal_parts.items()
+        }
+    else:
+        parts = split_normal_rows_temporal(normal_df, seed=seed)
 
     parts["train_fit"].to_parquet(out / "train_fit.parquet", index=False)
     parts["train_val"].to_parquet(out / "train_val.parquet", index=False)
@@ -674,9 +783,33 @@ def _write_v1(
         # 唯一硬约束是 train/eval 的 sample_id 互斥——split 按整窗切分天然保证（同一窗
         # 不会既在 train 又在 eval）。
         fault_baseline_df = anomaly_df[anomaly_df["phase"] == "baseline"].copy()
-        fault_baseline_train, fault_baseline_eval = _absorb_phase_rows(
-            fault_baseline_df, fault_baseline_train_fraction, "fault_baseline"
-        )
+        if precomputed is not None and precomputed.fault_baseline_train is not None:
+            # v2：baseline 切分已在归一化之前完成，且同一份 train 帧喂给了
+            # Normalizer.fit（fit 集合 = train_fit ∪ 这批行）。按 sample_id 从归一化
+            # 之后的 full 取回当前值落盘，并补上 _absorb_phase_rows 会打的
+            # source_phase 标签；预算帧本身保持纯净（只携带行身份，打标是写出侧职责）。
+            # eval 帧复用 main() 的同次切分结果，绝不再切第二遍（参数漂移风险）。
+            pre_train = precomputed.fault_baseline_train
+            pre_eval = precomputed.fault_baseline_eval
+            assert pre_eval is not None
+            fault_baseline_train = _reselect_rows_by_sample_id(full, pre_train)
+            fault_baseline_train["source_phase"] = "fault_baseline"
+            fault_baseline_eval = _reselect_rows_by_sample_id(full, pre_eval)
+            if (
+                fault_baseline_train_fraction > 0
+                and len(fault_baseline_train) == 0
+                and len(fault_baseline_df) > 0
+            ):
+                LOG.warning(
+                    "fault_baseline: fraction=%.3f 对全部 %d 行贡献了 0 行进训练池"
+                    "——请检查 fraction 是否过小或候选窗口数是否过少",
+                    fault_baseline_train_fraction,
+                    len(fault_baseline_df),
+                )
+        else:
+            fault_baseline_train, fault_baseline_eval = _absorb_phase_rows(
+                fault_baseline_df, fault_baseline_train_fraction, "fault_baseline"
+            )
 
         # inject 阶段非目标行（fan-out 残留）。判据 ~is_endpoint_anomaly 兼容三种
         # label_granularity，见 docstring。label_target_observable 是必需的第二道闸：

@@ -145,80 +145,11 @@ stages:
       - artifacts/baseline_new_merge_gated/metrics.json:
           cache: false
 
-  train_new_merge_reliability_gate:
-    wdir: ..
-    cmd: python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_merge_expanded
-      out=artifacts/baseline_new_merge_reliability_gate/scores.parquet seed=42
-      training.epochs=50 fusion=reliability_gate model=deep_svdd
-    deps:
-      - scripts/train_baseline_v0.py
-      - configs/base.yaml
-      - configs/fusion/reliability_gate.yaml
-      - configs/model/deep_svdd.yaml
-      - configs/training/default.yaml
-      - configs/contract/endpoint_to_service.yaml
-      - src/models/deep_svdd.py
-      - src/fusion/reliability_gate.py
-      - src/fusion/base.py
-      - src/data/contract_dataloader.py
-      - src/data/endpoint_baseline_stats.py
-      - artifacts/contract_new_merge_expanded/train.parquet
-      - artifacts/contract_new_merge_expanded/eval_all.parquet
-      - artifacts/contract_new_merge_expanded/schema.json
-      - artifacts/contract_new_merge_expanded/endpoint_baseline_stats.json
-    outs:
-      - artifacts/baseline_new_merge_reliability_gate/scores.parquet
-
-  eval_new_merge_reliability_gate:
-    wdir: ..
-    cmd: python scripts/eval_baseline_v0.py
-      --scores artifacts/baseline_new_merge_reliability_gate/scores.parquet
-      --out artifacts/baseline_new_merge_reliability_gate/metrics.json
-    deps:
-      - scripts/eval_baseline_v0.py
-      - src/contracts
-      - artifacts/baseline_new_merge_reliability_gate/scores.parquet
-    metrics:
-      - artifacts/baseline_new_merge_reliability_gate/metrics.json:
-          cache: false
-
-  train_new_merge_reliability_gate_indep_sigmoid:
-    wdir: ..
-    cmd: python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_merge_expanded
-      out=artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/scores.parquet seed=42
-      training.epochs=50 fusion=reliability_gate_ablation_indep_sigmoid model=deep_svdd
-    deps:
-      - scripts/train_baseline_v0.py
-      - configs/base.yaml
-      - configs/fusion/reliability_gate_ablation_indep_sigmoid.yaml
-      - configs/model/deep_svdd.yaml
-      - configs/training/default.yaml
-      - configs/contract/endpoint_to_service.yaml
-      - src/models/deep_svdd.py
-      - src/fusion/reliability_gate.py
-      - src/fusion/base.py
-      - src/data/contract_dataloader.py
-      - src/data/endpoint_baseline_stats.py
-      - artifacts/contract_new_merge_expanded/train.parquet
-      - artifacts/contract_new_merge_expanded/eval_all.parquet
-      - artifacts/contract_new_merge_expanded/schema.json
-      - artifacts/contract_new_merge_expanded/endpoint_baseline_stats.json
-    outs:
-      - artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/scores.parquet
-
-  eval_new_merge_reliability_gate_indep_sigmoid:
-    wdir: ..
-    cmd: python scripts/eval_baseline_v0.py
-      --scores artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/scores.parquet
-      --out artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/metrics.json
-    deps:
-      - scripts/eval_baseline_v0.py
-      - src/contracts
-      - artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/scores.parquet
-    metrics:
-      - artifacts/baseline_new_merge_reliability_gate_indep_sigmoid/metrics.json:
-          cache: false
-
+  # RG（reliability_gate / reliability_gate_ablation_indep_sigmoid）两个 stage 对
+  # 已于 contract v2 周期退役（D5：one-class loss 下门控与检测质量无梯度绑定，
+  # 学无可学）。类代码、configs/fusion/reliability_gate*.yaml 与
+  # artifacts/baseline_new_merge_reliability_gate*/ 产物全部保留在 git 历史中
+  # 作为档案，只是 pipeline 不再运行它们。
   train_new_merge_deviation_weighted:
     wdir: ..
     cmd: python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_merge_expanded
@@ -340,4 +271,228 @@ stages:
       - artifacts/trivial_baseline_zscore_max/scores.parquet
     metrics:
       - artifacts/trivial_baseline_zscore_max/metrics.json:
+          cache: false
+
+  # === contract v2（per-case z-score 归一化，entry 027/029）四臂 ===
+  # contract_dir=artifacts/contract_new_merge_v2，与 v1 行集逐行相等、仅归一化
+  # 口径不同；v2 产物无 endpoint_baseline_stats.json sidecar，四臂均不需要它
+  # （selfref 的参照系是特征自身，见 src/fusion/deviation_weighted_selfref.py）。
+  train_new_merge_v2_concat:
+    wdir: ..
+    cmd: python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_merge_v2
+      out=artifacts/baseline_new_merge_v2_concat/scores.parquet seed=42
+      training.epochs=50 fusion=concat model=deep_svdd
+    deps:
+      - scripts/train_baseline_v0.py
+      - configs/base.yaml
+      - configs/fusion/concat.yaml
+      - configs/model/deep_svdd.yaml
+      - configs/training/default.yaml
+      - src/models/deep_svdd.py
+      - src/fusion/early_concat.py
+      - src/fusion/base.py
+      - src/data/contract_dataloader.py
+      - artifacts/contract_new_merge_v2/train.parquet
+      - artifacts/contract_new_merge_v2/eval_all.parquet
+      - artifacts/contract_new_merge_v2/schema.json
+    outs:
+      - artifacts/baseline_new_merge_v2_concat/scores.parquet
+
+  eval_new_merge_v2_concat:
+    wdir: ..
+    cmd: python scripts/eval_baseline_v0.py
+      --scores artifacts/baseline_new_merge_v2_concat/scores.parquet
+      --out artifacts/baseline_new_merge_v2_concat/metrics.json
+    deps:
+      - scripts/eval_baseline_v0.py
+      - src/contracts
+      - artifacts/baseline_new_merge_v2_concat/scores.parquet
+    metrics:
+      - artifacts/baseline_new_merge_v2_concat/metrics.json:
+          cache: false
+
+  train_new_merge_v2_independent_concat:
+    wdir: ..
+    cmd: python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_merge_v2
+      out=artifacts/baseline_new_merge_v2_independent_concat/scores.parquet seed=42
+      training.epochs=50 fusion=independent_concat model=deep_svdd
+    deps:
+      - scripts/train_baseline_v0.py
+      - configs/base.yaml
+      - configs/fusion/independent_concat.yaml
+      - configs/model/deep_svdd.yaml
+      - configs/training/default.yaml
+      - src/models/deep_svdd.py
+      - src/fusion/independent_concat.py
+      - src/fusion/base.py
+      - src/data/contract_dataloader.py
+      - artifacts/contract_new_merge_v2/train.parquet
+      - artifacts/contract_new_merge_v2/eval_all.parquet
+      - artifacts/contract_new_merge_v2/schema.json
+    outs:
+      - artifacts/baseline_new_merge_v2_independent_concat/scores.parquet
+
+  eval_new_merge_v2_independent_concat:
+    wdir: ..
+    cmd: python scripts/eval_baseline_v0.py
+      --scores artifacts/baseline_new_merge_v2_independent_concat/scores.parquet
+      --out artifacts/baseline_new_merge_v2_independent_concat/metrics.json
+    deps:
+      - scripts/eval_baseline_v0.py
+      - src/contracts
+      - artifacts/baseline_new_merge_v2_independent_concat/scores.parquet
+    metrics:
+      - artifacts/baseline_new_merge_v2_independent_concat/metrics.json:
+          cache: false
+
+  train_new_merge_v2_gated:
+    wdir: ..
+    cmd: python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_merge_v2
+      out=artifacts/baseline_new_merge_v2_gated/scores.parquet seed=42
+      training.epochs=50 fusion=gated model=deep_svdd
+    deps:
+      - scripts/train_baseline_v0.py
+      - configs/base.yaml
+      - configs/fusion/gated.yaml
+      - configs/model/deep_svdd.yaml
+      - configs/training/default.yaml
+      - src/models/deep_svdd.py
+      - src/fusion/gated.py
+      - src/fusion/base.py
+      - src/data/contract_dataloader.py
+      - artifacts/contract_new_merge_v2/train.parquet
+      - artifacts/contract_new_merge_v2/eval_all.parquet
+      - artifacts/contract_new_merge_v2/schema.json
+    outs:
+      - artifacts/baseline_new_merge_v2_gated/scores.parquet
+
+  eval_new_merge_v2_gated:
+    wdir: ..
+    cmd: python scripts/eval_baseline_v0.py
+      --scores artifacts/baseline_new_merge_v2_gated/scores.parquet
+      --out artifacts/baseline_new_merge_v2_gated/metrics.json
+    deps:
+      - scripts/eval_baseline_v0.py
+      - src/contracts
+      - artifacts/baseline_new_merge_v2_gated/scores.parquet
+    metrics:
+      - artifacts/baseline_new_merge_v2_gated/metrics.json:
+          cache: false
+
+  train_new_merge_v2_deviation_weighted_selfref:
+    wdir: ..
+    cmd: python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_merge_v2
+      out=artifacts/baseline_new_merge_v2_deviation_weighted_selfref/scores.parquet seed=42
+      training.epochs=50 fusion=deviation_weighted_selfref model=deep_svdd
+    deps:
+      - scripts/train_baseline_v0.py
+      - configs/base.yaml
+      - configs/fusion/deviation_weighted_selfref.yaml
+      - configs/model/deep_svdd.yaml
+      - configs/training/default.yaml
+      - src/models/deep_svdd.py
+      - src/fusion/deviation_weighted_selfref.py
+      - src/fusion/base.py
+      - src/data/contract_dataloader.py
+      - artifacts/contract_new_merge_v2/train.parquet
+      - artifacts/contract_new_merge_v2/eval_all.parquet
+      - artifacts/contract_new_merge_v2/schema.json
+    outs:
+      - artifacts/baseline_new_merge_v2_deviation_weighted_selfref/scores.parquet
+
+  eval_new_merge_v2_deviation_weighted_selfref:
+    wdir: ..
+    cmd: python scripts/eval_baseline_v0.py
+      --scores artifacts/baseline_new_merge_v2_deviation_weighted_selfref/scores.parquet
+      --out artifacts/baseline_new_merge_v2_deviation_weighted_selfref/metrics.json
+    deps:
+      - scripts/eval_baseline_v0.py
+      - src/contracts
+      - artifacts/baseline_new_merge_v2_deviation_weighted_selfref/scores.parquet
+    metrics:
+      - artifacts/baseline_new_merge_v2_deviation_weighted_selfref/metrics.json:
+          cache: false
+
+  # v2 口径的三条平凡基线（与 v1 三条并列；rel_pos 不看特征，v1/v2 结果必须
+  # 逐位相等——0.9656 同时是行等价红线的旁证）。
+  score_trivial_v2_rel_pos:
+    wdir: ..
+    cmd: python scripts/score_trivial_baselines.py
+      --contract-dir artifacts/contract_new_merge_v2
+      --baseline rel_pos
+      --out artifacts/trivial_baseline_v2_rel_pos/scores.parquet
+    deps:
+      - scripts/score_trivial_baselines.py
+      - src/contracts
+      - artifacts/contract_new_merge_v2/eval_all.parquet
+    outs:
+      - artifacts/trivial_baseline_v2_rel_pos/scores.parquet
+
+  eval_trivial_v2_rel_pos:
+    wdir: ..
+    cmd: python scripts/eval_baseline_v0.py
+      --scores artifacts/trivial_baseline_v2_rel_pos/scores.parquet
+      --out artifacts/trivial_baseline_v2_rel_pos/metrics.json
+    deps:
+      - scripts/eval_baseline_v0.py
+      - src/contracts
+      - artifacts/trivial_baseline_v2_rel_pos/scores.parquet
+    metrics:
+      - artifacts/trivial_baseline_v2_rel_pos/metrics.json:
+          cache: false
+
+  score_trivial_v2_zscore_l2:
+    wdir: ..
+    cmd: python scripts/score_trivial_baselines.py
+      --contract-dir artifacts/contract_new_merge_v2
+      --baseline zscore_l2
+      --out artifacts/trivial_baseline_v2_zscore_l2/scores.parquet
+    deps:
+      - scripts/score_trivial_baselines.py
+      - src/contracts
+      - artifacts/contract_new_merge_v2/eval_all.parquet
+      - artifacts/contract_new_merge_v2/train.parquet
+      - artifacts/contract_new_merge_v2/schema.json
+    outs:
+      - artifacts/trivial_baseline_v2_zscore_l2/scores.parquet
+
+  eval_trivial_v2_zscore_l2:
+    wdir: ..
+    cmd: python scripts/eval_baseline_v0.py
+      --scores artifacts/trivial_baseline_v2_zscore_l2/scores.parquet
+      --out artifacts/trivial_baseline_v2_zscore_l2/metrics.json
+    deps:
+      - scripts/eval_baseline_v0.py
+      - src/contracts
+      - artifacts/trivial_baseline_v2_zscore_l2/scores.parquet
+    metrics:
+      - artifacts/trivial_baseline_v2_zscore_l2/metrics.json:
+          cache: false
+
+  score_trivial_v2_zscore_max:
+    wdir: ..
+    cmd: python scripts/score_trivial_baselines.py
+      --contract-dir artifacts/contract_new_merge_v2
+      --baseline zscore_max
+      --out artifacts/trivial_baseline_v2_zscore_max/scores.parquet
+    deps:
+      - scripts/score_trivial_baselines.py
+      - src/contracts
+      - artifacts/contract_new_merge_v2/eval_all.parquet
+      - artifacts/contract_new_merge_v2/train.parquet
+      - artifacts/contract_new_merge_v2/schema.json
+    outs:
+      - artifacts/trivial_baseline_v2_zscore_max/scores.parquet
+
+  eval_trivial_v2_zscore_max:
+    wdir: ..
+    cmd: python scripts/eval_baseline_v0.py
+      --scores artifacts/trivial_baseline_v2_zscore_max/scores.parquet
+      --out artifacts/trivial_baseline_v2_zscore_max/metrics.json
+    deps:
+      - scripts/eval_baseline_v0.py
+      - src/contracts
+      - artifacts/trivial_baseline_v2_zscore_max/scores.parquet
+    metrics:
+      - artifacts/trivial_baseline_v2_zscore_max/metrics.json:
           cache: false
