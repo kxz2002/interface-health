@@ -55,13 +55,20 @@ RATE_COLUMNS = [
 # 单独覆盖。这个常量本身仅用于文档化该约定，非死代码。
 REQUIRED_ID_COLUMNS_V1_EXTRA = ["endpoint_id"]
 
-# v2 量级 sanity 上界（闭区间），对**全部特征列**生效。v2 的 per-case z-score
-# 正常产出是个位数 z 值；1e3 与其隔着 2 个数量级以上，唯一用途是挡住 entry 013
-# 那类零方差除数把差值放大到 1e9~1e13 的爆值——它不承担分布合理性校验，故刻意
-# 放得很宽。不能只守 rate 列：entry 013 实际爆值的 client_latency_p95 /
-# latency_divergence 都不是 rate 列，只守 rate 列会让"防 1e9 重演"的承诺与
-# 防线错位。v2 配置守卫已强制所有特征列都是 z-score 产出，全列检查语义成立。
-V2_ZSCORE_MAGNITUDE_BOUND = 1e3
+# v2 量级 sanity 上界（闭区间），对**全部特征列**生效。唯一用途是挡住 entry 013
+# 那类零方差除数把差值放大到 1e9~1e13 的数值爆炸——它不承担分布合理性校验，故
+# 刻意放得很宽：v2 的 per-case z-score 正常产出是个位数 z 值，但真实强信号可以
+# 远大于此。阈值 1e6 的校准（new_merge 实测，2026-09）：当前数据集中最大真实
+# 信号是 Lv_E_HTTPDELAY_assurance 目标 endpoint 的 inject 行——注入 3s 延迟使
+# raw client_latency_p95=3004~3323ms，而该 (case,endpoint) baseline 极稳定
+# （fit n=13、std≈0.31ms，shrinkage 后 std_eff≈2.2），z≈1366~1995。这是
+# z-score 数学正确的真实信号（1500:1 SNR），不是退化除零；1e3 初版阈值会把它
+# 误拦、导致 v2 构建确定性失败。1e6 对该最大真实信号留 500× 余量，同时比 1e9
+# 爆值低 3 个数量级，爆炸仍必被拦。不能只守 rate 列：entry 013 实际爆值的
+# client_latency_p95 / latency_divergence 都不是 rate 列，只守 rate 列会让
+# "防 1e9 重演"的承诺与防线错位。v2 配置守卫已强制所有特征列都是 z-score 产出，
+# 全列检查语义成立。
+V2_ZSCORE_MAGNITUDE_BOUND = 1e6
 
 
 class ContractV0Error(ValueError):
