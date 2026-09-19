@@ -16,8 +16,10 @@ class ModalitySpec:
     candidates_pool: tuple[str, ...] = ()
 
     # per_case_endpoint_z_score / per_case_service_z_score 只被 v2 build 路径消费
-    # （contract_version == "v2" 的 per-case 归一化，见 Task 11/14）；v1 config 若
-    # 配了这两个值，当前没有加载期守卫，会在 build 阶段由 v1 归一化逻辑报错。
+    # （contract_version == "v2" 的 per-case 归一化，见 Task 11/14）。反向组合
+    # （v2 配 min_max）由 ContractConfig.__post_init__ 在加载期守卫拒绝；v1 config
+    # 若配了这两个 z-score 值，当前没有加载期守卫，会在 build 阶段由 v1 归一化
+    # 逻辑报错。
     _VALID_NORMALIZATIONS: ClassVar[frozenset[str]] = frozenset(
         {
             "per_endpoint_min_max",
@@ -82,7 +84,28 @@ class ContractConfig:
     # （不吸收，向后兼容）。
     fault_recover_nontarget_train_fraction: float = 0.0
 
+    # v2 唯一合法的归一化形态。v2 build 路径（is_v2=True）整体跳过 rate clip 与
+    # 退化 group 告警（设计文档 §4.3：clip 治的是 min-max 跨批次参照系错位的症状），
+    # 此时再配 min_max，退化 group 的原始量纲会无告警、无裁剪地进入模型。
+    _V2_REQUIRED_NORMALIZATIONS: ClassVar[frozenset[str]] = frozenset(
+        {"per_case_endpoint_z_score", "per_case_service_z_score"}
+    )
+
     def __post_init__(self) -> None:
+        # 配置加载期守卫（早于 build）：v2×min_max 是静默错误组合——build 不报错、
+        # 产物也不越界，只是模型吃进未归一化的原始量纲且没有任何告警，故必须在
+        # 这里指名道姓地拒绝，而不是等到结果可疑时回头排查。
+        if self.contract_version == "v2":
+            for mod_name, spec in self.modalities.items():
+                if spec.normalization not in self._V2_REQUIRED_NORMALIZATIONS:
+                    raise ValueError(
+                        f"contract_version='v2' 要求所有 modality 使用 per-case z-score 归一化"
+                        f"（{sorted(self._V2_REQUIRED_NORMALIZATIONS)}），"
+                        f"但 modality {mod_name!r} 配的是 {spec.normalization!r}："
+                        "v2 路径会跳过 clip(0,1) 与退化 group 告警，min_max 退化组的"
+                        "原始量纲会无告警进入模型（见设计文档 §4.3）"
+                    )
+
         # 恒校验（不看 expand_train_pool）：越界/非数值比例是配置错误，即便当前未被
         # 消费也应在加载期暴露，而不是等到 expand_train_pool 被打开时才在
         # split_fault_phase_temporal 内部产出反直觉结果——大于 1.0 的正数会让 train

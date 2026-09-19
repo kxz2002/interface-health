@@ -55,6 +55,11 @@ RATE_COLUMNS = [
 # 单独覆盖。这个常量本身仅用于文档化该约定，非死代码。
 REQUIRED_ID_COLUMNS_V1_EXTRA = ["endpoint_id"]
 
+# v2 量级 sanity 上界（闭区间）。v2 的 per-case z-score 正常产出是个位数 z 值；
+# 1e3 与其隔着 2 个数量级以上，唯一用途是挡住 entry 013 那类零方差除数把差值
+# 放大到 1e9~1e13 的爆值——它不承担分布合理性校验，故刻意放得很宽。
+RATE_MAGNITUDE_BOUND_V2 = 1e3
+
 
 class ContractV0Error(ValueError):
     """Contract v0 校验失败时抛出。"""
@@ -82,12 +87,25 @@ def validate_contract_df(df: pd.DataFrame, config_path: str) -> ContractV0:
     if df["sample_id"].duplicated().any():
         errors.append(f"sample_id has {int(df['sample_id'].duplicated().sum())} duplicate values")
 
+    is_v2 = cfg.contract_version == "v2"
     for col in RATE_COLUMNS:
         if col not in df.columns:
             continue
         vals = df[col].dropna()
-        if ((vals < 0) | (vals > 1)).any():
-            errors.append(f"{col} 越界 [0, 1]，发现 {int(((vals < 0) | (vals > 1)).sum())} 行")
+        if is_v2:
+            # v2 per-case z-score 下 rate 列不再落 [0,1]（z 值天然有负有超 1），
+            # [0,1] 校验退役；但只放宽尺度、不放弃防线——换成量级 sanity 防
+            # entry 013 的 1e9 爆值重演（z-score 内部有退化回退，仍可能出意外）。
+            exploded = vals.abs() > RATE_MAGNITUDE_BOUND_V2
+            if exploded.any():
+                errors.append(
+                    f"{col} 越过量级 sanity 上界 {RATE_MAGNITUDE_BOUND_V2:g}（绝对值），"
+                    f"发现 {int(exploded.sum())} 行，疑似归一化爆值（参见 entry 013）"
+                )
+        else:
+            out_of_range = (vals < 0) | (vals > 1)
+            if out_of_range.any():
+                errors.append(f"{col} 越界 [0, 1]，发现 {int(out_of_range.sum())} 行")
 
     inconsistent = (df["phase"] == "inject") != df["is_anomaly"]
     if inconsistent.any():

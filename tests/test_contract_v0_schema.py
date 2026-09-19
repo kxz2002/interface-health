@@ -81,6 +81,104 @@ def test_score_out_of_range_for_rate_column_raises():
         validate_contract_df(pd.DataFrame([row]), REPO_ROOT / "configs/contract/v0.yaml")
 
 
+def test_negative_rate_column_rejected_on_v1_path(tmp_path):
+    """v1/v0 路径的 [0,1] 校验对负值同样生效——放宽只发生在 v2，不能顺手松掉。"""
+    row = _make_valid_row()
+    row["endpoint_red__trace_error_rate"] = -0.1
+    with pytest.raises(ContractV0Error, match=r"trace_error_rate.*\[0, 1\]"):
+        validate_contract_df(pd.DataFrame([row]), REPO_ROOT / "configs/contract/v0.yaml")
+
+
+# v2 config：18 维特征声明与 v0.yaml 相同，区别只在 contract_version 与 per-case
+# z-score normalization（v2×min_max 组合在配置加载期即被守卫拒绝，见
+# tests/test_contract_config.py），供 v2 校验分支测试使用。
+def _write_v2_config(tmp_path: Path) -> Path:
+    cfg_path = tmp_path / "v2.yaml"
+    cfg_path.write_text(
+        'contract_version: "v2"\n'
+        "window_size_s: 15\n"
+        "expand_train_pool: true\n"
+        "modalities:\n"
+        "  endpoint_red:\n"
+        "    preprocessor: TracePreprocessor\n"
+        "    preprocessor_version: v0\n"
+        "    features:\n"
+        "      - trace_request_count\n"
+        "      - trace_latency_p50\n"
+        "      - trace_latency_p95\n"
+        "      - trace_error_rate\n"
+        "      - trace_5xx_rate\n"
+        "      - client_request_count\n"
+        "      - client_latency_p95\n"
+        "      - client_error_rate\n"
+        "      - client_5xx_rate\n"
+        "      - latency_divergence\n"
+        "    normalization: per_case_endpoint_z_score\n"
+        "    candidates_pool: []\n"
+        "  service_metric:\n"
+        "    preprocessor: MetricPreprocessor\n"
+        "    preprocessor_version: v0\n"
+        "    features:\n"
+        "      - cpu_usage_rate\n"
+        "      - memory_usage_ratio\n"
+        "      - net_rx_error_rate\n"
+        "      - net_tx_error_rate\n"
+        "      - process_count\n"
+        "    normalization: per_case_service_z_score\n"
+        "    candidates_pool: []\n"
+        "  service_log:\n"
+        "    preprocessor: LogPreprocessor\n"
+        "    preprocessor_version: v0\n"
+        "    features:\n"
+        "      - event_rate\n"
+        "      - error_ratio\n"
+        "      - template_diversity\n"
+        "    normalization: per_case_service_z_score\n"
+        "    candidates_pool: []\n"
+    )
+    return cfg_path
+
+
+def test_v2_rate_columns_allow_negative_and_above_one(tmp_path):
+    """v2 per-case z-score 下 rate 列不再落 [0,1]：z 值天然有负有超 1，
+    这类值必须放行，否则 v2 产物逐行过不了自己的 schema 校验。"""
+    row_neg = _make_valid_row()
+    row_neg["sample_id"] = row_neg["sample_id"] + "_neg"
+    row_neg["endpoint_red__trace_error_rate"] = -1.5
+
+    row_hi = _make_valid_row()
+    row_hi["sample_id"] = row_hi["sample_id"] + "_hi"
+    row_hi["endpoint_red__client_error_rate"] = 2.5
+
+    cfg_path = _write_v2_config(tmp_path)
+    validated = validate_contract_df(pd.DataFrame([row_neg, row_hi]), cfg_path)
+    assert len(validated) == 2
+
+
+def test_v2_rate_columns_reject_explosive_magnitude(tmp_path):
+    """[0,1] 退役后量级 sanity 接手：entry 013 的零方差除数把差值放大 1e9~1e13
+    倍的事故不能因放宽校验而重演。1e3 阈值与正常 z-score（个位数）隔着 2 个
+    数量级以上，1e9 必须被拒。"""
+    row = _make_valid_row()
+    row["endpoint_red__trace_error_rate"] = 2e9
+    cfg_path = _write_v2_config(tmp_path)
+    with pytest.raises(ContractV0Error, match=r"trace_error_rate.*量级"):
+        validate_contract_df(pd.DataFrame([row]), cfg_path)
+
+
+def test_v2_rate_columns_accept_boundary_1e3(tmp_path):
+    """量级 sanity 的边界值 ±1e3 本身必须放行（闭区间），防止手滑写成严格不等号。"""
+    row_hi = _make_valid_row()
+    row_hi["sample_id"] = row_hi["sample_id"] + "_hi"
+    row_hi["endpoint_red__trace_error_rate"] = 1e3
+    row_lo = _make_valid_row()
+    row_lo["sample_id"] = row_lo["sample_id"] + "_lo"
+    row_lo["endpoint_red__trace_error_rate"] = -1e3
+    cfg_path = _write_v2_config(tmp_path)
+    validated = validate_contract_df(pd.DataFrame([row_hi, row_lo]), cfg_path)
+    assert len(validated) == 2
+
+
 def test_duplicate_sample_id_raises():
     df = pd.DataFrame([_make_valid_row(), _make_valid_row()])
     with pytest.raises(ContractV0Error, match="duplicate"):

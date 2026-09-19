@@ -293,6 +293,97 @@ def test_nontarget_fractions_boundary_values_valid(tmp_path):
             assert getattr(cfg, field) == boundary
 
 
+def _write_yaml(tmp_path, body: str, name: str = "c.yaml") -> Path:
+    cfg_path = tmp_path / name
+    cfg_path.write_text(body)
+    return cfg_path
+
+
+# 单个 modality 的最小 YAML 片段，方便按版本/normalization 拼装守卫测试。
+_MODALITY_BLOCK = {
+    "endpoint_red": (
+        "  endpoint_red:\n"
+        "    preprocessor: TracePreprocessor\n"
+        "    preprocessor_version: v0\n"
+        "    features: [trace_error_rate]\n"
+        "    normalization: {norm}\n"
+    ),
+    "service_metric": (
+        "  service_metric:\n"
+        "    preprocessor: MetricPreprocessor\n"
+        "    preprocessor_version: v0\n"
+        "    features: [cpu_usage_rate]\n"
+        "    normalization: {norm}\n"
+    ),
+}
+
+
+def test_v2_config_requires_per_case_z_score_normalization(tmp_path):
+    """v2×min_max 组合守卫：v2 build 路径（is_v2=True）静默跳过 rate clip 与退化
+    group 告警，min_max 退化组的原始量纲会无告警进模型。错误组合必须在配置
+    加载期就拒绝，而不是等到 build 跑完或产物静默错误。"""
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v2\n"
+        "window_size_s: 15\n"
+        "modalities:\n" + _MODALITY_BLOCK["endpoint_red"].format(norm="per_endpoint_min_max"),
+    )
+    with pytest.raises(ValueError, match="v2.*per-case z-score"):
+        load_contract_config(cfg_path)
+
+
+def test_v2_config_rejects_global_min_max(tmp_path):
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v2\n"
+        "window_size_s: 15\n"
+        "modalities:\n" + _MODALITY_BLOCK["service_metric"].format(norm="global_min_max"),
+    )
+    with pytest.raises(ValueError, match="service_metric"):
+        load_contract_config(cfg_path)
+
+
+def test_v2_config_rejects_even_one_non_zscore_modality(tmp_path):
+    """守卫按 modality 逐个检查：不能因多数 modality 正确就放行单个错误组合，
+    且报错必须点名违规 modality 与其实际 normalization。"""
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v2\n"
+        "window_size_s: 15\n"
+        "modalities:\n"
+        + _MODALITY_BLOCK["endpoint_red"].format(norm="per_case_endpoint_z_score")
+        + _MODALITY_BLOCK["service_metric"].format(norm="per_service_min_max"),
+    )
+    with pytest.raises(ValueError, match=r"service_metric.*per_service_min_max"):
+        load_contract_config(cfg_path)
+
+
+def test_v2_config_with_per_case_z_score_loads(tmp_path):
+    """合法的 v2 组合（全部 modality 走 per-case z-score）必须正常加载。"""
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v2\n"
+        "window_size_s: 15\n"
+        "modalities:\n"
+        + _MODALITY_BLOCK["endpoint_red"].format(norm="per_case_endpoint_z_score")
+        + _MODALITY_BLOCK["service_metric"].format(norm="per_case_service_z_score"),
+    )
+    cfg = load_contract_config(cfg_path)
+    assert cfg.contract_version == "v2"
+
+
+def test_v1_config_with_min_max_still_loads(tmp_path):
+    """守卫只约束 v2：v1/v0 的 min_max 是既有唯一合法形态，不能被新守卫误伤。"""
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v1\n"
+        "window_size_s: 15\n"
+        "modalities:\n" + _MODALITY_BLOCK["endpoint_red"].format(norm="per_endpoint_min_max"),
+    )
+    cfg = load_contract_config(cfg_path)
+    assert cfg.contract_version == "v1"
+
+
 def test_nontarget_fractions_quoted_string_raises(tmp_path):
     """YAML 里误加引号（字符串类型）必须报出指名字段的错误，而不是在比较运算处
     抛与本意无关的 TypeError——类型检查须先于范围检查。"""
