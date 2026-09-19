@@ -15,8 +15,9 @@
 #
 # 其他与 v1 的行为差异（均不影响行集）：
 # - rate 类 [0,1] 校验与两段 clip（rate clip(0,1)、content_length ±5σ）退役，
-#   换成全特征列 |x| <= 1e3 的量级 sanity（1e3 是兜底不是常态；z 分布应大部分
-#   在个位数）；
+#   换成全特征列 |x| <= 1e6 的量级 sanity（1e6 是兜底不是常态：只兜 entry 013
+#   式 1e9 数值爆炸，最大真实信号 z≈2000（HTTPDELAY 3s 注入 vs 极稳定
+#   baseline），余量 500x；z 分布应大部分在个位数）；
 # - 不产 endpoint_baseline_stats.json（D6：v2 无 sidecar，per-case 参照系下
 #   EBS 的跨 case 全局基线失去消费方）。
 #
