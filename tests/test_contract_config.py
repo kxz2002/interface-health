@@ -384,6 +384,66 @@ def test_v1_config_with_min_max_still_loads(tmp_path):
     assert cfg.contract_version == "v1"
 
 
+def test_v1_config_with_per_case_z_score_rejected_at_load(tmp_path):
+    """对称守卫：per-case z-score 是 v2 专属，v1 配它必须在加载期拒绝。
+
+    实测（v2_fit_scope_mini fixture + v1 config 跑 build_contract.py）：该组合
+    并非"静默跑通后被 clip 截断"，而是在归一化阶段抛裸 KeyError: 'case_id'——
+    per-case scope 的分组键含 case_id（normalization.py 的 _GROUP_COLS），而 v1
+    路径传给 Normalizer.transform 的 group_cols 不含该列。裸 KeyError 报错质量
+    差，守卫把它换成带说明的 ValueError。
+    """
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v1\n"
+        "window_size_s: 15\n"
+        "modalities:\n" + _MODALITY_BLOCK["endpoint_red"].format(norm="per_case_endpoint_z_score"),
+    )
+    with pytest.raises(ValueError, match="v2"):
+        load_contract_config(cfg_path)
+
+
+def test_v0_config_with_per_case_z_score_rejected_at_load(tmp_path):
+    """v0 同样不接受 per-case z-score，且报错必须点出 case_id/KeyError 根因。"""
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v0\n"
+        "window_size_s: 15\n"
+        "modalities:\n" + _MODALITY_BLOCK["service_metric"].format(norm="per_case_service_z_score"),
+    )
+    with pytest.raises(ValueError, match="case_id"):
+        load_contract_config(cfg_path)
+
+
+def test_v2_endpoint_red_requires_endpoint_scope(tmp_path):
+    """modality↔scope 配对：endpoint_red 必须配 per_case_endpoint_z_score。
+
+    错配成 service 版会静默按 (case_id, service_name) 聚合——当前数据集
+    service↔endpoint 1:1 数字不变，但未来一个 service 多 endpoint 的数据集上
+    会把不同 endpoint 的窗混在一起算 z 值，且没有任何报错。
+    """
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v2\n"
+        "window_size_s: 15\n"
+        "modalities:\n" + _MODALITY_BLOCK["endpoint_red"].format(norm="per_case_service_z_score"),
+    )
+    with pytest.raises(ValueError, match=r"endpoint_red.*per_case_endpoint_z_score"):
+        load_contract_config(cfg_path)
+
+
+def test_v2_service_metric_requires_service_scope(tmp_path):
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v2\n"
+        "window_size_s: 15\n"
+        "modalities:\n"
+        + _MODALITY_BLOCK["service_metric"].format(norm="per_case_endpoint_z_score"),
+    )
+    with pytest.raises(ValueError, match=r"service_metric.*per_case_service_z_score"):
+        load_contract_config(cfg_path)
+
+
 def test_nontarget_fractions_quoted_string_raises(tmp_path):
     """YAML 里误加引号（字符串类型）必须报出指名字段的错误，而不是在比较运算处
     抛与本意无关的 TypeError——类型检查须先于范围检查。"""

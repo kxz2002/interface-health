@@ -179,6 +179,36 @@ def test_v2_rate_columns_accept_boundary_1e3(tmp_path):
     assert len(validated) == 2
 
 
+def test_v2_non_rate_feature_rejects_explosive_magnitude(tmp_path):
+    """量级 sanity 必须覆盖全部特征列而非只守 rate 列：entry 013 实际爆值的
+    client_latency_p95 / latency_divergence 都不是 rate 列，只守 rate 列会让
+    承诺（防 1e9 重演）与防线错位。v2 配置守卫已强制所有特征列都是 z-score
+    产出，故对全特征列做量级检查语义同样成立。"""
+    row = _make_valid_row()
+    row["endpoint_red__client_latency_p95"] = 2e9
+    cfg_path = _write_v2_config(tmp_path)
+    with pytest.raises(ContractV0Error, match=r"client_latency_p95.*量级"):
+        validate_contract_df(pd.DataFrame([row]), cfg_path)
+
+
+def test_v2_non_rate_feature_accepts_negative_above_one_and_boundary(tmp_path):
+    """非 rate 特征列在 v2 下同样按 z-score 尺度放行：负值、超 1 值与 ±1e3
+    边界都合法（v1 路径上这些列本就不受 [0,1] 约束，这里钉死的是 v2 全特征列
+    量级检查的边界与方向性）。"""
+    row_hi = _make_valid_row()
+    row_hi["sample_id"] = row_hi["sample_id"] + "_hi"
+    row_hi["endpoint_red__latency_divergence"] = 1e3
+    row_lo = _make_valid_row()
+    row_lo["sample_id"] = row_lo["sample_id"] + "_lo"
+    row_lo["endpoint_red__latency_divergence"] = -1e3
+    row_neg = _make_valid_row()
+    row_neg["sample_id"] = row_neg["sample_id"] + "_neg"
+    row_neg["endpoint_red__client_latency_p95"] = -3.7
+    cfg_path = _write_v2_config(tmp_path)
+    validated = validate_contract_df(pd.DataFrame([row_hi, row_lo, row_neg]), cfg_path)
+    assert len(validated) == 3
+
+
 def test_duplicate_sample_id_raises():
     df = pd.DataFrame([_make_valid_row(), _make_valid_row()])
     with pytest.raises(ContractV0Error, match="duplicate"):

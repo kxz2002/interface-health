@@ -55,10 +55,13 @@ RATE_COLUMNS = [
 # 单独覆盖。这个常量本身仅用于文档化该约定，非死代码。
 REQUIRED_ID_COLUMNS_V1_EXTRA = ["endpoint_id"]
 
-# v2 量级 sanity 上界（闭区间）。v2 的 per-case z-score 正常产出是个位数 z 值；
-# 1e3 与其隔着 2 个数量级以上，唯一用途是挡住 entry 013 那类零方差除数把差值
-# 放大到 1e9~1e13 的爆值——它不承担分布合理性校验，故刻意放得很宽。
-RATE_MAGNITUDE_BOUND_V2 = 1e3
+# v2 量级 sanity 上界（闭区间），对**全部特征列**生效。v2 的 per-case z-score
+# 正常产出是个位数 z 值；1e3 与其隔着 2 个数量级以上，唯一用途是挡住 entry 013
+# 那类零方差除数把差值放大到 1e9~1e13 的爆值——它不承担分布合理性校验，故刻意
+# 放得很宽。不能只守 rate 列：entry 013 实际爆值的 client_latency_p95 /
+# latency_divergence 都不是 rate 列，只守 rate 列会让"防 1e9 重演"的承诺与
+# 防线错位。v2 配置守卫已强制所有特征列都是 z-score 产出，全列检查语义成立。
+V2_ZSCORE_MAGNITUDE_BOUND = 1e3
 
 
 class ContractV0Error(ValueError):
@@ -88,21 +91,28 @@ def validate_contract_df(df: pd.DataFrame, config_path: str) -> ContractV0:
         errors.append(f"sample_id has {int(df['sample_id'].duplicated().sum())} duplicate values")
 
     is_v2 = cfg.contract_version == "v2"
-    for col in RATE_COLUMNS:
-        if col not in df.columns:
-            continue
-        vals = df[col].dropna()
-        if is_v2:
-            # v2 per-case z-score 下 rate 列不再落 [0,1]（z 值天然有负有超 1），
-            # [0,1] 校验退役；但只放宽尺度、不放弃防线——换成量级 sanity 防
-            # entry 013 的 1e9 爆值重演（z-score 内部有退化回退，仍可能出意外）。
-            exploded = vals.abs() > RATE_MAGNITUDE_BOUND_V2
+    if is_v2:
+        # v2 per-case z-score 下 rate 列不再落 [0,1]（z 值天然有负有超 1），
+        # [0,1] 校验退役；但只放宽尺度、不放弃防线——换成量级 sanity 防
+        # entry 013 的 1e9 爆值重演（z-score 内部有退化回退，仍可能出意外）。
+        # 检查对象是**全部特征列**而不只是 RATE_COLUMNS：entry 013 实际爆值的
+        # client_latency_p95 / latency_divergence 均非 rate 列；配置加载期守卫
+        # 已保证 v2 下每个特征列都是 z-score 产出，全列同一量级语义。
+        for col in feature_cols:
+            if col not in df.columns:
+                continue
+            vals = df[col].dropna()
+            exploded = vals.abs() > V2_ZSCORE_MAGNITUDE_BOUND
             if exploded.any():
                 errors.append(
-                    f"{col} 越过量级 sanity 上界 {RATE_MAGNITUDE_BOUND_V2:g}（绝对值），"
+                    f"{col} 越过量级 sanity 上界 {V2_ZSCORE_MAGNITUDE_BOUND:g}（绝对值），"
                     f"发现 {int(exploded.sum())} 行，疑似归一化爆值（参见 entry 013）"
                 )
-        else:
+    else:
+        for col in RATE_COLUMNS:
+            if col not in df.columns:
+                continue
+            vals = df[col].dropna()
             out_of_range = (vals < 0) | (vals > 1)
             if out_of_range.any():
                 errors.append(f"{col} 越界 [0, 1]，发现 {int(out_of_range.sum())} 行")
