@@ -21,7 +21,7 @@ conda run -n interface pytest tests/ -q
 conda run -n interface dvc repro dvc_new_merge/dvc.yaml
 ```
 
-- 当前分支 `exp/new-merge-rerun-pr24-pr25`，起点 HEAD = `e8deb74`
+- 当前分支 `exp/new-merge-rerun-pr24-pr25`，起点 HEAD = `e8deb74`（rebase 前 hash，已失效；rebase 后本计划 PR-1 对应 `4ff6708` 起）
 - 提交格式必须是 `[Type]: 描述`（见 CLAUDE.md），type 取 `[Feature]`/`[Bugfix]`/`[Experiment]`/`[Docs]`/`[Test]`/`[Refactor]`
 - pre-commit 会自动跑 isort + black；若提交被格式化改写，重新 `git add` 后再提交
 - **每个 PR 合并前必须写 history entry**（项目硬规则），entry 编号接续现有最大号（当前最大 027）
@@ -30,13 +30,13 @@ conda run -n interface dvc repro dvc_new_merge/dvc.yaml
 
 ## 本计划相对设计文档的一处偏离，及理由
 
-设计文档 D4 写的是"DWF **原地**重写为无状态纯函数"。本计划改为**新建类** `SelfReferentialDeviationFusion`，旧 `DeviationWeightedFusion` 一行不改。
+设计文档 D4 的"连带删除 stats 索引 buffer / `from_contract` 覆写"在本计划中只适用于 v2 新类：本计划**新建类** `SelfReferentialDeviationFusion`，旧 `DeviationWeightedFusion` 一行不改。
 
 理由：设计文档 §6 的回归门要求"**v1 口径 repro 数字逐位不变**"。v1 的 DWF arm 依赖 sidecar 与旧公式，原地重写会让该 arm 数字变化，回归门失去意义，v1↔v2 也不再是"只有归一化不同"的干净对比。新建类使 v1 arm 完全冻结、对比变量唯一。旧类在 RG 退役后仍是 v1 arm 的活跃依赖，不删。
 
 ---
 
-# PR-1：落地 exp 分支（零代码改动）
+# PR-1：落地 exp 分支（主 pipeline 零改动；新增一次性诊断脚本 `scripts/analyze_temporal_confounding.py`）
 
 ## Task 1: 补写 entry 028（PR #26 欠的 history entry）
 
@@ -96,7 +96,7 @@ zscore 0.766，远低于 headline 0.957），确认论文返修数字不受 entr
 
 **Step 1: 补齐元信息与交叉引用**
 
-- 头部 `**PR**: 待定 · **Commit**: 待定（分支 ...）` → 填入真实 PR 号与 commit `56c4561`
+- 头部 `**PR**: 待定 · **Commit**: 待定（分支 ...）` → 填入真实 PR 号与 commit（rebase 后为 `4ff6708`；起草时记录的 `56c4561` 为 rebase 前 hash，已失效）
 - "遗留 TODO" 的 P0 段落加一行，指向 `docs/plans/2026-09-18-contract-v2-percase-design.md` 与本实施计划
 - P0 清单里"归一化改 per-case 自适应"一项补注：**已定案用 z-score 而非 min-max**，理由见设计文档 D1（fit 子集 median 16 行、26/208 组 <5 行的实测）
 - "坑 / 已知问题"里 RG indep_sigmoid 塌陷那条补注：**已定案 RG 整体退役，不修**（设计文档 D5）
@@ -140,7 +140,7 @@ git push -u origin exp/new-merge-rerun-pr24-pr25
 gh pr create --title "[Experiment]: 025+026 组合重跑 + 时间混淆诊断（平凡基线打败全部融合机制）" --body "<见下>"
 ```
 
-PR 描述必须包含：两部分工作（组合重跑解除 entry 026 数字失效声明 / 时间混淆诊断）、平凡基线三个数字、RG indep_sigmoid 塌陷根因、entry 027+028、设计文档与实施计划链接、**明确声明本 PR 零代码改动**（只有实验产物与文档）。
+PR 描述必须包含：两部分工作（组合重跑解除 entry 026 数字失效声明 / 时间混淆诊断）、平凡基线三个数字、RG indep_sigmoid 塌陷根因、entry 027+028、设计文档与实施计划链接、**明确声明本 PR 主 pipeline 零改动**（只有实验产物与文档；另新增一次性诊断脚本 `scripts/analyze_temporal_confounding.py`）。
 
 ---
 
@@ -354,7 +354,7 @@ entry 027 实测这两个不含任何学习过程的基线打败了全部六种�
 
 **lean 口径**：z-score 的 mean/std 只来自训练池行（train.parquet），不用
 eval 侧留作负样本的 baseline 行。entry 027 诊断脚本里的 transductive 版
-（用全 baseline 段）留在那个一次性脚本里作附注，不进本 stage——拿一个偷看过
+（用 eval_all 中留下的 80% baseline 行）留在那个一次性脚本里作附注，不进本 stage——拿一个偷看过
 eval 的参照来审判模型，赢输都说不清。
 """
 ```
@@ -390,7 +390,7 @@ print('per_case_macro', m['per_case_auroc_macro'], '| pooled', m['auroc'])"
 ```
 Expected: per-case macro ≈ **0.9656**（entry 027 记录值）。**若偏差 >0.01，停下来排查**——要么实现有别，要么 entry 027 的数字口径需要重新核对；不要带着不一致往下做。
 
-注：`zscore_l2` 的 lean 版数字**预期低于** entry 027 的 0.9415（那是 transductive 版，用了全 baseline 段）。这个差值本身值得记进 entry——它量化了"参照系是否偷看 eval"的代价。
+注：`zscore_l2` 的 lean 版数字**预期低于** entry 027 的 0.9415（那是 transductive 版，用了 eval_all 中留下的 80% baseline 行）。这个差值本身值得记进 entry——它量化了"参照系是否偷看 eval"的代价。
 
 **Step 6: 提交**
 

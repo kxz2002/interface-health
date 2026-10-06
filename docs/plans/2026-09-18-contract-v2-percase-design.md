@@ -3,7 +3,7 @@
 - **日期**: 2026-09-18
 - **对应 history entry**: 027（P0 系列）
 - **状态**: 设计已确认，待实施
-- **基线 commit**: `56c4561`（分支 `exp/new-merge-rerun-pr24-pr25`）
+- **基线 commit**: `4ff6708`（分支 `exp/new-merge-rerun-pr24-pr25`；起草时记录的 `56c4561` 为 rebase 前 hash，已失效）
 
 ## 1. 问题
 
@@ -43,7 +43,7 @@ entry 027 的诊断给出三个实测事实（`new_merge`，per-case 宏平均 A
 | Normal case | `train_fit`（前 60%，现状不变） |
 | 故障 case | 被吸入训练池的 baseline 前 20% 窗口（即 `source_phase == 'fault_baseline'` 对应的切分结果） |
 
-eval 侧留作负样本的 80% baseline 行**不参与**任何统计量计算。平凡基线参照线同样遵守此约束（**lean 版**，作主口径）；entry 027 诊断脚本里的 transductive 版（用全 baseline）留在一次性脚本中作附注，不进常驻 stage —— 否则等于拿一个偷看过 eval 的参照来审判模型。
+eval 侧留作负样本的 80% baseline 行**不参与**任何统计量计算。平凡基线参照线同样遵守此约束（**lean 版**，作主口径）；entry 027 诊断脚本里的 transductive 版（用 eval_all 中留下的 80% baseline 行）留在一次性脚本中作附注，不进常驻 stage —— 否则等于拿一个偷看过 eval 的参照来审判模型。
 
 ### D3：升 contract v2，不在 v1 加开关
 
@@ -62,7 +62,7 @@ out = w ⊙ x
 
 这恰好是 entry 018 的原始公式 `sigmoid(|z| - 2.0)`，只是不再查 sidecar 而直读特征。**结论因此可以写成：DWF 的公式一开始就是对的，错的是参照系。** 它同时成为 `max|z|` 平凡基线（0.9403）的可微版本 —— SVDD 学表征、DWF 做软 top-k 偏离聚合，这正是 entry 027 P2 想要的"平凡基线 → 学习模型"的桥。
 
-连带删除：stats 索引 buffer、`case_idx` 管线、`from_contract` 覆写钩子、列顺序强校验（entry 018 的脆弱耦合）、per-sample Python 循环查表。
+连带删除：stats 索引 buffer、`case_idx` 管线、`from_contract` 覆写钩子、列顺序强校验（entry 018 的脆弱耦合）、per-sample Python 循环查表。以上"连带删除"仅适用于 v2 路径的新类；v1 arm 冻结，旧 DWF 与 `EndpointBaselineStats` 保留，见实施计划"本计划相对设计文档的一处偏离，及理由"一节。
 
 ### D5：RG 退役，不重定义
 
@@ -72,7 +72,7 @@ RG 与 DWF 的病不在同一层。DWF 的机制对准了已证实的问题（si
 
 ### D6：`EndpointBaselineStats` 整体退役
 
-它实现的是"分组 mean/std + 向全局 shrinkage（k=10）"，正是 per-case z-score 退化回退所需的数学。但 per-case z-score 之后**它就是归一化本身**，不再是旁挂参照表 —— 所以 shrinkage 应住进 `Normalizer`，让后者成为归一化统计量的唯一事实源，同时消掉 sidecar 产物与 entry 015 收束的那批耦合债。代价是 ~15 行 shrinkage 逻辑在新家重写（有单测护航，旧实现留在 git 历史，旧测试可改写复用）。
+它实现的是"分组 mean/std + 向全局 shrinkage（k=10）"，正是 per-case z-score 退化回退所需的数学。但 per-case z-score 之后**它就是归一化本身**，不再是旁挂参照表 —— 所以 shrinkage 应住进 `Normalizer`，让后者成为归一化统计量的唯一事实源，同时消掉 sidecar 产物与 entry 015 收束的那批耦合债。代价是 ~15 行 shrinkage 逻辑在新家重写（有单测护航，旧实现留在 git 历史，旧测试可改写复用）。注：本节"整体退役"仅适用于 v2 路径；v1 arm 冻结，旧 DWF 与 `EndpointBaselineStats` 保留，见实施计划"本计划相对设计文档的一处偏离，及理由"一节。
 
 ## 3. PR 切分
 
@@ -83,7 +83,7 @@ RG 与 DWF 的病不在同一层。DWF 的机制对准了已证实的问题（si
 | PR-3 | `fault_inject_nontarget_train_fraction` 退回 0.0 的对照实验（v1 口径，L0/DWF × 4 seed） | PR-2 |
 | PR-4 | 主线：contract v2 + DWF 自参照 + RG 退役 + 四臂 × 4 seed 重跑 | PR-2 |
 
-分支现状核实：`56c4561` 领先 master 1 commit、落后 1 commit（#26），**与 #26 的改动零文件交集**，rebase 无冲突。
+分支现状核实（2026-09-18 起草时点、rebase 前）：`56c4561`（rebase 前 hash，已失效）领先 master 1 commit、落后 1 commit（#26），**与 #26 的改动零文件交集**，rebase 无冲突。——rebase 已完成，rebase 后对应 commit 为 `4ff6708`，上述"领先 1、落后 1"仅描述起草时点，不再适用。
 
 PR-3 的 comparability 陷阱：fraction 1.0→0.0 会让 5380 行从训练池回到 eval_all，**两个口径的 eval 集不同**（CLAUDE.md 已记录的坑）。对照必须在**两版 eval_all 的共有 sample_id 子集**上算 AUROC，以隔离训练效应。
 
@@ -102,7 +102,7 @@ per-(case, endpoint)  →  该 endpoint 跨 case 汇总  →  全局
 
 这替代 entry 013 的"跳过归一化保留原值"用于 per-case scope —— 后者在 per-case 下不可接受（原始值跨 case 不可比）。global/per_endpoint/per_service 三个既有 scope 的行为**逐行不变**。
 
-记录性事实：当前数据集上 `per_case_endpoint` 与 `per_case_service` 恰好同为 208 组（entry 017 记录的 inner join 把每个 service 塌成 1 个 endpoint）。两个 scope 都实现（未来数据集可能不同），但 entry 中须写明本数据集上二者等价，**不围绕该区分设计消融实验**。
+记录性事实：当前数据集上 `per_case_endpoint` 与 `per_case_service` 恰好同为 208 组（208 只计故障 case；含 Normal 后 fit 组为 216/scope）（entry 017 记录的 inner join 把每个 service 塌成 1 个 endpoint）。两个 scope 都实现（未来数据集可能不同），但 entry 中须写明本数据集上二者等价，**不围绕该区分设计消融实验**。
 
 ### 4.2 build_contract 重排
 
@@ -121,7 +121,7 @@ v2 的 split / 标签 / 吸收闸门逻辑与 v1 **逐行一致**（fractions �
 
 ### 4.5 退化审计
 
-group 数从 ~10 涨到 ~416（208 endpoint 组 + 208 service 组）。构建时产出每列的 shrinkage 回退占比报告；回退率 >50% 的列必须在 entry 中解释。
+group 数从 ~10 涨到 ~416（208 endpoint 组 + 208 service 组；208 只计故障 case，含 Normal 后为 216 组/scope、合计 ~432）。构建时产出每列的 shrinkage 回退占比报告；回退率 >50% 的列必须在 entry 中解释。
 
 ### 4.6 产物
 
