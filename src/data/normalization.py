@@ -262,10 +262,17 @@ class Normalizer:
                 # 完全钉死局部均值反而丢掉这一层。n=0（全 NaN）组无组内估计，
                 # 等价 w=0 直接取上层均值；上层也 NaN 时落到 0.0 哨兵。
                 w = n / (n + _SHRINKAGE_K) if n > 0 else 0.0
-                base_mean = g_mean if not pd.isna(g_mean) else fb_mean
-                if pd.isna(base_mean):
-                    base_mean = 0.0
+                # 汇总层 mean 为 NaN（汇总层同样 n=0）时必须先回退到 global_mean，
+                # 不能直接落 0.0——transform 侧对未见组的回退本来就是
+                # fillna(ep_mean).fillna(global_mean)，fit 侧落 0.0 会让同一原始
+                # 值在"已见 n=0 组"与"未见组"上 z 不同（真实数据：
+                # endpoint_red__trace_5xx_rate 189 个 n=0 组受影响）。注意
+                # g_mean 有效（n>0）时汇总层必有非 NaN mean（汇总 ⊇ 本组），
+                # 故该修复只影响 n=0 组。
+                if pd.isna(fb_mean):
+                    fb_mean = global_mean
                 fb_mean_eff = fb_mean if not pd.isna(fb_mean) else 0.0
+                base_mean = g_mean if not pd.isna(g_mean) else fb_mean_eff
                 mean_eff = w * base_mean + (1.0 - w) * fb_mean_eff
 
                 if not pd.isna(g_std) and g_std >= _DEGENERATE_STD_EPS:
@@ -288,7 +295,18 @@ class Normalizer:
             method="z_score",
             by_group=by_group,
             by_endpoint={
-                k: [float(m), float(resolve_std(s, global_effective_std)), float(n)]
+                # mean 为 NaN（汇总层 n=0）的条目按与 by_group 相同的回退链解析到
+                # global_mean（最终 0.0）：落盘文件自洽，load 后 transform 不依赖
+                # fillna 兜底链也能得到同一结果。
+                k: [
+                    (
+                        float(m)
+                        if not pd.isna(m)
+                        else (float(global_mean) if not pd.isna(global_mean) else 0.0)
+                    ),
+                    float(resolve_std(s, global_effective_std)),
+                    float(n),
+                ]
                 for k, (m, s, n) in by_endpoint_raw.items()
             },
             global_stat=[

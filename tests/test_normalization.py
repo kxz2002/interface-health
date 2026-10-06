@@ -230,6 +230,29 @@ def _zscore_df(rows):
     )
 
 
+def test_n0_group_mean_falls_back_to_global_not_zero():
+    """n=0（全 NaN）组的 mean 回退必须经全局层，不能跳过 global_mean 直接落 0.0：
+    fit 集里 endpoint B 在所有 case 全 NaN、A 均值 100；eval 中 c1::B（已见
+    case 的 n=0 组）与 c9::B（未见 case）取同一原始值，两者 z 必须相等
+    （transform 侧对未见组本来就是 fillna(ep_mean).fillna(global_mean)）。
+    修复前已见 n=0 组落 0.0（z=130），未见组落全局均值 100（z≈3.6）。"""
+    fit_df = _zscore_df(
+        [("c1", "epA", "svcA", v) for v in [90.0, 100.0, 110.0] * 7]
+        + [("c1", "epB", "svcB", float("nan"))] * 5
+    )
+    norm = Normalizer({_ZCOL: ("per_case_endpoint", "z_score")})
+    norm.fit(fit_df)
+    eval_df = _zscore_df(
+        [
+            ("c1", "epB", "svcB", 130.0),  # 已见 case 的 n=0 组
+            ("c9", "epB", "svcB", 130.0),  # 未见 case 的同 endpoint 组
+        ]
+    )
+    out = norm.transform(eval_df)[_ZCOL].tolist()
+    assert np.isfinite(out).all()
+    assert out[0] == pytest.approx(out[1])
+
+
 def test_group_key_containing_composite_sep_raises():
     """分组列取值含组合键连接符 "::" 必须 fit 期显式失败——join/split 会有损，
     fit 与 transform 键不匹配、静默错组（case_id/endpoint_key/service_name
@@ -330,12 +353,11 @@ def test_zero_variance_falls_back_to_endpoint_then_global_then_sentinel():
     norm.fit(fit_df)
     eval_df = _zscore_df([("cA", "ep1", "svc1", 207.0)])
     out = norm.transform(eval_df)[_ZCOL].iloc[0]
-    # mean 回退到全局 mean=7（ep1 常数 7 与 ep2 的 0/10 加权），std 回退到全局 std；
-    # 无论如何不得出现 1e9 量级
-    assert abs(out) < 1e3
+    # 手算精确值：cA/ep1 组与 ep1 汇总层 std 均退化（常数 7）→ std 落到全局层
+    # std([7,7,7,7,0,10,0,10], ddof=1)=sqrt(108/7)；mean 各层皆 7 → z=(207-7)/global_std
+    pooled = pd.Series([7.0] * 4 + [0.0, 10.0] * 2)
+    assert out == pytest.approx((207.0 - 7.0) / pooled.std())
     assert np.isfinite(out)
-    # 207 显著偏离正常分布，z 必须是大的正向偏离但不离谱
-    assert out > 5.0
 
     # 链尾哨兵：整列全局零方差（全 7.0）→ std=1.0 哨兵，mean 按 n 收缩后≈7
     const_df = _zscore_df(
@@ -368,11 +390,12 @@ def test_unseen_case_falls_back_to_endpoint_stats_without_raw_passthrough():
     )
     norm = Normalizer({_ZCOL: ("per_case_endpoint", "z_score")})
     norm.fit(fit_df)
-    unseen_df = _zscore_df([("cUNSEEN", "ep1", "svc1", 25.0)])
+    # eval 值取 40（偏离 ep1 汇总均值 25）：z 必须恰为 (40-25)/ep1_std——
+    # 若取 25（恰等于均值），std 取任何值 z 都是 0，回退层选错也发现不了
+    unseen_df = _zscore_df([("cUNSEEN", "ep1", "svc1", 40.0)])
     out = norm.transform(unseen_df)[_ZCOL].iloc[0]
-    # 必须落在 endpoint 级 z 尺度（约 0），而不是原始值 25
-    assert out == pytest.approx(0.0, abs=1e-6)
-    assert abs(out) < 5.0
+    ep1_std = pd.Series([10.0, 20.0, 30.0, 40.0]).std()
+    assert out == pytest.approx((40.0 - 25.0) / ep1_std)
 
     # 连 endpoint 都没见过 → 全局层，仍然归一化
     unseen_ep = _zscore_df([("cX", "ep999", "svc9", 500.0)])
@@ -564,7 +587,6 @@ def test_zscore_single_row_group_n1_std_falls_back_output_finite():
 
     eval_df = _zscore_df([("cA", "ep1", "svc1", 120.0)])
     out = norm.transform(eval_df)[_ZCOL].iloc[0]
-    assert np.isfinite(out)
-    assert abs(out) < 1e3  # 不得出现 1e9 爆值（std 走了上层，不是 1e-9 托底）
-    # 120 远高于 ep1 正常区间，应为正偏离
-    assert out > 1.0
+    # 手算精确值：cA/ep1 n=1 → std 落到 ep1 汇总层 std([20,10,30], ddof=1)=10；
+    # mean 各层皆 20 → z=(120-20)/10 恰为 10.0
+    assert out == pytest.approx(10.0)
