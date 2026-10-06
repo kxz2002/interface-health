@@ -2,10 +2,10 @@
 # v1_new_merge_inject0：fraction 0.0 对照契约（entry 027 P0 对照实验）
 # ----------------------------------------------------------------------------
 # 用途：entry 027 发现 fault_inject_nontarget_train_fraction=1.0 会把 5380 行
-# inject 阶段非目标 endpoint 行吸进 One-Class 训练池当"正常"数据——故障传播
-# 意味着这些行并不真的正常。本 config 把该 fraction 退回 0.0，与
-# v1_new_merge.yaml（=1.0）做对照，检验"污染正常边界"与"平衡 eval 类别"
-# 哪个代价更大。
+# inject 阶段非目标行（endpoint 档 3757 + service 档 1623）吸进 One-Class
+# 训练池当"正常"数据——故障传播意味着这些行并不真的正常。本 config 把该
+# fraction 退回 0.0，与 v1_new_merge.yaml（=1.0）做对照，检验"污染正常边界"
+# 与"平衡 eval 类别"哪个代价更大。
 #
 # 对照方法：两版 contract 的 eval_all 行数/构成不同（inject0 版把 5380 行
 # 放回 eval_all），overall AUROC 不可直接横向比较；必须在两版 eval_all 的
@@ -16,6 +16,11 @@
 #
 # 除 fault_inject_nontarget_train_fraction 取值（1.0 → 0.0）与本头部说明外，
 # 与 v1_new_merge.yaml 逐字一致。
+#
+# 【2026-10 限定】config 层面确为单变量，但 expanded 侧 seed{1,2,3} 的
+# scores 产物来自 #25 之前的特征集（见 entry 030"已知混淆"），实验层面仅
+# seed42 是单变量配对。另：下方吸收判据注释继承自 v1_new_merge.yaml，未含
+# entry 025 的 `label_target_observable` 第二道闸。
 # ============================================================================
 contract_version: "v1"
 window_size_s: 15

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""训练池 inject 非目标行吸收对照（entry 027 P0 / Task 8）。
+"""训练池 inject 非目标行吸收对照（entry 027 P0 / entry 030）。
 
 回答一个问题：``fault_inject_nontarget_train_fraction=1.0``（expanded 口径，
 5380 行 inject 阶段非目标行进 One-Class 训练池）相对 0.0（inject0 口径，
@@ -8,7 +8,7 @@
 **为什么不能直接比两版 metrics.json**：fraction 取值不同会改变 eval_all 的
 构成——expanded 版 14186 行，inject0 版 19566 行，两份 scores 的评估样本集
 不同，overall/per-case AUROC 不可横向比较（CLAUDE.md Known Gotchas 已记录
-此坑）。本脚本取两版 eval_all 的 ``sample_id`` 交集（Task 7 已核验 expanded
+此坑）。本脚本取两版 eval_all 的 ``sample_id`` 交集（entry 030 已核验 expanded
 版全部 14186 行是 inject0 版的子集），把两版 scores 都限制到该交集后，复用
 ``scripts/eval_baseline_v0.py`` 的 ``compute_stratified_metrics`` 重算 per-case
 macro AUROC，再做 4 seed 对照。
@@ -96,7 +96,7 @@ def _row_for_pair(pair: RunPair, common_ids: set[str]) -> dict:
     exp_common = exp[exp["sample_id"].isin(common_ids)]
     inj_common = inj[inj["sample_id"].isin(common_ids)]
 
-    # 交集应在两版 scores 里同样齐全（Task 7 已核验 expanded eval_all ⊆ inject0）
+    # 交集应在两版 scores 里同样齐全（entry 030 已核验 expanded eval_all ⊆ inject0）
     if len(exp_common) != len(common_ids):
         raise RuntimeError(
             f"{pair.expanded_path} 在共有子集上只有 {len(exp_common)}/{len(common_ids)} 行"
@@ -104,6 +104,16 @@ def _row_for_pair(pair: RunPair, common_ids: set[str]) -> dict:
     if len(inj_common) != len(common_ids):
         raise RuntimeError(
             f"{pair.inject0_path} 在共有子集上只有 {len(inj_common)}/{len(common_ids)} 行"
+        )
+    # 标签一致性：正样本定义不随 fraction 变，共有行上两版 scores 的
+    # is_endpoint_anomaly 必须逐行一致；不一致说明有一侧产物来自别的标签口径
+    # （或 scores 与 contract 版本错位），比下去只会算出垃圾数字。
+    exp_labels = exp_common.set_index("sample_id")["is_endpoint_anomaly"].sort_index()
+    inj_labels = inj_common.set_index("sample_id")["is_endpoint_anomaly"].sort_index()
+    if not exp_labels.equals(inj_labels):
+        raise SystemExit(
+            f"{pair.expanded_path} 与 {pair.inject0_path} 在共有子集上 "
+            "is_endpoint_anomaly 逐行不一致"
         )
 
     m_exp = compute_stratified_metrics(exp_common)
@@ -161,7 +171,7 @@ def main() -> None:
     inj_eval = pd.read_parquet(args.inject0_contract / "eval_all.parquet", columns=["sample_id"])
     exp_ids = set(exp_eval["sample_id"])
     inj_ids = set(inj_eval["sample_id"])
-    # 共有子集口径的隐含前提：交集必须等于整个 expanded eval_all（Task 7 已核验
+    # 共有子集口径的隐含前提：交集必须等于整个 expanded eval_all（entry 030 已核验
     # 14186 ⊆ 19566）。若两个 contract 版本拿反（或误用了别的数据集），交集会
     # 变成真子集，限制后的"expanded"分数将与历史口径不可比——直接失败比静默
     # 产出一张误导性对照表安全。
@@ -191,7 +201,7 @@ def main() -> None:
 
     head_sha = _git_head()
     lines: list[str] = [
-        "# 训练池 inject 非目标行吸收对照（entry 027 P0 / Task 8）",
+        "# 训练池 inject 非目标行吸收对照（entry 027 P0 / entry 030）",
         "",
         f"- 生成时代码 commit：`{head_sha}`",
         "",
@@ -218,6 +228,7 @@ def main() -> None:
         "- delta = inject0 − expanded；**delta<0 表示去掉吸收后变差，即吸收是净收益**；"
         "delta>0 表示吸收是净损害",
         "- 结论按 4 seed mean±std 判断，不看单 seed（entry 025 教训：RG 单 seed 方向判反）",
+        "- std 为总体标准差（ddof=0）",
         "",
         "## 1. 共有子集口径（主结论依据，两版评估样本完全相同）",
         "",
