@@ -1,16 +1,18 @@
 """Self-Referential Deviation Fusion（自参照逐特征偏离量加权融合）。
 
-与 `DeviationWeightedFusion`（entry 018）的关系：**公式完全相同**，区别只在
-偏离量从哪来。旧类查 EndpointBaselineStats sidecar 拿 per-endpoint 的
-normal-only mean/std 算 z；本类直接把输入特征当偏离量——因为 contract v2
-的 per-case z-score 归一化已使特征值本身就是「相对自身 baseline 的偏离」。
+与 `DeviationWeightedFusion`（entry 018）的关系：**公式完全相同**（旧类对
+退化列强制 w=1，本类无此特例——v2 的 per-case z-score 回退链已吸收退化，
+不需要）；区别只在偏离量从哪来。旧类查 EndpointBaselineStats sidecar 拿
+per-endpoint 的 normal-only mean/std 算 z；本类直接把输入特征当偏离量——
+因为 contract v2 的 per-case z-score 归一化已使特征值本身就是「相对自身
+baseline 的偏离」。
 
 结论因此可以写成：DWF 的公式一开始就是对的，错的是参照系（entry 027）。
 
-本类同时是 max|z| 平凡基线（entry 027 实测 per-case macro 0.9403）的可微
-版本——SVDD 学表征、本类做软 top-k 偏离聚合。零参数、零状态、无 sidecar，
-不覆写 from_contract（基类默认的 hydra instantiate 即可），也因此旧 DWF
-依赖的 red_cols/svc_cols 列顺序强校验与 forward 逐行查表在此一并消失。
+本类同时是 max|z| 平凡基线（entry 027）的可微版本——SVDD 学表征、本类做
+逐特征软阈值加权。零参数、零状态、无 sidecar，不覆写 from_contract（基类
+默认的 hydra instantiate 即可），也因此旧 DWF 依赖的 red_cols/svc_cols 列
+顺序强校验与 forward 逐行查表在此一并消失。
 """
 
 from __future__ import annotations

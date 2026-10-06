@@ -8,12 +8,13 @@
 # contract_dir。触发方式：`dvc repro dvc_new_merge/dvc.yaml`（单跑某 stage 用
 # `dvc_new_merge/dvc.yaml:stage_name`）。DVC 3.67.1 强制 pipeline 文件名字面量为
 # dvc.yaml，故放子目录。每个 stage 的 wdir: .. 让所有相对路径继续相对 repo
-# 根解析。concat(L0)/independent_concat(L1)/gated(L2) 已跑通，本轮追加
-# ReliabilityGatedFusion(RG，默认 softmax + independent_sigmoid 消融两组)与
-# DeviationWeightedFusion(DWF)，复用同一份 contract_new_merge_expanded，不
-# 重新 build。RG 默认 softmax 变体历史上（entry 014，merged_v2/endpoint_raw2）
-# 在全部故障类型上坍缩到 w_svc≈1.0，本轮同时跑 softmax 与 independent_sigmoid
-# 两组以验证该坍缩是否为结构性问题（与数据集无关）而非 endpoint_raw2 特有。
+# 根解析。当前 stage 构成：v1 四机制（concat/independent_concat/gated/
+# deviation_weighted，复用同一份 contract_new_merge_expanded）+ v1 三条平凡
+# 基线（rel_pos/zscore_l2/zscore_max，entry 029）+ v2 四臂（concat/
+# independent_concat/gated/deviation_weighted_selfref，entry 031）+ v2 三条
+# 平凡基线。ReliabilityGatedFusion 的两个 stage 已于 entry 031 退役移除
+# （one-class loss 下门控学无可学；类代码与产物保留在树中，仅 pipeline
+# 不再运行）。
 stages:
   build_contract_new_merge_expanded:
     wdir: ..
@@ -273,7 +274,7 @@ stages:
       - artifacts/trivial_baseline_zscore_max/metrics.json:
           cache: false
 
-  # === contract v2（per-case z-score 归一化，entry 027/029）四臂 ===
+  # === contract v2（per-case z-score 归一化，entry 031）四臂 ===
   # contract_dir=artifacts/contract_new_merge_v2，与 v1 行集逐行相等、仅归一化
   # 口径不同；v2 产物无 endpoint_baseline_stats.json sidecar，四臂均不需要它
   # （selfref 的参照系是特征自身，见 src/fusion/deviation_weighted_selfref.py）。

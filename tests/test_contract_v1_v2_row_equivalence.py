@@ -13,8 +13,12 @@ train/eval_all 必须：
 特征值本身。任何一条失败都意味着 v2 意外改动了划分或标签逻辑，优先级高于一切
 AUROC 数字。
 
-两份产物都是本地 gitignore 的大 parquet（由 scripts/build_contract.py 构建，
-见 configs/contract/v1_new_merge.yaml / v2_new_merge.yaml 头部的 dvc/手动命令），
+两份产物都是本地 gitignore 的大 parquet。v1 由 dvc stage 构建
+（build_contract_new_merge_expanded）；v2 没有 dvc 构建 stage，手动构建：
+    conda run -n interface python scripts/build_contract.py \
+        --config configs/contract/v2_new_merge.yaml \
+        --dataset configs/data/new_merge.yaml \
+        --out-dir artifacts/contract_new_merge_v2 --seed 42
 产物缺失时 skip 而非 fail——CI 新 clone 没有、也不应被要求持有这批数据。
 """
 

@@ -16,7 +16,7 @@ class ModalitySpec:
     candidates_pool: tuple[str, ...] = ()
 
     # per_case_endpoint_z_score / per_case_service_z_score 只被 v2 build 路径消费
-    # （contract_version == "v2" 的 per-case 归一化，见 Task 11/14）。双向组合
+    # （contract_version == "v2" 的 per-case 归一化，见 entry 031 / 设计文档 §4）。双向组合
     # 守卫均在 ContractConfig.__post_init__ 加载期执行：v2 配 min_max 直接拒绝
     # （is_v2 路径跳过 clip 与退化告警）；v0/v1 配 per-case z-score 也拒绝——
     # 实测（v2_fit_scope_mini fixture + v1 config 实跑 build_contract.py）该组合
@@ -104,8 +104,10 @@ class ContractConfig:
     }
 
     def __post_init__(self) -> None:
-        # 配置加载期守卫（早于 build）。两个方向的错误组合都不是"立即崩溃"型，
-        # 而是静默产出错误数据，故必须在这里指名道姓地拒绝。
+        # 配置加载期守卫（早于 build）。两个方向的错误组合失败形态不同：
+        # v2×min_max 是静默型（is_v2 路径跳过 clip 与退化告警，原始量纲无告警
+        # 进入模型，必须拒绝）；v0/v1×per-case z-score 会在归一化阶段抛裸
+        # KeyError: 'case_id'，在此换成可读报错。故都在此指名道姓地拒绝。
         if self.contract_version == "v2":
             for mod_name, spec in self.modalities.items():
                 expected = self._V2_MODALITY_NORMALIZATION.get(mod_name)

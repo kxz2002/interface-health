@@ -3,9 +3,10 @@
 - 数据集：`new_merge` 27 case，eval_all 14,186 行，23 个 case 同时含正负类（单类 case 不计入 per-case 宏平均）
 - 主指标：**per-case macro AUROC**（正负样本同 case，消除 case 间基线差异；entry 027 P0）
 - 种子：seed42 走 dvc，seed{1,2,3} 手动覆盖，共 4 seed；mean±std 为总体标准差（ddof=0）
+- v2 contract 由 `build_contract.py --config configs/contract/v2_new_merge.yaml --dataset configs/data/new_merge.yaml --out-dir artifacts/contract_new_merge_v2 --seed 42` 手动构建（无 dvc 构建 stage，stage 待补，见 entry 031 遗留 TODO）
 - v1 参照：seed42 取入库 metrics.json，seed{1,2,3} 入库 metrics.json 为旧 eval 格式（无 per_case 键），
   表中 per-case macro 由 `scripts/eval_baseline_v0.py::compute_stratified_metrics` 对既有
-  `scores.parquet` 现算得到（脚本：`outputs/v2_rerun_logs/collect_table.py`，未覆盖任何入库文件）
+  `scores.parquet` 现算得到（脚本：`scripts/collect_v2_acceptance_table.py`，未覆盖任何入库文件）
 - 平凡基线各只有单次产物（无随机性），seed 列记 "—"
 - rel_pos 基线不消费归一化特征，v1/v2 同口径同数字；zscore 基线直接吃 contract 归一化特征，v1/v2 口径不同
 
@@ -90,7 +91,9 @@ rel_pos 平凡基线在该 case 只有 0.8895（其排名特征对资源型 case
 
 ## 6. 训练健康度附注
 
-- 12 次训练全部 50 epoch 正常收敛，scores.parquet 均 14,186 行、0 NaN/inf；
+- 16 次训练（seed{1,2,3} 手动 12 次 + seed42 走 dvc 4 次）全部 50 epoch 正常收敛，
+  scores.parquet 均 14,186 行、0 NaN/inf（健康度检查覆盖手动 12 次的日志，
+  见 `outputs/v2_rerun_logs/`）；
   loss 从 0.13～0.36 降到 7e-5（gated）/0.001～0.012（其余）量级。
 - **gated gate 权重**（seed42 checkpoint 在 eval_all 上复算，16 维 sigmoid）：
   无 0/1 饱和（<0.05 与 >0.95 的占比各 ≤1.7%），但门值整体挤在 0.51 附近
@@ -99,5 +102,6 @@ rel_pos 平凡基线在该 case 只有 0.8895（其排名特征对资源型 case
   不是 RG 式 softmax 塌缩（权重不归一、不互相竞争），但同样没有学出有效选择性。
 - **selfref sigmoid**（固定 threshold=2、scale=1，不可学习）：无病理饱和
   （w<0.05 占 0%，w>0.95 仅 0.6%），权重有选择性——正样本行 w 均值 0.315、
-  开启（>0.95）占 5.9%，负样本行 w 均值 0.163、开启占 0.2%；|x| p99=3.73，
+  开启（>0.95）占 5.9%，负样本行 w 均值 0.163、开启占 0.2%；|x| p99=3.73
+  （eval_all 口径；train 侧 p99=7.42），
   过渡带占 16.4%。

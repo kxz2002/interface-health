@@ -61,7 +61,9 @@ REQUIRED_ID_COLUMNS_V1_EXTRA = ["endpoint_id"]
 # 远大于此。阈值 1e6 的校准（new_merge 实测，2026-09）：当前数据集中最大真实
 # 信号是 Lv_E_HTTPDELAY_assurance 目标 endpoint 的 inject 行——注入 3s 延迟使
 # raw client_latency_p95=3004~3323ms，而该 (case,endpoint) baseline 极稳定
-# （fit n=13、std≈0.31ms，shrinkage 后 std_eff≈2.2），z≈1366~1995。这是
+# （fit n=13、std≈0.31ms，shrinkage 后 std_eff≈2.2）。信号共 26 行 / 44 个
+# 单元格，分两列：client_latency_p95 26 行（z≈1366~1512，std_eff≈2.20）+
+# latency_divergence 18 行（z≈1975~1995，std_eff≈1.52）。这是
 # z-score 数学正确的真实信号（1500:1 SNR），不是退化除零；1e3 初版阈值会把它
 # 误拦、导致 v2 构建确定性失败。1e6 对该最大真实信号留 500× 余量，同时比 1e9
 # 爆值低 3 个数量级，爆炸仍必被拦。不能只守 rate 列：entry 013 实际爆值的

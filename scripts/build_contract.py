@@ -512,13 +512,11 @@ def main() -> None:
         # v1 fit 只见纯 Normal，吸收进训练池的 fault baseline 行不参与 min/max；
         # v2 的 per-case z-score 需要每 case 自身的故障前基线，故 baseline-train 行
         # 既在训练池、也在 fit 集合，两者行集严格对齐（fit ⊆ train 由测试钉死）。
-        # 预算帧（normal_parts / fault_baseline_*）切在归一化之前，装的是原始尺度。
-        # 两个 split 内部 concat(ignore_index=True)，输出自带 0..n-1 新 index，与
-        # 归一化原地覆盖之后的 full 之间**无法靠行号关联**，唯一稳定的行身份是
-        # sample_id。故 _write_v1 不能直接落盘预算帧（那会把毫秒级原始量纲写进
-        # parquet），必须经 _reselect_rows_by_sample_id 按 sample_id 从归一化后的
-        # full 取回同批行再写（见该函数注释）。这里 reset 与否都不影响该机制，
-        # 不 reset 只是少一次无意义的拷贝。
+        # 预算帧（normal_parts / fault_baseline_*）切在归一化之前，装的是原始尺度，
+        # _write_v1 不能直接落盘预算帧（那会把毫秒级原始量纲写进 parquet）——须经
+        # _reselect_rows_by_sample_id 按 sample_id 从归一化后的 full 取回同批行
+        # （行号为何不可用作身份键，见该函数 docstring）。这里 reset 与否都不影响
+        # 该机制，不 reset 只是少一次无意义的拷贝。
         normal_parts = split_normal_rows_temporal(full.loc[normal_mask], seed=args.seed)
         fit_frames = [normal_parts["train_fit"]]
         fault_baseline_train = None
@@ -696,13 +694,21 @@ def _write_v1(
     """v1：Normal 行按时间窗三路切分。`expand_train_pool=False`（默认，与 entry 012
     既有实验数字可比）时 train.parquet=train_fit、eval_all=全部故障阶段+holdout，
     这是 Task 6 训练池扩容之前的原始行为。`expand_train_pool=True`（RG 专属实验用
-    v1_expanded_pool.yaml 打开）时 train.parquet 额外吸收故障 case 的 baseline
+    v1_expanded_pool.yaml 打开；v2 的 v2_new_merge.yaml 同样打开）时 train.parquet
+    额外吸收故障 case 的 baseline
     阶段行——不是整段搬移，而是按 `fault_baseline_train_fraction` 时序切分：每个
     故障 case 内最早 fraction 比例的时间窗进训练池，其余窗留在 eval_all（不吸收
     recover——系统未稳定回正常态，分布未验证，保守排除）。eval_all 只摘除被切给
     train 的那部分窗，其余 baseline 窗仍保留在 eval_all 里维持负样本类别平衡
     （修复 issue #16：整段搬移会把 eval_all 正负比拉到 ~84:16），防止复现 v0 的
     train⊆eval 泄漏。
+
+    v2 复用本函数（main() 的 is_v2 分支调用时传入 `precomputed`）：precomputed
+    是归一化之前预算好的切分结果（Normal 三路 + fault baseline 两路），帧内数值
+    是原始尺度，落盘必须取归一化之后的当前值，故逐帧经
+    `_reselect_rows_by_sample_id` 按 sample_id 从 full 取回同批行，且绝不再切
+    第二遍（单一事实源，杜绝两处切分参数漂移）。v1 路径传 None，维持本函数
+    自行切分的原行为。
 
     除 baseline 阶段行外，`fault_inject_nontarget_train_fraction` /
     `fault_recover_nontarget_train_fraction` 两个独立比例分别控制"inject 阶段

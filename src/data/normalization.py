@@ -36,7 +36,7 @@ _DEGENERATE_GAP_EPS = 1e-9
 _DEGENERATE_STD_EPS = 1e-9
 
 # per-case z-score 收缩强度：组内有效样本数 n 与 k 比较，w = n/(n+k)。
-# k=10 对齐 EndpointBaselineStats（entry 015）的既有取值——v1 的 per-endpoint
+# k=10 对齐 EndpointBaselineStats（entry 014）的既有取值——v1 的 per-endpoint
 # 偏离量已在同一收缩强度下校准，v2 不新造超参。实测 per-(case,endpoint) fit
 # 子集 median 16 行、26/208 组不足 5 行（设计文档 D1），k=10 让这些小样本组
 # 主要信任跨 case 汇总层，避免单组 1~4 行的 std 主导尺度。
@@ -49,11 +49,11 @@ _SHRINKAGE_K = 10.0
 # 既不除零也不放大，是单位正态尺度下的中性选择。
 _FALLBACK_STD_SENTINEL = 1.0
 
-# 合法 scope×method 配对白名单。z_score 的三级回退链要求分组键至少是
-# (case_id, endpoint/service) 两级组合，或无分组（global 单级、链尾即哨兵）；
-# per_endpoint/per_service 只有单列分组键，回退链（组 → 跨 case 汇总 → 全局）
-# 无从定义——配上 z_score 时旧实现 fit 静默成功、transform 才在 group_cols[1]
-# 抛裸 IndexError，故在构造期按此表白名单拒绝。
+# 合法 scope×method 配对白名单。z_score 的回退链（一级 shrinkage + 两级退化
+# 回退）要求分组键至少是 (case_id, endpoint/service) 两级组合，或无分组
+# （global 单级、链尾即哨兵）；per_endpoint/per_service 只有单列分组键，
+# 回退链（组 → 跨 case 汇总 → 全局）无从定义——单列分组键无法定义回退链，
+# 故在构造期按此表白名单拒绝。
 _VALID_SCOPE_METHOD: frozenset[tuple[Scope, Method]] = frozenset(
     {
         ("global", "min_max"),
@@ -237,7 +237,7 @@ class Normalizer:
         {列名: [group...]}。
 
         仅对 min_max 有意义（min_max 退化 = 跳过归一化保留原值）。z_score 的退化
-        由三级回退链吸收（最差也是 1.0 哨兵），不存在"跳过/透传原始量纲"的组，
+        由回退链吸收（最差也是 1.0 哨兵），不存在"跳过/透传原始量纲"的组，
         故 z_score 列永远不出现在返回值里——per-case 下透传原始量纲是错误的
         （跨 case 不可比），这正是相对 entry 013 跳过策略的实质分歧。
         """

@@ -1,10 +1,18 @@
 # contract v2（new_merge，27 case 单一批次）。
-# 与 v1_new_merge.yaml 的**唯一差异是归一化参照系**：v1 用单一 Normal case 上 fit
+# 行集层面与 v1_new_merge.yaml 完全一致，差异只在特征值（归一化参照系及随之
+# 退役的 clip/校验）：v1 用单一 Normal case 上 fit
 # 的 per-endpoint/per-service 全局 min-max（跨批次参照系错位——某 endpoint 在
 # fit Normal 里恰好静默/零方差时，eval 侧任意非零差值被放大或被 clip 抹平）；
 # v2 改为 per-case z-score，统计量在同一 case 内部按 (case_id, endpoint_key) /
-# (case_id, service_name) 组合键计算，并带三级 shrinkage 回退
-# （组 → 跨 case 汇总 → 全局 → 1.0 哨兵，见 src/data/normalization.py）。
+# (case_id, service_name) 组合键计算，并带层级回退：一级 shrinkage
+# （组 → 跨 case 汇总，w=n/(n+10)）+ 两级退化回退（汇总 → 全局 → 1.0 哨兵，
+# 见 src/data/normalization.py）。
+#
+# 手动构建命令（v2 contract 没有 dvc 构建 stage，见遗留 TODO）：
+#   conda run -n interface python scripts/build_contract.py \
+#     --config configs/contract/v2_new_merge.yaml \
+#     --dataset configs/data/new_merge.yaml \
+#     --out-dir artifacts/contract_new_merge_v2 --seed 42
 #
 # 行等价红线：split / 标签 / 吸收闸门逻辑与 v1 逐行一致（时序切分提到归一化
 # 之前，归一化只改特征值、不参与任何行去向决策），三个 fraction 沿用
@@ -14,7 +22,8 @@
 # 来自特征值本身。
 #
 # 其他与 v1 的行为差异（均不影响行集）：
-# - rate 类 [0,1] 校验与两段 clip（rate clip(0,1)、content_length ±5σ）退役，
+# - rate 类 [0,1] 校验与两段 clip（rate clip(0,1)、content_length ±5——min-max
+#   归一化值上的裁剪，非 σ 单位）退役，
 #   换成全特征列 |x| <= 1e6 的量级 sanity（1e6 是兜底不是常态：只兜 entry 013
 #   式 1e9 数值爆炸，最大真实信号 z≈2000（HTTPDELAY 3s 注入 vs 极稳定
 #   baseline），余量 500x；z 分布应大部分在个位数）；
