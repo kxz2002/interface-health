@@ -24,6 +24,8 @@ AUROC 数字。
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -156,3 +158,56 @@ def test_v2_feature_values_actually_changed():
     # 全体可比单元中至少 25% 改变——防"每列只有零星几行不同"
     overall = changed_cell_total / max(comparable_cell_total, 1)
     assert overall > 0.25, f"全体特征单元改变占比仅 {overall:.3f}"
+
+
+# === fixture 级行等价（CI 可跑版本，不依赖磁盘上的真实产物） ===
+# 上面的 4 条测试是产物审计（真实 contract 缺失时 skip）；本节用真实 config 在
+# nontarget_split_mini fixture 上各 build 一次（两次共约 5 秒），在 CI 上也能
+# 强制同一条红线。module 级 fixture 共享两次 build，不为每条测试重复构建。
+
+_FIXTURE_DATASET = REPO_ROOT / "tests/fixtures/nontarget_split_mini.yaml"
+_V1_CONFIG = REPO_ROOT / "configs/contract/v1_new_merge.yaml"
+_V2_CONFIG = REPO_ROOT / "configs/contract/v2_new_merge.yaml"
+
+
+@pytest.fixture(scope="module")
+def fixture_built_contracts(tmp_path_factory):
+    tmp = tmp_path_factory.mktemp("row_eq")
+    v1_dir = tmp / "contract_v1"
+    v2_dir = tmp / "contract_v2"
+    for config, out_dir in ((_V1_CONFIG, v1_dir), (_V2_CONFIG, v2_dir)):
+        subprocess.run(
+            [
+                sys.executable,
+                "scripts/build_contract.py",
+                "--config",
+                str(config),
+                "--dataset",
+                str(_FIXTURE_DATASET),
+                "--out-dir",
+                str(out_dir),
+                "--seed",
+                "42",
+            ],
+            check=True,
+            cwd=str(REPO_ROOT),
+        )
+    return v1_dir, v2_dir
+
+
+@pytest.mark.parametrize(
+    "frame_name",
+    ["train", "eval_all", "train_fit", "train_val", "eval_normal_holdout"],
+)
+def test_fixture_level_row_equivalence(fixture_built_contracts, frame_name):
+    """mini fixture 上的 v1↔v2 行等价：五个 parquet 的标签列 + source_phase
+    按 sample_id 排序后逐行相等（v2 只改归一化特征值，不得改任何行去向）。"""
+    v1_dir, v2_dir = fixture_built_contracts
+    v1 = pd.read_parquet(v1_dir / f"{frame_name}.parquet")
+    v2 = pd.read_parquet(v2_dir / f"{frame_name}.parquet")
+    cols = [c for c in [*LABEL_COLS, "source_phase"] if c in v1.columns and c in v2.columns]
+    pd.testing.assert_frame_equal(
+        v1[cols].sort_values("sample_id").reset_index(drop=True),
+        v2[cols].sort_values("sample_id").reset_index(drop=True),
+        obj=frame_name,
+    )

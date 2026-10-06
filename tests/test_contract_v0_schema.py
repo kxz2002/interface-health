@@ -188,15 +188,26 @@ def test_v2_rate_columns_accept_large_real_signal_and_reject_just_above_bound(tm
         validate_contract_df(pd.DataFrame([row_over]), cfg_path)
 
 
-def test_v2_non_rate_feature_rejects_explosive_magnitude(tmp_path):
+@pytest.mark.parametrize(
+    "col",
+    [
+        "endpoint_red__client_latency_p95",
+        "service_metric__memory_usage_ratio",
+        "service_log__template_diversity",
+    ],
+)
+def test_v2_non_rate_feature_rejects_explosive_magnitude(tmp_path, col):
     """量级 sanity 必须覆盖全部特征列而非只守 rate 列：entry 013 实际爆值的
     client_latency_p95 / latency_divergence 都不是 rate 列，只守 rate 列会让
     承诺（防 1e9 重演）与防线错位。v2 配置守卫已强制所有特征列都是 z-score
-    产出，故对全特征列做量级检查语义同样成立。"""
+    产出，故对全特征列做量级检查语义同样成立。三个参数分别覆盖 endpoint_red
+    非 rate 列、service_metric 列与 service_log 列（后两组是 service 级粒度，
+    检查必须同样生效而非只守 endpoint_red）。"""
     row = _make_valid_row()
-    row["endpoint_red__client_latency_p95"] = 2e9
+    row[col] = 2e9
     cfg_path = _write_v2_config(tmp_path)
-    with pytest.raises(ContractV0Error, match=r"client_latency_p95.*量级"):
+    feature_name = col.split("__", 1)[1]
+    with pytest.raises(ContractV0Error, match=rf"{feature_name}.*量级"):
         validate_contract_df(pd.DataFrame([row]), cfg_path)
 
 

@@ -273,6 +273,74 @@ def test_v2_train_parquet_written_in_normalized_scale_not_raw(tmp_path, monkeypa
     assert train_fit["endpoint_red__trace_latency_p50"].abs().max() < 100
 
 
+def test_v2_rate_column_keeps_negative_z_no_clip(tmp_path, monkeypatch):
+    """v2 退役 rate clip(0,1) 的反向锁定：z-score 后 baseline 以下的取值天然为负，
+    v2 落盘必须保留负值——若 v2 分支误恢复 clip，负值会被压成 0、本测试变红。
+
+    fixture（v2_fit_scope_mini，生成器已配 err 模式）：故障 case 的 fit 窗（w=0,1）
+    trace_error_rate=0.04，eval 窗 w=2..8 为 0.0 → 相对自身 baseline 为负 z；
+    w=9 的 0.5 为大正 z。负值行数：2 故障 case × 7 窗（w2..8）+ Normal holdout
+    w8 = 15 行。
+    """
+    cfg = _v2_config()
+    cfg["modalities"]["endpoint_red"]["features"] = [
+        *_NON_RATE_ENDPOINT_FEATURES,
+        "trace_error_rate",
+    ]
+    captured: dict = {}
+    out_dir = _run_build_in_process(tmp_path, monkeypatch, captured, cfg=cfg)
+
+    eval_all = pd.read_parquet(out_dir / "eval_all.parquet")
+    rate = eval_all["endpoint_red__trace_error_rate"]
+    assert (rate < 0).sum() == 15, rate.tolist()
+    assert rate.min() < -0.5
+
+
+def _v1_clip_config() -> dict:
+    return {
+        "contract_version": "v1",
+        "window_size_s": 15,
+        "expand_train_pool": False,
+        "fit_endpoint_baseline_stats": False,
+        "modalities": {
+            "endpoint_red": {
+                "preprocessor": "TracePreprocessor",
+                "preprocessor_version": "v0",
+                "features": [
+                    "trace_request_count",
+                    "trace_latency_p50",
+                    "trace_error_rate",
+                    "client_content_length_mean",
+                ],
+                "normalization": "per_endpoint_min_max",
+                "candidates_pool": [],
+            },
+        },
+    }
+
+
+def test_v1_rate_and_content_length_clip_still_applied(tmp_path, monkeypatch):
+    """v1 的两段 clip 必须仍在（v2 退役不等于 v1 退役）：
+    - rate：eval 侧超过 Normal max（0.04）的 err=0.5 归一化为 12.5，
+      clip(0,1) 后落盘必须 ≤1。自然 1.0 的行（err=0.04 恰为 max：w0,1 ×2 case）
+      与被 clip 到 1.0 的行（err=0.5：w9 ×2 case + Normal holdout w9）共 7 行。
+    - content_length_mean：非退化组（Normal fit 100..105 有方差），故障 case
+      恒 200 → 归一化 20，±5 clip 后恰 5.0（10 窗 × 2 case = 20 行）。
+    若 v1 分支误删 clip，12.5/20 会直接落盘（rate 还会被 validate 拦下），本测试变红。
+    """
+    captured: dict = {}
+    out_dir = _run_build_in_process(tmp_path, monkeypatch, captured, cfg=_v1_clip_config())
+
+    eval_all = pd.read_parquet(out_dir / "eval_all.parquet")
+    rate = eval_all["endpoint_red__trace_error_rate"]
+    assert rate.between(0.0, 1.0).all(), rate.tolist()
+    assert (rate == 1.0).sum() == 7, rate.tolist()
+
+    cl = eval_all["endpoint_red__client_content_length_mean"]
+    assert cl.abs().max() <= 5.0
+    assert (cl == 5.0).sum() == 20, cl.tolist()
+
+
 _NONTARGET_DATASET = REPO_ROOT / "tests/fixtures/nontarget_split_mini.yaml"
 
 

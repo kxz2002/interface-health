@@ -71,6 +71,7 @@ _HEALTH_COLUMNS = [
     "status_2xx_rate",
     "status_4xx_rate",
     "status_5xx_rate",
+    "content_length_mean",
     "method",
     "normalized_path",
 ]
@@ -90,7 +91,17 @@ def _make_rows(
     inject_end_ms: int | None,
     target_service: str | None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """单 endpoint、每窗一行。特征值随窗序号 w 单调变化，避免归一化零方差退化。"""
+    """单 endpoint、每窗一行。特征值随窗序号 w 单调变化，避免归一化零方差退化。
+
+    err（trace_error_rate 等）刻意非常量：w<2 取 0.04（故障 case 的 fit 窗），
+    w==9 取 0.5，其余 0.0——服务两个 clip/退役断言：
+    - v2 退役 rate clip 后，故障 case eval 窗（w=2..8，err=0）相对自身 baseline
+      （w=0,1，err=0.04）z 值为负（baseline 以下天然为负）；
+    - v1 的 Normal fit max=0.04，eval 侧 w==9 的 err=0.5 归一化到 12.5，
+      clip(0,1) 必须把它压回 1.0（rate clip 仍在 v1 生效的反向锁定）。
+    content_length_mean：Normal 100+w（fit 段有方差、非退化组），故障 case 恒
+    200——v1 归一化后 20，±5 clip 必须压回 5.0。
+    """
     trace_rows, health_rows = [], []
     for w in range(n_windows):
         ts = base_ts + w * 15_000
@@ -99,7 +110,8 @@ def _make_rows(
         req = 8 + w
         lat_p50 = 20_000.0 + w * 500
         lat_p95 = lat_p50 * 2
-        err = 0.0
+        err = 0.04 if w < 2 else (0.5 if w == 9 else 0.0)
+        content_length = (100.0 + w) if inject_start_ms is None else 200.0
 
         trace_rows.append(
             {
@@ -146,6 +158,7 @@ def _make_rows(
                 "status_2xx_rate": 1.0 - err,
                 "status_4xx_rate": 0.0,
                 "status_5xx_rate": err,
+                "content_length_mean": content_length,
                 "method": "POST",
                 "normalized_path": "/api/v1/travelservice/trips/left",
             }
