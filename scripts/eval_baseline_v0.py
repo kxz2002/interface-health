@@ -43,6 +43,12 @@ def compute_stratified_metrics(df: pd.DataFrame) -> dict:
             "接入之前生成的旧产物——请先重跑 `dvc repro train_v0` 重新生成 scores.parquet，"
             "再运行本脚本。"
         )
+    if "case_id" not in df.columns:
+        raise KeyError(
+            "scores.parquet 缺少 case_id 列，per-case 宏平均无法计算。"
+            "请用含诊断列的 scores 生产者（train_baseline_v0.py 或 "
+            "score_trivial_baselines.py）重新生成 scores.parquet。"
+        )
 
     stratified: dict = {}
     label_col = df["is_endpoint_anomaly"].astype(int)
@@ -87,15 +93,21 @@ def compute_stratified_metrics(df: pd.DataFrame) -> dict:
     # per-case 宏平均升为主指标（entry 027 P0）：pooled AUROC 会被 case 间基线
     # 差异影响，per-case 口径的正负样本都来自同一 case，是更严格的度量。只统计
     # 同时含正负类的 case——单类 case 的 AUROC 无定义，计入会静默拉偏均值
-    # （PR #26 的 benchmark 已按同一规则处理，此处保持一致以便两套口径可比）。
+    # （单类 case 跳过规则与 PR #26 的 benchmark 一致；但 case 集合（23 vs 16）
+    # 与特征/切分实现不同，两套数字不可直接并列）。
     case_aurocs: list[float] = []
     case_auprcs: list[float] = []
-    for _case_id, sub in df.groupby("case_id"):
+    skipped_cases: list[tuple[str, str]] = []
+    for case_id, sub in df.groupby("case_id"):
         y = sub["is_endpoint_anomaly"].astype(int)
         if y.nunique() < 2:
+            skipped_cases.append((str(case_id), "all_neg" if int(y.iloc[0]) == 0 else "all_pos"))
             continue
         case_aurocs.append(roc_auc_score(y, sub["score"]))
         case_auprcs.append(average_precision_score(y, sub["score"]))
+    if skipped_cases:
+        # 单类 case 不进宏平均是正确规则，但静默跳过会让人误以为覆盖了全部 case
+        logger.info("per-case 宏平均跳过 %d 个单类 case：%s", len(skipped_cases), skipped_cases)
 
     per_case_auroc_macro = float(sum(case_aurocs) / len(case_aurocs)) if case_aurocs else None
     per_case_auprc_macro = float(sum(case_auprcs) / len(case_auprcs)) if case_auprcs else None
@@ -125,6 +137,11 @@ def main():
 
     metrics = compute_stratified_metrics(df)
     logger.info("Overall AUROC: %s", metrics["stratified"]["overall"]["auroc"])
+    logger.info(
+        "per-case AUROC macro: %s（n_cases_with_both_classes=%d）",
+        metrics["per_case_auroc_macro"],
+        metrics["n_cases_with_both_classes"],
+    )
 
     validate_metrics_dict(metrics)
 
