@@ -33,6 +33,9 @@ def test_metrics_has_stratified_keys(tmp_path):
         cwd=str(REPO_ROOT),
     )
     metrics = json.loads(out.read_text())
+    # 落盘必须自带末尾换行：否则 pre-commit end-of-file-fixer 改写后 git 文件与
+    # DVC 原生产出不同字节，dvc.lock 条目沦为 md5/size 混合体（entry 029 / ffa00bf）
+    assert out.read_text().endswith("\n")
     assert "protocol_version" in metrics
     assert "auroc" in metrics
     assert "auprc" in metrics
