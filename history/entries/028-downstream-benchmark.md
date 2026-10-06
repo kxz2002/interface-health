@@ -1,7 +1,7 @@
 # 028 · 下游异常检测 benchmark：F-full 三检测器一致 +0.09，PR #26 欠账补记
 
 - **日期**: 2026-09-18（PR #26 合并当日补写；合并时未按项目规则写 entry）
-- **PR**: #26 · **Commit**: `25cd20b`（benchmark 实际运行时代码版本 `2ec7460`，记录在每份 `metrics.json` 的 `git_commit` 字段）
+- **PR**: #26 · **Commit**: `25cd20b`（benchmark 运行时代码等价于 `0c9a82a` / `25cd20b`——`git diff --quiet 0c9a82a 25cd20b -- scripts` 为空；56 份 `metrics.json` 中的 `git_commit=2ec7460` 是工作区有未提交改动时的 HEAD，不可作为复现依据）
 - **类型**: Docs（补账；PR #26 本身是 Experiment）
 - **影响域**: `scripts/benchmark_downstream.py`, `scripts/run_benchmark_sweep.py`, `artifacts/downstream_benchmark/`, 研究方向/论文 framing, 标签粒度/评估口径
 
@@ -44,6 +44,7 @@
 
 ## 坑 / 已知问题
 
+- **`metrics.json` 的 `git_commit` 字段不保证可复现**：`benchmark_downstream.py` 的 `_git_commit()` 只取 HEAD、不检测工作区 dirty 状态——56 份产物记录的 `2ec7460` 实为"HEAD + 未提交改动"的运行现场，该 hash 对应 tree 的 `benchmark_downstream.py` 里还没有 `missing_indicator_only` 消融代码（`git show 2ec7460:scripts/benchmark_downstream.py | grep -c missing_indicator_only` 为 0）。复现依据应使用等价代码版本 `0c9a82a`/`25cd20b`（scripts diff 为空）。
 - **commit message / PR 描述里的 headline 数字已过时，是 review 修复前的旧数**：`25cd20b` 的 message 写的是 DeepSVDD 0.851→0.951（Δ+0.100）、OCSVM 0.832→0.941、IF 0.719→0.771。这些是 review 三个 Critical（训练池零真负样本 / 缺失值混淆 / 延迟列 0 填充）修复**之前**跑出来的，修复后未更新 message。**引用一律以 tree 内 `summary.md` / `_summary.tsv` 为准**：0.866→0.957、0.836→0.950、0.733→0.814。
 - **"26 runs benchmark"的 per-case macro 实际只覆盖 16 个 case**：26 runs 里只有 16 个 `Lv_E_HTTP*` case 是 endpoint 级标签（有 `target_endpoint`）；其余 10 个 `Lv_P_*`/`Lv_S_*`/`Lv_D_*` service/case 粒度 case 在该脚本"endpoint-only"标签定义下正样本为 0，不进 macro（每份 `metrics.json` 的 `n_cases_with_both_classes_for_auroc: 16`）。**这实质上是 `Lv_E_HTTP*`-only benchmark**，论文里把"26 runs"与这些 AUROC 并列时必须同时声明此范围，否则是 silently overclaim。
 - **PR 描述承诺的 `_summary_agg.tsv` 不存在**：commit message 称 sweep "落 `_summary.tsv` / `_summary_agg.tsv`"，实际 `run_benchmark_sweep.py` 只写 `_summary.tsv`（56 行逐 run 原始结果），tree 里也没有 agg 文件。聚合（mean/std over seeds）只能临时 groupby，没有固化产物；summary.md 里的表是手工/一次性生成的。
