@@ -141,3 +141,32 @@ def test_invalid_modality_keys_raise():
         SelfReferentialDeviationFusion({"endpoint_red": 3, "service_metric": 2})
     with pytest.raises(ValueError):
         SelfReferentialDeviationFusion({**MODALITY_DIMS, "extra": 1})
+
+
+def test_non_finite_scale_and_threshold_raise():
+    """scale=NaN 时 `scale <= 0` 比较为 False，没有 isfinite 检查会静默放行
+    （sigmoid 全 NaN、训练无声坏掉）；inf 阈值让所有权重恒为 0。"""
+    for bad_scale in (float("nan"), float("inf"), 0.0, -1.0):
+        with pytest.raises(ValueError, match="scale"):
+            SelfReferentialDeviationFusion(MODALITY_DIMS, scale=bad_scale)
+    for bad_threshold in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError, match="threshold"):
+            SelfReferentialDeviationFusion(MODALITY_DIMS, threshold=bad_threshold)
+
+
+def test_forward_modality_mismatch_raises_readable_error():
+    """forward 的键集合/维度与构造声明不符时必须点名 missing/extra/维度，
+    而不是 torch.cat 的裸 RuntimeError（或更糟：键名拼错静默丢模态）。"""
+    fusion = SelfReferentialDeviationFusion(MODALITY_DIMS)
+    batch = _batch(2, seed=5)
+
+    missing_one = {m: t for m, t in batch.items() if m != "service_log"}
+    with pytest.raises(ValueError, match="missing"):
+        fusion(missing_one)
+
+    with pytest.raises(ValueError, match="extra"):
+        fusion({**batch, "typo_modality": torch.randn(2, 1)})
+
+    bad_dim = {**batch, "service_metric": torch.randn(2, 99)}
+    with pytest.raises(ValueError, match="末维"):
+        fusion(bad_dim)

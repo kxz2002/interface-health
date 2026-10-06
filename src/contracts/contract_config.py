@@ -103,7 +103,16 @@ class ContractConfig:
         "service_log": "per_case_service_z_score",
     }
 
+    # 合法 contract_version 枚举。未枚举的值（"v3"/"V2" 等）必须加载期拒绝——
+    # 它们会静默走 v0 分支（else 分支），产出 train ⊆ eval_all 的泄漏 contract。
+    _VALID_VERSIONS: ClassVar[frozenset[str]] = frozenset({"v0", "v1", "v2"})
+
     def __post_init__(self) -> None:
+        if self.contract_version not in self._VALID_VERSIONS:
+            raise ValueError(
+                f"未知 contract_version {self.contract_version!r}，"
+                f"支持 {sorted(self._VALID_VERSIONS)}"
+            )
         # 配置加载期守卫（早于 build）。两个方向的错误组合失败形态不同：
         # v2×min_max 是静默型（is_v2 路径跳过 clip 与退化告警，原始量纲无告警
         # 进入模型，必须拒绝）；v0/v1×per-case z-score 会在归一化阶段抛裸
@@ -134,6 +143,22 @@ class ContractConfig:
                         "endpoint 粒度与 service 粒度特征必须各按自己的 (case_id, key) "
                         "组合键聚合，错配会静默按错误的分组算 z 值"
                     )
+            # v2 的 per-case 参照系要求每个故障 case 都有 baseline 行进 fit 集合：
+            # expand_train_pool=false 或 baseline fraction=0 时故障 case 完全不进
+            # fit，这些 case 会静默退回跨 case 汇总/全局参照系（per-case 名存实亡）。
+            if not self.expand_train_pool:
+                raise ValueError(
+                    "contract_version='v2' 要求 expand_train_pool=true："
+                    "v2 的 Normalizer fit = train_fit ∪ 各故障 case baseline 前 "
+                    "fault_baseline_train_fraction 窗，expand_train_pool=false 会让"
+                    "故障 case 完全不进 fit，静默退回跨 case 参照系"
+                )
+            if not self.fault_baseline_train_fraction > 0:
+                raise ValueError(
+                    "contract_version='v2' 要求 fault_baseline_train_fraction > 0："
+                    "为 0 时故障 case 的 baseline 行不进训练池也不进 fit，"
+                    "这些 case 会静默退回跨 case 参照系"
+                )
         elif self.contract_version in ("v0", "v1"):
             # 对称守卫：这两个值仅 v2 可用。实测 v1 config 配 per-case z-score 并非
             # "静默跑通后被 clip 截断"，而是在归一化阶段抛裸 KeyError: 'case_id'——

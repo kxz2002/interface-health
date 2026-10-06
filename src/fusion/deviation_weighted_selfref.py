@@ -17,6 +17,8 @@ baseline 的偏离」。
 
 from __future__ import annotations
 
+import math
+
 import torch
 
 from src.fusion.base import MODALITY_ORDER, FusionModule
@@ -39,9 +41,13 @@ class SelfReferentialDeviationFusion(FusionModule):
             raise ValueError(
                 f"modality_dims keys {set(modality_dims)} must match MODALITY_ORDER {MODALITY_ORDER}"
             )
-        if scale <= 0:
+        # NaN/inf 也要拒绝：scale<=0 的比较对 NaN 为 False，会让 NaN 温度静默
+        # 通过（sigmoid 全 NaN、训练无声坏掉）；inf 阈值则让所有权重恒为 0。
+        if not math.isfinite(scale) or scale <= 0:
             # sigmoid 温度必须为正；传 0 会除零，传负会反转「偏离越大权重越高」的语义。
-            raise ValueError(f"scale must be positive, got {scale}")
+            raise ValueError(f"scale must be a positive finite number, got {scale}")
+        if not math.isfinite(threshold):
+            raise ValueError(f"threshold must be finite, got {threshold}")
         self._dims = dict(modality_dims)
         self._threshold = float(threshold)
         self._scale = float(scale)
@@ -51,6 +57,22 @@ class SelfReferentialDeviationFusion(FusionModule):
     ) -> torch.Tensor:
         # endpoint_id 被接受但恒忽略：参照系是特征自身（v2 per-case z-score），
         # 与 endpoint 身份无关，None 与任意张量结果一致。
+        # 键集合或维度不符时 torch.cat 会抛难以定位的 RuntimeError（甚至更糟：
+        # 键名拼错时静默丢模态），在此换成点名 missing/extra/维度的可读报错。
+        missing = set(self._dims) - set(modality_dict)
+        extra = set(modality_dict) - set(self._dims)
+        if missing or extra:
+            raise ValueError(
+                f"modality_dict 键集合与构造时 modality_dims 不符：missing={sorted(missing)} "
+                f"extra={sorted(extra)}"
+            )
+        bad_dims = {
+            m: (modality_dict[m].shape[-1], self._dims[m])
+            for m in MODALITY_ORDER
+            if modality_dict[m].shape[-1] != self._dims[m]
+        }
+        if bad_dims:
+            raise ValueError(f"modality_dict 末维与声明不符（实际, 声明）：{bad_dims}")
         x = torch.cat([modality_dict[m] for m in MODALITY_ORDER], dim=-1)
         w = torch.sigmoid((x.abs() - self._threshold) / self._scale)
         return x * w

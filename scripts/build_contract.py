@@ -536,11 +536,38 @@ def main() -> None:
             fault_baseline_eval=fault_baseline_eval,
         )
         fit_df = pd.concat(fit_frames, ignore_index=True)
+        # 每个 case 都必须有行进 fit：缺席 case 会静默退回跨 case 汇总/全局参照系
+        # （per-case 名存实亡）。config 守卫只保证 fraction>0，不保证每个 case 都
+        # 切到窗（int(n*fraction) 向下取整可能为 0，或该 case 没有 baseline 行）。
+        missing_fit_cases = set(full["case_id"].unique()) - set(fit_df["case_id"].unique())
+        if missing_fit_cases:
+            raise ContractV0Error(
+                f"v2 fit 集合缺少 {len(missing_fit_cases)} 个 case："
+                f"{sorted(missing_fit_cases)}——这些 case 的 baseline 窗一窗都没进 fit，"
+                "会静默退回跨 case 参照系"
+            )
     else:
         # v0：train 的定义本身就是"全部 Normal 行"，fit 范围与 train 一致，没有泄漏问题，
         # 保持原行为不变
         fit_df = full[normal_mask].reset_index(drop=True)
     normalizer.fit(fit_df)
+    if is_v2:
+        # v2 退化审计（设计文档 §4.5）：按列汇总回退链各层命中组数。只打日志，
+        # 不改 normalization_stats.json 格式；落 1.0 哨兵且占比 >50% 的列
+        # 参照系名存实亡，升级为 warning（entry 031 需解释的口径）。
+        for col, counts in normalizer.fallback_report().items():
+            total = sum(counts.values())
+            LOG.info("v2 回退链命中分布 %s：%s（共 %d 组）", col, counts, total)
+            n_sentinel = counts.get("std_sentinel", 0)
+            if total and n_sentinel / total > 0.5:
+                LOG.warning(
+                    "v2 列 %s 落 1.0 哨兵的组占比 %.1f%%（%d/%d）超过 50%%"
+                    "——该列参照系名存实亡，需在 entry 中解释",
+                    col,
+                    100.0 * n_sentinel / total,
+                    n_sentinel,
+                    total,
+                )
     full[feature_cols] = normalizer.transform(full[feature_cols + group_cols])[feature_cols]
     normalizer.save(out / "normalization_stats.json")
 
@@ -657,12 +684,26 @@ def _reselect_rows_by_sample_id(full: pd.DataFrame, frame: pd.DataFrame) -> pd.D
     full_ids = full["sample_id"]
     if full_ids.duplicated().any():
         raise ContractV0Error("v2 预算切分复用要求 sample_id 唯一，但 full 中存在重复")
+    frame_ids = frame["sample_id"]
+    if frame_ids.duplicated().any():
+        n_dup = int(frame_ids.duplicated().sum())
+        examples = frame_ids[frame_ids.duplicated()].head(5).tolist()
+        raise ContractV0Error(
+            f"v2 预算切分帧内 sample_id 重复 {n_dup} 个（前 5 个：{examples}）——"
+            "按 id 取回会把同一 full 行写两次"
+        )
     id_to_pos = {sid: i for i, sid in enumerate(full_ids)}
-    positions = [id_to_pos[sid] for sid in frame["sample_id"]]
+    missing = frame_ids[~frame_ids.isin(id_to_pos)]
+    if len(missing):
+        raise ContractV0Error(
+            f"v2 预算切分帧有 {len(missing)} 个 sample_id 在 full 中找不到"
+            f"（前 5 个：{missing.head(5).tolist()}）——预算帧与 full 不同源"
+        )
+    positions = [id_to_pos[sid] for sid in frame_ids]
     return full.iloc[positions].reset_index(drop=True)
 
 
-@dataclass
+@dataclass(frozen=True)
 class _PrecomputedV1Splits:
     """归一化之前预算好的切分结果（仅 v2 传入）。
 
@@ -681,6 +722,20 @@ class _PrecomputedV1Splits:
     normal_parts: dict[str, pd.DataFrame]
     fault_baseline_train: pd.DataFrame | None
     fault_baseline_eval: pd.DataFrame | None
+
+    def __post_init__(self) -> None:
+        expected = {"train_fit", "train_val", "eval_normal_holdout"}
+        if set(self.normal_parts) != expected:
+            raise ValueError(
+                f"normal_parts 键必须恰为 {sorted(expected)}，"
+                f"实际 {sorted(self.normal_parts)}——split_normal_rows_temporal 的"
+                "返回结构变了而消费方未同步"
+            )
+        if (self.fault_baseline_train is None) != (self.fault_baseline_eval is None):
+            raise ValueError(
+                "fault_baseline_train 与 fault_baseline_eval 必须同为 None 或同非 None"
+                "（单边存在会让 _write_v1 的 eval_all 静默缺/重一段）"
+            )
 
 
 def _write_v1(
@@ -789,6 +844,19 @@ def _write_v1(
         # 唯一硬约束是 train/eval 的 sample_id 互斥——split 按整窗切分天然保证（同一窗
         # 不会既在 train 又在 eval）。
         fault_baseline_df = anomaly_df[anomaly_df["phase"] == "baseline"].copy()
+        if (
+            precomputed is not None
+            and expand_train_pool
+            and precomputed.fault_baseline_train is None
+        ):
+            # v2 + 扩容却缺预算的 fault baseline 切分：静默回落到 else 分支重新切
+            # 会切出与 Normalizer.fit 不同的行集（两处切分参数漂移），且 fit ⊆ train
+            # 红线被破坏——直接报错，不回落。
+            raise ContractV0Error(
+                "v2 预算切分缺 fault baseline 结果：expand_train_pool=true 时 main() "
+                "必须同时预算 fault_baseline_train/eval（否则 Normalizer.fit 的行集 "
+                "与本函数重新切分的结果不一致，单一事实源被破坏）"
+            )
         if precomputed is not None and precomputed.fault_baseline_train is not None:
             # v2：baseline 切分已在归一化之前完成，且同一份 train 帧喂给了
             # Normalizer.fit（fit 集合 = train_fit ∪ 这批行）。按 sample_id 从归一化
@@ -797,7 +865,12 @@ def _write_v1(
             # eval 帧复用 main() 的同次切分结果，绝不再切第二遍（参数漂移风险）。
             pre_train = precomputed.fault_baseline_train
             pre_eval = precomputed.fault_baseline_eval
-            assert pre_eval is not None
+            if pre_eval is None:
+                raise ContractV0Error(
+                    "v2 预算切分缺 fault_baseline_eval：fault_baseline_train 存在时 "
+                    "eval 帧必须同时存在（_PrecomputedV1Splits 构造不变量，"
+                    "不用 assert——python -O 会剥掉）"
+                )
             fault_baseline_train = _reselect_rows_by_sample_id(full, pre_train)
             fault_baseline_train["source_phase"] = "fault_baseline"
             fault_baseline_eval = _reselect_rows_by_sample_id(full, pre_eval)

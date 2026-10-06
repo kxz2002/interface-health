@@ -2,9 +2,21 @@ from pathlib import Path
 
 import pytest
 
+from scripts.build_contract import _SCOPE_MAP
 from src.contracts.contract_config import ModalitySpec, load_contract_config
+from src.data.normalization import _VALID_SCOPE_METHOD
 
 REPO_ROOT = Path(__file__).parents[1]
+
+
+def test_scope_map_consistent_across_tables():
+    """表间一致性：normalization 配置字符串在三个独立维护的表里必须对齐——
+    build_contract._SCOPE_MAP 的键（config 字符串）必须恰等于
+    ModalitySpec._VALID_NORMALIZATIONS（加载期校验白名单），且 _SCOPE_MAP 的
+    值（scope, method）必须是 normalization._VALID_SCOPE_METHOD 的子集。
+    任一张表新增取值而另外两张没同步时，这里立刻红，而不是到 build 才错。"""
+    assert set(_SCOPE_MAP) == set(ModalitySpec._VALID_NORMALIZATIONS)
+    assert set(_SCOPE_MAP.values()) <= set(_VALID_SCOPE_METHOD)
 
 
 def test_load_v0_config_has_three_modalities():
@@ -359,17 +371,61 @@ def test_v2_config_rejects_even_one_non_zscore_modality(tmp_path):
 
 
 def test_v2_config_with_per_case_z_score_loads(tmp_path):
-    """合法的 v2 组合（全部 modality 走 per-case z-score）必须正常加载。"""
+    """合法的 v2 组合（全部 modality 走 per-case z-score + expand_train_pool
+    + 正 baseline fraction）必须正常加载。"""
     cfg_path = _write_yaml(
         tmp_path,
         "contract_version: v2\n"
         "window_size_s: 15\n"
+        "expand_train_pool: true\n"
         "modalities:\n"
         + _MODALITY_BLOCK["endpoint_red"].format(norm="per_case_endpoint_z_score")
         + _MODALITY_BLOCK["service_metric"].format(norm="per_case_service_z_score"),
     )
     cfg = load_contract_config(cfg_path)
     assert cfg.contract_version == "v2"
+
+
+def test_unknown_contract_version_rejected(tmp_path):
+    """contract_version 枚举守卫："v3"/"V2" 等未枚举值必须加载期拒绝——
+    它们会静默走 v0 分支（else 分支），产出 train ⊆ eval_all 的泄漏 contract。"""
+    for bad in ("V2", "v3"):
+        cfg_path = _write_yaml(
+            tmp_path,
+            f"contract_version: {bad}\n"
+            "window_size_s: 15\n"
+            "modalities:\n" + _MODALITY_BLOCK["endpoint_red"].format(norm="per_endpoint_min_max"),
+        )
+        with pytest.raises(ValueError, match="未知 contract_version"):
+            load_contract_config(cfg_path)
+
+
+def test_v2_requires_expand_train_pool(tmp_path):
+    """v2 的 per-case 参照系要求每个故障 case 都有 baseline 行进 fit 集合：
+    expand_train_pool=false 时故障 case 完全不进 fit，静默退回跨 case 参照系。"""
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v2\n"
+        "window_size_s: 15\n"
+        "modalities:\n" + _MODALITY_BLOCK["endpoint_red"].format(norm="per_case_endpoint_z_score"),
+    )
+    with pytest.raises(ValueError, match="expand_train_pool"):
+        load_contract_config(cfg_path)
+
+
+def test_v2_requires_positive_baseline_fraction(tmp_path):
+    """fault_baseline_train_fraction=0 与 expand_train_pool=false 同效：
+    故障 case 的 baseline 行不进训练池也不进 fit。"""
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v2\n"
+        "window_size_s: 15\n"
+        "expand_train_pool: true\n"
+        "fault_baseline_train_fraction: 0.0\n"
+        "modalities:\n" + _MODALITY_BLOCK["endpoint_red"].format(norm="per_case_endpoint_z_score"),
+    )
+    with pytest.raises(ValueError, match="fault_baseline_train_fraction"):
+        load_contract_config(cfg_path)
 
 
 def test_v1_config_with_min_max_still_loads(tmp_path):

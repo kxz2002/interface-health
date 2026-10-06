@@ -90,6 +90,39 @@ class _Stats:
     # 仅 z_score：全局回退层（整列跨全部 case/group），[mean, std, n]。
     global_stat: list[float] | None = None
 
+    def __post_init__(self) -> None:
+        # 形状校验：fit/load 两条构造路径共用。std_eff 必须为正——`not (x > 0)`
+        # 的写法同时兜住 NaN（NaN > 0 为 False），NaN/0/负值都会在这里失败，
+        # 而不是到 transform 时产出 NaN/inf 特征。
+        if self.method == "z_score":
+            if self.global_stat is None or len(self.global_stat) != 3:
+                raise ValueError(
+                    f"z_score _Stats 必须有 3 元 global_stat [mean, std, n]，实际 {self.global_stat!r}"
+                )
+            if not (self.global_stat[1] > 0):
+                raise ValueError(
+                    f"z_score global_stat 的 std_eff 必须为正，实际 {self.global_stat[1]!r}"
+                )
+            for layer_name, layer in (
+                ("by_group", self.by_group),
+                ("by_endpoint", self.by_endpoint),
+            ):
+                for key, v in layer.items():
+                    if len(v) != 3:
+                        raise ValueError(
+                            f"z_score {layer_name}[{key!r}] 必须为 [mean, std, n] 三元，实际 {v!r}"
+                        )
+                    if not (v[1] > 0):
+                        raise ValueError(
+                            f"z_score {layer_name}[{key!r}] 的 std_eff 必须为正，实际 {v[1]!r}"
+                        )
+        else:
+            for key, v in self.by_group.items():
+                if len(v) != 2:
+                    raise ValueError(
+                        f"min_max by_group[{key!r}] 必须为 [min, max] 两元，实际 {v!r}"
+                    )
+
 
 def _composite_key(parts: tuple[str, ...]) -> str:
     return _COMPOSITE_SEP.join(str(p) for p in parts)
@@ -123,6 +156,9 @@ class Normalizer:
             )
         self.rules = rules
         self._stats: dict[str, _Stats] = {}
+        # 每列回退链各层命中组数（仅 per-case z_score 在 fit 时统计），
+        # 只用于可观测性日志，不参与 transform 与落盘格式。
+        self._fallback_report: dict[str, dict[str, int]] = {}
 
     def fit(self, df: pd.DataFrame) -> None:
         for col, (scope, method) in self.rules.items():
@@ -155,6 +191,12 @@ class Normalizer:
         else:
             for keys, sub in df.groupby(list(group_cols)):
                 key = keys if isinstance(keys, tuple) else (keys,)
+                if any(_COMPOSITE_SEP in str(part) for part in key):
+                    raise ValueError(
+                        f"列 {col} 的分组键 {key!r} 含组合键连接符 {_COMPOSITE_SEP!r}——"
+                        "join/split 会有损（fit 与 transform 键不匹配、静默错组），"
+                        "请先清洗分组列取值"
+                    )
                 raw_groups[_composite_key(key)] = _stat_mean_std_n(sub[col])
 
         # 回退层：per-case scope 才有"跨 case 汇总 → 全局"两级；
@@ -176,6 +218,7 @@ class Normalizer:
         global_effective_std = resolve_std(global_std, _FALLBACK_STD_SENTINEL)
 
         by_group: dict[str, list[float]] = {}
+        layer_counts: dict[str, int] = {}
         for key, (g_mean, g_std, n) in raw_groups.items():
             if not group_cols:
                 # 全局 z_score：没有上层可收缩，退化直接用哨兵
@@ -184,12 +227,32 @@ class Normalizer:
             else:
                 rollup_key = key.split(_COMPOSITE_SEP, 1)[1] if _COMPOSITE_SEP in key else key
                 fb = by_endpoint_raw.get(rollup_key)
+                ep_std_raw = math.nan
                 if fb is not None:
                     ep_mean, ep_std_raw, _ = fb
                     ep_std = resolve_std(ep_std_raw, global_effective_std)
                     fb_mean, fb_std = ep_mean, ep_std
                 else:
                     fb_mean, fb_std = global_mean, global_effective_std
+
+                # 回退链命中分层（仅可观测性统计，不改变任何解析结果）：
+                # ok=组 std 有效且 n>=k；shrink=组 std 有效但 n<k（小样本收缩）；
+                # std_rollup=组 std 退化退到跨 case 汇总层；std_global=退到全局层
+                # （汇总层不存在或同样退化）；std_sentinel=链尾落 1.0 哨兵；
+                # n0=组内零有效行（全 NaN）。
+                if n == 0:
+                    layer = "n0"
+                elif not pd.isna(g_std) and g_std >= _DEGENERATE_STD_EPS:
+                    layer = "ok" if n >= _SHRINKAGE_K else "shrink"
+                elif (
+                    fb is not None and not pd.isna(ep_std_raw) and ep_std_raw >= _DEGENERATE_STD_EPS
+                ):
+                    layer = "std_rollup"
+                elif not pd.isna(global_std) and global_std >= _DEGENERATE_STD_EPS:
+                    layer = "std_global"
+                else:
+                    layer = "std_sentinel"
+                layer_counts[layer] = layer_counts.get(layer, 0) + 1
 
                 # mean 一律按 w=n/(n+k) 向上层收缩，**包括零方差大 n 组**——这是
                 # 有意偏离 EndpointBaselineStats（EBS 对退化组保留局部均值原值）：
@@ -217,6 +280,9 @@ class Normalizer:
 
             by_group[key] = [float(mean_eff), float(std_eff), float(n)]
 
+        if group_cols:
+            self._fallback_report[col] = layer_counts
+
         return _Stats(
             scope=scope,
             method="z_score",
@@ -231,6 +297,14 @@ class Normalizer:
                 float(global_n),
             ],
         )
+
+    def fallback_report(self) -> dict[str, dict[str, int]]:
+        """每列回退链各层命中组数（per-case z_score 列在 fit 时统计）。
+
+        分层含义见 `_fit_zscore`：ok / shrink / std_rollup / std_global /
+        std_sentinel / n0。仅用于可观测性日志，不参与 transform 与落盘格式。
+        """
+        return {col: dict(counts) for col, counts in self._fallback_report.items()}
 
     def skipped_groups(self) -> dict[str, list[str]]:
         """返回 fit 阶段统计量退化（全 NaN 或零方差）、transform 时被跳过归一化的

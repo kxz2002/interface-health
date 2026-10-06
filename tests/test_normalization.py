@@ -230,6 +230,21 @@ def _zscore_df(rows):
     )
 
 
+def test_group_key_containing_composite_sep_raises():
+    """分组列取值含组合键连接符 "::" 必须 fit 期显式失败——join/split 会有损，
+    fit 与 transform 键不匹配、静默错组（case_id/endpoint_key/service_name
+    任一维含 :: 都拦）。"""
+    fit_df = _zscore_df([("cA::x", "ep1", "svc1", 1.0), ("cA::x", "ep1", "svc1", 2.0)])
+    norm = Normalizer({_ZCOL: ("per_case_endpoint", "z_score")})
+    with pytest.raises(ValueError, match="连接符"):
+        norm.fit(fit_df)
+
+    fit_df2 = _zscore_df([("cA", "ep::1", "svc1", 1.0), ("cA", "ep::1", "svc1", 2.0)])
+    norm2 = Normalizer({_ZCOL: ("per_case_endpoint", "z_score")})
+    with pytest.raises(ValueError, match="连接符"):
+        norm2.fit(fit_df2)
+
+
 def test_per_case_groups_are_independent_across_cases():
     """同一 endpoint 在不同 case 的 fit 分布不同时，各自用各自的 mean/std——
     per-case 参照系的核心：caseA 的 100 在它自己的分布里是中心点（z=0），
