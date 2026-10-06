@@ -18,12 +18,13 @@
 4. **模型有没有挣到它的复杂度？** 两组无学习基线：
    (a) 21 个单特征各自当分数（取符号最优）；
    (b) 每个 (case, endpoint) 用**自己 baseline 阶段**的 mean/std 算 z-score，
-       再取 max|z| / L2 范数 / mean|z| 聚合。
+       再取 max|z| / L2 范数 / mean|z| 聚合（transductive 口径：参照统计量取自
+       eval_all 自身 baseline 行，即被打分的负样本本身）。
    (b) 对采集漂移天然免疫（参照系是 case 自身而非全局 Normal），是 AIOps 的标准做法
    （StepWise、DCASE per-section 同思路），也正是 Quo Vadis (ICML'24) 的 L2-norm 基线。
 
 与 analyze_gate_weights.py / analyze_modality_observability.py 同类：一次性诊断脚本，
-不进 dvc pipeline（只读、不产出被下游 stage 消费的产物），调用方式记在 CLAUDE.md。
+不进 dvc pipeline（只读、不产出被下游 stage 消费的产物），调用方式见 entry 027 的复现命令。
 
 用法：
     python scripts/analyze_temporal_confounding.py \

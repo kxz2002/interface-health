@@ -62,3 +62,33 @@ def test_per_case_macro_averages_across_cases():
     assert m["per_case_auroc_macro"] == 0.5
     assert m["n_cases_with_both_classes"] == 2
     assert "per_case_auprc_macro" in m
+
+
+def test_per_case_macro_differs_from_pooled():
+    # 每个 case 内部都完美可分（宏平均 1.0），但 caseB 的电平整体高于 caseA，
+    # pooled 口径下 caseA 的正样本(0.2)排在 caseB 的负样本(10.0)之后 → pooled < 1。
+    # 若实现把 macro 错写成 pooled（或反之），两条断言必有一红。
+    rows = [
+        _row("caseA", "a1", 0.1, False),
+        _row("caseA", "a2", 0.2, True),
+        _row("caseB", "b1", 10.0, False),
+        _row("caseB", "b2", 10.1, True),
+    ]
+    m = compute_stratified_metrics(pd.DataFrame(rows))
+    assert m["per_case_auroc_macro"] == 1.0
+    assert m["auroc"] < 1.0
+    # 两个 case 各自 AUPRC 都是 1.0（正样本都在 case 内最高分）→ 宏平均 1.0
+    assert m["per_case_auprc_macro"] == 1.0
+
+
+def test_per_case_uses_is_endpoint_anomaly_not_y_true():
+    # y_true 与 is_endpoint_anomaly 故意相反：按 is_endpoint_anomaly 完全可分（1.0），
+    # 若 per-case 分支误用 y_true 则得 0.0
+    rows = [
+        _row("caseA", "a1", 0.1, False),
+        _row("caseA", "a2", 0.9, True),
+    ]
+    df = pd.DataFrame(rows)
+    df["y_true"] = 1 - df["y_true"]
+    m = compute_stratified_metrics(df)
+    assert m["per_case_auroc_macro"] == 1.0
