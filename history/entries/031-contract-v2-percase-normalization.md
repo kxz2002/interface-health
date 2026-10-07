@@ -17,7 +17,7 @@ entry 027 P0 系列的主线收尾：把主 pipeline 的归一化参照系从"�
 
 否定 min-max 的实测依据：fit 子集（per-(case,endpoint) baseline 共 208 组，取前 20%）窗口数 **median 仅 16 行、min 1 行、26/208 组（12.5%）不足 5 行**。min-max 只用 2 个极值序统计量，n=16 时单个离群窗即可扭曲 scale，n=1 时零区间触发退化跳过、原始量纲透传，而 per-case 下原始值跨 case 不可比。另两条理由：rate clip（`clip(0,1)`）在 per-case 口径无论如何必须退役（DWF 对 rate 列会失明，而 signal drowning 头号受害者恰是 rate 列），"不动 `[0,1]` 校验"的前提不存在；打败我们的基线本身就是 per-case mean/std，同参照系才能 apples-to-apples 回答"SVDD 比 L2 范数强在哪"。
 
-**实际结果**：v2 四臂 per-case macro AUROC 相对 v1 同臂**全部改善且方差全部收窄**（见主表），D1 方向被证实。
+**实际结果**（2026-10-07 数字）：v2 三个 encoder 臂（concat/L1/L2）相对 v1 同臂**全部改善且方差收窄**（+0.078～+0.082，v2 std 全部 ≤0.0083）；DWF/selfref 臂方向相反（−0.0230，见 D4 修正注记）。**D1 对 encoder 臂成立，对 DWF 臂不成立。**
 
 ### D2：泄漏红线——fit = train_fit ∪ baseline 前 20%，6 个承载测试 + 变异双向打红
 
@@ -33,9 +33,9 @@ per-case 口径破坏三处字段口径（rate 不再落 `[0,1]`、clip 语义�
 
 ### D4：DWF 自参照新类（不是原地重写）——公式不变，参照系修正
 
-实施计划相对设计文档的唯一结构偏离在此：设计 D4 写"原地重写为无状态纯函数"，实现改为新建 `SelfReferentialDeviationFusion`、旧 `DeviationWeightedFusion` 一行不改。理由：原地重写会改变 v1 DWF arm 的数字，回归门失效、v1↔v2 不再单变量。新类零参数零状态，`w = sigmoid((|x|−τ)/s)`（τ=2.0、s=1.0，进 config），直读特征——v2 的 per-case z-score 已使特征值本身就是"相对自身 baseline 的偏离"。**结论：DWF 的公式一开始就是对的，错的是参照系。** 连带消除 entry 015 的 from_contract 钩子、entry 018 的列顺序强校验与 per-sample Python 循环查表。
+实施计划相对设计文档的唯一结构偏离在此：设计 D4 写"原地重写为无状态纯函数"，实现改为新建 `SelfReferentialDeviationFusion`、旧 `DeviationWeightedFusion` 一行不改。理由：原地重写会改变 v1 DWF arm 的数字，回归门失效、v1↔v2 不再单变量。新类零参数零状态，`w = sigmoid((|x|−τ)/s)`（τ=2.0、s=1.0，进 config），直读特征——v2 的 per-case z-score 已使特征值本身就是"相对自身 baseline 的偏离"。~~结论：DWF 的公式一开始就是对的，错的是参照系。~~（2026-10-07 修正：该叙事不再被当前数字支持，见下方实际结果。）连带消除 entry 015 的 from_contract 钩子、entry 018 的列顺序强校验与 per-sample Python 循环查表。
 
-**实际结果**：selfref **0.9495 ± 0.0033** vs v1 DWF 0.8932 ± 0.0180（+0.0563，std 收窄 5.5 倍），是四臂中方差最小的。
+**实际结果**（2026-10-07 修正，取代 2026-09-19 记录的 +0.0563）：selfref **0.9277 ± 0.0072** vs v1 DWF 0.9507 ± 0.0169（**−0.0230**，std 收窄 2.5 倍）。两个后置修复的效应叠加：X1 修复把 v1 DWF 从 0.8932 抬到 0.9507（+0.0575，旧产物为 #25 之前特征集，见 entry 030"已知混淆"），30-30 修复把 v2 selfref 从 0.9495 压到 0.9277（−0.0218，n=0 组 mean 回退修复）——**修复后的参照系下，自参照 DWF 反而跑不赢查 sidecar 的旧 DWF**，"公式对了、错的是参照系"的原始叙事不再成立。该反转的机制（n=0 修复为何对 selfref 是负效应、v1 DWF 为何从当前特征集受益 +0.0575）未分解，列入遗留 TODO。
 
 ### D5：RG 退役——one-class loss 下门控学无可学，两次塌陷归档为负面结果
 
@@ -50,7 +50,7 @@ entry 025 修复标签后 RG 均值改善（softmax 0.6575→0.8038），但方�
 
 EBS 实现的"分组 mean/std + 向全局 shrinkage（k=10）"正是 per-case z-score 退化回退所需的数学；per-case z-score 之后它就是归一化本身，不该再是旁挂参照表。处置：shrinkage 搬进 `Normalizer`（k=10 直接复用 EBS 的校准值，不重新调参），Normalizer 成为归一化统计量的唯一事实源；v2 config `fit_endpoint_baseline_stats=false`，sidecar 产物、entry 015 收束的那批耦合债一并消失。旧 EBS 代码保留（v1 arm 仍依赖）。
 
-## 数字更新（2026-10-07，C1+C2 重跑后；结论段尚未改写，待用户确认）
+## 数字更新（2026-10-07，C1+C2 重跑后；结论段已按此改写并经用户确认）
 
 两处前置修复落地后全量重跑：C1（v1 四臂 seed{1,2,3} 以当前特征集重跑，修 X1——旧产物为 #25 之前特征集，见 entry 030"已知混淆"）；C2（30-30 v2 n=0 组 mean 回退修复后 v2 contract 重建 + v2 全部臂与平凡基线重跑——修复仅影响 `endpoint_red__trace_5xx_rate` 一列：train 201 单元 / eval 48 单元，其中 39 个正样本 z 1→0；三条 v2 平凡基线数值不变）。**当前 canonical 数字以 `artifacts/contract_v2_acceptance/main_table.md` 为准**。新旧并排（per-case macro AUROC，ddof=0）：
 
@@ -73,35 +73,33 @@ EBS 实现的"分组 mean/std + 向全局 shrinkage（k=10）"正是 per-case z-
 5. canary 仍 16 cell 全 ≥0.9（新最低 gated seed42 0.9453；旧最低为 gated seed2 0.9026 压线）。
 6. #29（entry 030）同批重算：DWF 结论方向反转（+0.0398 → −0.0178），见 entry 030"数字更新"。
 
-下方"主表"与"三条预注册预期的落地"两节保留 2026-09-19 原文（混淆口径 + 30-30 之前），其中"四臂一致改善（+0.036～+0.095）""std 全部收窄""selfref 反超全部平凡基线"三处与新数字不一致，**结论措辞待用户确认后改写**。
+下方"主表"与"三条预注册预期的落地"两节已按新数字改写（2026-10-07，经用户确认）；本节保留作为新旧对照的 changelog。
 
-## 主表（per-case macro AUROC，4 seed mean±std，ddof=0）
-
-> ⚠ 本表为 2026-09-19 记录（X1 混淆口径 v1 列 + 30-30 之前的 v2 列），当前数字见上方"数字更新"与 `main_table.md`。
+## 主表（per-case macro AUROC，4 seed mean±std，ddof=0；2026-10-07 数字）
 
 | 方法 | v1 | v2 | v2−v1 | v2 pooled（附注） |
 |---|---|---|---|---|
-| concat (L0) | 0.8964 ± 0.0110 | **0.9608 ± 0.0040** | +0.0644 | 0.9598 ± 0.0047 |
-| independent_concat (L1) | 0.8566 ± 0.0198 | 0.9513 ± 0.0097 | +0.0947 | 0.9517 ± 0.0101 |
-| gated (L2) | 0.8995 ± 0.0102 | 0.9350 ± 0.0061 | +0.0355 | 0.9343 ± 0.0060 |
-| deviation_weighted_selfref | 0.8932 ± 0.0180（v1 DWF） | 0.9495 ± 0.0033 | +0.0563 | 0.9514 ± 0.0038 |
+| concat (L0) | 0.8670 ± 0.0320 | 0.9454 ± 0.0083 | +0.0784 | 0.9468 ± 0.0089 |
+| independent_concat (L1) | 0.8646 ± 0.0429 | **0.9465 ± 0.0055** | +0.0819 | 0.9500 ± 0.0072 |
+| gated (L2) | 0.8581 ± 0.0815 | 0.9368 ± 0.0041 | +0.0787 | 0.9375 ± 0.0044 |
+| deviation_weighted_selfref | 0.9507 ± 0.0169（v1 DWF） | 0.9277 ± 0.0072 | **−0.0230** | 0.9341 ± 0.0054 |
 | 平凡 rel_pos | 0.9656 | 0.9656 | 0 | 0.9303 |
 | 平凡 zscore_l2 | 0.9539 | **0.9853** | +0.0314 | 0.9630 |
 | 平凡 zscore_max | 0.9441 | 0.9810 | +0.0369 | 0.9548 |
 
-四臂一致改善（+0.036～+0.095）、std 全部收窄（最大 std v1 0.0198 → v2 0.0097）。但**没有一个臂打赢平凡基线**：最强 concat 0.9608 落后 v2 zscore_l2 0.9853（−0.0245）、zscore_max 0.9810（−0.0202），也略低于不消费归一化特征的 rel_pos 0.9656（−0.0048）；四臂均值 0.9492 落后两条 zscore 基线 0.03 以上。数据集 27 case 中 23 个同时含正负类（单类 case 不进宏平均）。
+三个 encoder 臂一致改善（+0.078～+0.082）、v2 std 全部 ≤0.0083；DWF/selfref 臂反转（−0.0230，见 D4）。但**没有一个臂打赢平凡基线**：最强 independent_concat 0.9465 落后 v2 zscore_l2 0.9853（−0.0388）、zscore_max 0.9810（−0.0345），也低于不消费归一化特征的 rel_pos 0.9656（−0.0191）；四臂均值 0.9391 落后两条 zscore 基线 0.04 以上。数据集 27 case 中 23 个同时含正负类（单类 case 不进宏平均）。
 
-macro AUPRC 口径排名不同：concat 0.8647 ± 0.0105（v1 0.7194）、independent 0.8543 ± 0.0203、selfref 0.8413 ± 0.0126 **反超全部平凡基线**（rel_pos 0.6008、zscore_l2 0.8223、zscore_max 0.8168），gated 0.7846 ± 0.0266 仍略低于两条 zscore 基线。宏平均与 pooled 排名差异源于平凡基线在少数 case 上的极端输出。逐 seed 明细、AUPRC 全表与训练健康度附注见 `main_table.md`。
+macro AUPRC 口径排名不同：concat 0.8549 ± 0.0080、independent 0.8407 ± 0.0100 **反超全部平凡基线**（rel_pos 0.6008、zscore_l2 0.8223、zscore_max 0.8168）；selfref 0.8204 ± 0.0074 反超 rel_pos 与 zscore_max、但**不再反超 zscore_l2**；gated 0.7880 ± 0.0247 仍低于两条 zscore 基线。宏平均与 pooled 排名差异源于平凡基线在少数 case 上的极端输出。逐 seed 明细、AUPRC 全表与训练健康度附注见 `main_table.md`。
 
 ## 三条预注册预期的落地（设计文档 §7，逐条对照）
 
 1. **rel_pos 仍 ~0.9656 —— 成立**：v2 实测 0.9656，与 v1 逐位一致（它不消费归一化特征，行等价的旁证）。per-case 归一化治漂移，治不了"inject 起点固定在 rel_pos 0.586±0.015"；该问题只能靠 P1 重采（随机化 inject 起始位置 / Normal 交错采集），AnoMod 投稿期继续延期。
-2. **"SVDD ≈ z-score 基线"——方向比预期更不利于 SVDD，且结论随指标口径分叉**：AUROC 主指标下不是"持平"而是**全臂输给 lean z-score**（最强 concat 0.9608 vs zscore_l2 0.9853，差 0.0245，四臂无一例外）；但 **macro AUPRC 口径下 concat 0.8647 反超** zscore_l2 0.8223、rel_pos 仅 0.6008。这是 entry 027 P2 预演的合法科学结论：**同参照系下 Deep SVDD + 现有融合没有挣到它的复杂度**——z-score 范数直接聚合分散在多特征上的弱信号，压进低维球心距离反而损失信息。按 P2 预案，论文形态转向"benchmark 缺陷 + 规范评估协议"的论据进一步增强：v1 transductive（entry 027）、v1 lean（entry 029）、v2（本 entry）三轮、两套归一化参照系下平凡基线获胜的证据链已齐。
+2. **"SVDD ≈ z-score 基线"——方向比预期更不利于 SVDD，且结论随指标口径分叉**（2026-10-07 数字）：AUROC 主指标下不是"持平"而是**全臂输给 lean z-score**（最强 independent_concat 0.9465 vs zscore_l2 0.9853，差 0.0388，四臂无一例外）；macro AUPRC 口径下 **concat 0.8549 与 independent 0.8407 反超**全部平凡基线（selfref 0.8204 不再反超 zscore_l2 0.8223）。这是 entry 027 P2 预演的合法科学结论：**同参照系下 Deep SVDD + 现有融合没有挣到它的复杂度**——z-score 范数直接聚合分散在多特征上的弱信号，压进低维球心距离反而损失信息。按 P2 预案，论文形态转向"benchmark 缺陷 + 规范评估协议"的论据进一步增强：v1 transductive（entry 027）、v1 lean（entry 029）、v2（本 entry）三轮、两套归一化参照系下平凡基线获胜的证据链已齐。
 3. **本轮成功定义——达成**：参照线齐全（3 平凡基线 × 2 口径常驻 stage）、泄漏可证（6 承载测试 + 双向变异验证）、v1↔v2 单变量（行等价 + 67.1% 特征单元反向断言 + v1 sha256 不变）。这份排名可信，包括"学习模型排第三"这件事本身。
 
 ## Canary：`Lv_P_CPU_preserve` 分层 AUROC（阈值 ≥0.9）
 
-四臂 × 4 seed = **16 个 cell 全部 ≥ 0.9**：concat 0.9969 ± 0.0003、independent 0.9949 ± 0.0024、selfref 0.9946 ± 0.0027、gated 0.9313 ± 0.0223。v1 concat 0.9996 ± 0.0002（seed42=0.9995）未掉头向下，参照系未被污染——资源型故障的绝对水平信号经层级 shrinkage 保留（per-case 丢弃绝对水平信息的设计风险没有在 canary 上兑现）。**唯一边际项：gated seed2 = 0.9026，压线通过，引用该臂 canary 时必须保留这个不确定性**，与 gated 臂整体垫底一致。rel_pos 在该 case 仅 0.8895（排名特征对资源型故障不敏感），非训练臂、仅记录不作失败项。
+四臂 × 4 seed = **16 个 cell 全部 ≥ 0.9**（2026-10-07 数字）：concat 0.9956 ± 0.0016、independent 0.9918 ± 0.0028、selfref 0.9958 ± 0.0005、gated 0.9622 ± 0.0121（最低 cell 为 gated seed42 = 0.9453，无压线项）。v1 concat 0.9997 ± 0.0002 未掉头向下，参照系未被污染——资源型故障的绝对水平信号经层级 shrinkage 保留（per-case 丢弃绝对水平信息的设计风险没有在 canary 上兑现）。rel_pos 在该 case 仅 0.8895（排名特征对资源型故障不敏感），非训练臂、仅记录不作失败项。
 
 ## 退化审计（Task 14）
 
@@ -135,5 +133,6 @@ macro AUPRC 口径排名不同：concat 0.8647 ± 0.0105（v1 0.7194）、indepe
 - **v2 zscore 双重校正机制分解**：两次标准化的增益/偏差未拆开，分解前 0.9853 不读成上限。
 - **z-score 基线敏感性系统分解（独立 PR）**："SVDD 未跑赢 lean z-score"的结论对 fit 口径（train 全集 / 仅 baseline+normal / transductive）与退化哨兵取值敏感，v1 实测敏感区间约 [0.87, 0.98]（见坑小节限制声明）；v2 上的系统分解（fit 口径 × 哨兵取值）在独立 PR 做，本 PR 不展开。
 - **gated 常数门处置**：下轮决策是否随 RG 一并退役 branch/feature 级可学习路由（当前证据：RG 两种归一化皆塌陷、gated 在 v2 退化为常数门且垫底）。
-- **inject fraction 1.0→0.0 退回的独立决策**：entry 030 已给证据（5380 行吸收对 L0 无稳健净收益、对 DWF 净损害 +0.04 方向），v2 行等价基准现已立住；但现在改 fraction 的代价是**重建 v2 contract 并重跑全部 v2 stage**（行集合一变，行等价断言失效），故不搭车，按 entry 030 的析因对照预案独立推进，届时同步重算三条平凡基线。
+- **inject fraction 1.0→0.0 退回的独立决策**：entry 030 的证据经 2026-10-07 X1 修复后重算已变——5380 行吸收对 L0 与 DWF **同向**（均为 expanded 更好的方向：L0 −0.0365、DWF −0.0178）但 |mean Δ| 均 <1σ，**无稳健净收益也无稳健净损害**（原"对 DWF 净损害 +0.04 方向"系混淆口径产物，不再成立）。改 fraction 的代价是**重建 v2 contract 并重跑全部 v2 stage**（行集合一变，行等价断言失效），按 entry 030 的析因对照预案独立推进，届时同步重算三条平凡基线。
+- **selfref v2−v1 反转的机制分解**：2026-10-07 数字下 selfref 0.9277 < v1 DWF 0.9507（−0.0230），与 D4 原始叙事相反；n=0 修复为何对 selfref 是负效应、v1 DWF 为何从当前特征集受益 +0.0575，未分解。
 - **artifacts 目录分层整理**：当前 `artifacts/` 平铺近 90 个目录，文件名过长、不同时期产物混在一起，找结果成本高。原则：**不做物理删除**，用子目录分层做逻辑归档；具体分层方案、迁移范围、路径对应关系都在单独的整理 PR 里定，不搭本 PR 车。
