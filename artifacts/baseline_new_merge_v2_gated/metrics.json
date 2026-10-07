@@ -3,14 +3,14 @@
   "higher_is_more_anomalous": true,
   "n_samples": 14186,
   "has_labels": true,
-  "auroc": 0.928713764837125,
-  "auprc": 0.7275788950998243,
-  "per_case_auroc_macro": 0.9293734553972738,
-  "per_case_auprc_macro": 0.7899714983108105,
+  "auroc": 0.937064758476124,
+  "auprc": 0.7386699565462848,
+  "per_case_auroc_macro": 0.9365537024461333,
+  "per_case_auprc_macro": 0.7877739966114055,
   "n_cases_with_both_classes": 23,
   "stratified": {
     "overall": {
-      "auroc": 0.928713764837125
+      "auroc": 0.937064758476124
     },
     "by_anomaly_type": {
       "Lv_D_CONNECTION_POOL_exhaustion": {
@@ -26,11 +26,11 @@
         "n_samples": 791
       },
       "Lv_E_HTTPABORT_assurance": {
-        "auroc": 0.9966941190117156,
+        "auroc": 0.9912423152766501,
         "n_samples": 503
       },
       "Lv_E_HTTPABORT_order": {
-        "auroc": 0.9978768577494692,
+        "auroc": 0.9960803527682509,
         "n_samples": 510
       },
       "Lv_E_HTTPABORT_travel": {
@@ -38,83 +38,83 @@
         "n_samples": 508
       },
       "Lv_E_HTTPABORT_travel2": {
-        "auroc": 0.9938291139240506,
+        "auroc": 0.9951476793248945,
         "n_samples": 514
       },
       "Lv_E_HTTPDELAY_assurance": {
-        "auroc": 0.7359042553191488,
+        "auroc": 0.7443085106382977,
         "n_samples": 510
       },
       "Lv_E_HTTPDELAY_order": {
-        "auroc": 0.9880926724137932,
+        "auroc": 0.9782866379310344,
         "n_samples": 504
       },
       "Lv_E_HTTPDELAY_travel": {
-        "auroc": 0.9937499999999999,
+        "auroc": 0.9870726495726496,
         "n_samples": 508
       },
       "Lv_E_HTTPDELAY_travel2": {
-        "auroc": 0.9522970085470086,
+        "auroc": 0.9544337606837606,
         "n_samples": 508
       },
       "Lv_E_HTTPPATCH_assurance": {
-        "auroc": 0.996135164777772,
+        "auroc": 0.9908079594714576,
         "n_samples": 508
       },
       "Lv_E_HTTPPATCH_order": {
-        "auroc": 0.9096831352928915,
+        "auroc": 0.9169272461955389,
         "n_samples": 509
       },
       "Lv_E_HTTPPATCH_travel": {
-        "auroc": 0.9976547842401501,
+        "auroc": 0.994110902647488,
         "n_samples": 509
       },
       "Lv_E_HTTPPATCH_travel2": {
-        "auroc": 0.9921306209850107,
+        "auroc": 0.9624197002141327,
         "n_samples": 507
       },
       "Lv_E_HTTPREPLACE_assurance": {
-        "auroc": 0.9385394456289978,
+        "auroc": 0.9754797441364605,
         "n_samples": 509
       },
       "Lv_E_HTTPREPLACE_order": {
-        "auroc": 0.967612419700214,
+        "auroc": 0.9652569593147752,
         "n_samples": 507
       },
       "Lv_E_HTTPREPLACE_travel": {
-        "auroc": 0.9999466950959488,
+        "auroc": 0.9982942430703625,
         "n_samples": 509
       },
       "Lv_E_HTTPREPLACE_travel2": {
-        "auroc": 0.9513859275053306,
+        "auroc": 0.9753198294243071,
         "n_samples": 509
       },
       "Lv_P_CPU_preserve": {
-        "auroc": 0.930329457364341,
+        "auroc": 0.9453488372093023,
         "n_samples": 556
       },
       "Lv_P_DISKIO_preserve": {
-        "auroc": 0.518036750483559,
+        "auroc": 0.5442456479690523,
         "n_samples": 557
       },
       "Lv_P_NETLOSS_preserve": {
-        "auroc": 0.9980922098569157,
+        "auroc": 0.9971383147853736,
         "n_samples": 547
       },
       "Lv_S_DNSFAIL_preserve_no_order": {
-        "auroc": 0.525,
+        "auroc": 0.6349713740458016,
         "n_samples": 564
       },
       "Lv_S_HTTPABORT_preserve": {
-        "auroc": 0.9978436915999809,
+        "auroc": 0.9975082658488668,
         "n_samples": 550
       },
       "Lv_S_KILLPOD_order": {
-        "auroc": 0.9978586723768736,
+        "auroc": 0.9978037665403832,
         "n_samples": 506
       },
       "Lv_S_KILLPOD_preserve": {
-        "auroc": 0.9969498910675382,
+        "auroc": 0.9985838779956427,
         "n_samples": 499
       },
       "Normal": {
@@ -128,7 +128,7 @@
         "n_samples": 2105
       },
       "endpoint": {
-        "auroc": 0.9635678746172482,
+        "auroc": 0.9656027420062586,
         "n_samples": 8132
       },
       "none": {
@@ -136,17 +136,17 @@
         "n_samples": 170
       },
       "performance": {
-        "auroc": 0.8054849305659416,
+        "auroc": 0.8178429189446688,
         "n_samples": 1660
       },
       "service": {
-        "auroc": 0.8770833333333334,
+        "auroc": 0.9053503062787137,
         "n_samples": 2119
       }
     },
     "by_endpoint": {
       "GET:/api/v1/assuranceservice/assurances/types": {
-        "auroc": 0.9491623823778139,
+        "auroc": 0.9514846235418876,
         "n_samples": 2044
       },
       "GET:/api/v1/contactservice/contacts/account/{uuid}": {
@@ -158,19 +158,19 @@
         "n_samples": 1855
       },
       "POST:/api/v1/orderservice/order/refresh": {
-        "auroc": 0.8932833930927848,
+        "auroc": 0.903693533982912,
         "n_samples": 2084
       },
       "POST:/api/v1/preserveservice/preserve": {
-        "auroc": 0.8158943188926056,
+        "auroc": 0.8454465928766328,
         "n_samples": 2092
       },
       "POST:/api/v1/travel2service/trips/left": {
-        "auroc": 0.9814453125,
+        "auroc": 0.9863711599576271,
         "n_samples": 2048
       },
       "POST:/api/v1/travelservice/trips/left": {
-        "auroc": 0.9878142561372375,
+        "auroc": 0.9861316507279241,
         "n_samples": 2051
       },
       "POST:/api/v1/users/login": {
