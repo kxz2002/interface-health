@@ -17,9 +17,11 @@
 # 除 fault_inject_nontarget_train_fraction 取值（1.0 → 0.0）与本头部说明外，
 # 与 v1_new_merge.yaml 逐字一致。
 #
-# 【2026-10 限定】config 层面确为单变量，但 expanded 侧 seed{1,2,3} 的
-# scores 产物来自 #25 之前的特征集（见 entry 030"已知混淆"），实验层面仅
-# seed42 是单变量配对。另：下方吸收判据注释继承自 v1_new_merge.yaml，未含
+# 【单变量配对状态】config 层面为单变量。实验层面曾是"仅 seed42 单变量
+# 配对"（expanded 侧 seed{1,2,3} 旧 scores 产物来自 #25 之前的特征集，
+# 见 entry 030"已知混淆"），该限定已于 2026-10-07 由 #30 的 C1 重跑解除：
+# expanded 四臂 seed{1,2,3} 以当前特征集重跑，现 4 个 seed 均为同特征集
+# 单变量配对。另：下方吸收判据注释继承自 v1_new_merge.yaml，未含
 # entry 025 的 `label_target_observable` 第二道闸。
 # ============================================================================
 contract_version: "v1"
