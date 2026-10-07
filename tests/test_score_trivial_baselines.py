@@ -327,3 +327,61 @@ def test_cli_end_to_end_zscore_l2_and_rel_pos(tmp_path):
     )
     metrics = json.loads(m_out.read_text())
     assert metrics["per_case_auroc_macro"] == pytest.approx(1.0)
+
+
+def test_cli_zscore_raises_when_eval_case_missing_from_train(tmp_path):
+    """main() 闸门：eval case 在 train.parquet 缺席时必须显式报错、不产 scores。
+
+    缺这道闸时 z-score 基线会在缺席 case 上静默全 0 分、宏平均恰为 0.5 且
+    stage 仍显示成功（见 main() 中该 ValueError 的注释）。函数级缺组测试
+    （test_zscore_missing_group_scores_zero_and_others_unchanged）钉的是
+    compute_zscore_scores 的内部回退，钉不住这道 CLI 闸门被整个删掉的情形。
+    """
+    rows = []
+    for case in ("c1", "c2"):
+        for i, ts in enumerate([1000, 2000, 3000, 4000]):
+            inject = i >= 2
+            rows.append(
+                {
+                    "sample_id": f"{case}_{ts}",
+                    "case_id": case,
+                    "endpoint_key": "ep1",
+                    "timestamp_window_ms": ts,
+                    "phase": "inject" if inject else "baseline",
+                    "anomaly_type": "Lv_E_HTTPABORT_toy",
+                    "anomaly_level": "endpoint",
+                    "label_granularity": "endpoint",
+                    "is_endpoint_anomaly": inject,
+                    "g1__a": 5.0,
+                }
+            )
+    full = pd.DataFrame(rows)
+    contract = tmp_path / "contract"
+    contract.mkdir()
+    train_df = full[full["case_id"] == "c1"].reset_index(drop=True)
+    train_df.to_parquet(contract / "train.parquet", index=False)
+    full.to_parquet(contract / "eval_all.parquet", index=False)
+    (contract / "schema.json").write_text(
+        json.dumps({"feature_groups": {"g1": {"columns": ["g1__a"]}}})
+    )
+
+    out = tmp_path / "z.parquet"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "scripts/score_trivial_baselines.py",
+            "--contract-dir",
+            str(contract),
+            "--baseline",
+            "zscore_l2",
+            "--out",
+            str(out),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+    )
+    assert proc.returncode != 0
+    assert "缺少" in proc.stderr
+    assert "c2" in proc.stderr
+    assert not out.exists()
