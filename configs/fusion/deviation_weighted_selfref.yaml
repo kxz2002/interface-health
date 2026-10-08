@@ -1,0 +1,3 @@
+_target_: src.fusion.deviation_weighted_selfref.SelfReferentialDeviationFusion
+threshold: 2.0
+scale: 1.0

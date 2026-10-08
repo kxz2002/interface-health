@@ -2,9 +2,21 @@ from pathlib import Path
 
 import pytest
 
+from scripts.build_contract import _SCOPE_MAP
 from src.contracts.contract_config import ModalitySpec, load_contract_config
+from src.data.normalization import _VALID_SCOPE_METHOD
 
 REPO_ROOT = Path(__file__).parents[1]
+
+
+def test_scope_map_consistent_across_tables():
+    """表间一致性：normalization 配置字符串在三个独立维护的表里必须对齐——
+    build_contract._SCOPE_MAP 的键（config 字符串）必须恰等于
+    ModalitySpec._VALID_NORMALIZATIONS（加载期校验白名单），且 _SCOPE_MAP 的
+    值（scope, method）必须是 normalization._VALID_SCOPE_METHOD 的子集。
+    任一张表新增取值而另外两张没同步时，这里立刻红，而不是到 build 才错。"""
+    assert set(_SCOPE_MAP) == set(ModalitySpec._VALID_NORMALIZATIONS)
+    assert set(_SCOPE_MAP.values()) <= set(_VALID_SCOPE_METHOD)
 
 
 def test_load_v0_config_has_three_modalities():
@@ -54,6 +66,26 @@ def test_invalid_normalization_raises():
             preprocessor_version="v0",
             features=("feat_a",),
             normalization="unknown_norm",
+        )
+
+
+def test_per_case_zscore_normalization_accepted():
+    spec = ModalitySpec(
+        preprocessor="X",
+        preprocessor_version="1",
+        features=("a",),
+        normalization="per_case_endpoint_z_score",
+    )
+    assert spec.normalization == "per_case_endpoint_z_score"
+
+
+def test_unknown_normalization_still_rejected():
+    with pytest.raises(ValueError, match="未知 normalization"):
+        ModalitySpec(
+            preprocessor="X",
+            preprocessor_version="1",
+            features=("a",),
+            normalization="per_case_endpoint_minmax_typo",
         )
 
 
@@ -271,6 +303,201 @@ def test_nontarget_fractions_boundary_values_valid(tmp_path):
             )
             cfg = load_contract_config(cfg_path)
             assert getattr(cfg, field) == boundary
+
+
+def _write_yaml(tmp_path, body: str, name: str = "c.yaml") -> Path:
+    cfg_path = tmp_path / name
+    cfg_path.write_text(body)
+    return cfg_path
+
+
+# 单个 modality 的最小 YAML 片段，方便按版本/normalization 拼装守卫测试。
+_MODALITY_BLOCK = {
+    "endpoint_red": (
+        "  endpoint_red:\n"
+        "    preprocessor: TracePreprocessor\n"
+        "    preprocessor_version: v0\n"
+        "    features: [trace_error_rate]\n"
+        "    normalization: {norm}\n"
+    ),
+    "service_metric": (
+        "  service_metric:\n"
+        "    preprocessor: MetricPreprocessor\n"
+        "    preprocessor_version: v0\n"
+        "    features: [cpu_usage_rate]\n"
+        "    normalization: {norm}\n"
+    ),
+}
+
+
+def test_v2_config_requires_per_case_z_score_normalization(tmp_path):
+    """v2×min_max 组合守卫：v2 build 路径（is_v2=True）静默跳过 rate clip 与退化
+    group 告警，min_max 退化组的原始量纲会无告警进模型。错误组合必须在配置
+    加载期就拒绝，而不是等到 build 跑完或产物静默错误。"""
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v2\n"
+        "window_size_s: 15\n"
+        "modalities:\n" + _MODALITY_BLOCK["endpoint_red"].format(norm="per_endpoint_min_max"),
+    )
+    with pytest.raises(ValueError, match="v2.*per-case z-score"):
+        load_contract_config(cfg_path)
+
+
+def test_v2_config_rejects_global_min_max(tmp_path):
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v2\n"
+        "window_size_s: 15\n"
+        "modalities:\n" + _MODALITY_BLOCK["service_metric"].format(norm="global_min_max"),
+    )
+    with pytest.raises(ValueError, match="service_metric"):
+        load_contract_config(cfg_path)
+
+
+def test_v2_config_rejects_even_one_non_zscore_modality(tmp_path):
+    """守卫按 modality 逐个检查：不能因多数 modality 正确就放行单个错误组合，
+    且报错必须点名违规 modality 与其实际 normalization。"""
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v2\n"
+        "window_size_s: 15\n"
+        "modalities:\n"
+        + _MODALITY_BLOCK["endpoint_red"].format(norm="per_case_endpoint_z_score")
+        + _MODALITY_BLOCK["service_metric"].format(norm="per_service_min_max"),
+    )
+    with pytest.raises(ValueError, match=r"service_metric.*per_service_min_max"):
+        load_contract_config(cfg_path)
+
+
+def test_v2_config_with_per_case_z_score_loads(tmp_path):
+    """合法的 v2 组合（全部 modality 走 per-case z-score + expand_train_pool
+    + 正 baseline fraction）必须正常加载。"""
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v2\n"
+        "window_size_s: 15\n"
+        "expand_train_pool: true\n"
+        "modalities:\n"
+        + _MODALITY_BLOCK["endpoint_red"].format(norm="per_case_endpoint_z_score")
+        + _MODALITY_BLOCK["service_metric"].format(norm="per_case_service_z_score"),
+    )
+    cfg = load_contract_config(cfg_path)
+    assert cfg.contract_version == "v2"
+
+
+def test_unknown_contract_version_rejected(tmp_path):
+    """contract_version 枚举守卫："v3"/"V2" 等未枚举值必须加载期拒绝——
+    它们会静默走 v0 分支（else 分支），产出 train ⊆ eval_all 的泄漏 contract。"""
+    for bad in ("V2", "v3"):
+        cfg_path = _write_yaml(
+            tmp_path,
+            f"contract_version: {bad}\n"
+            "window_size_s: 15\n"
+            "modalities:\n" + _MODALITY_BLOCK["endpoint_red"].format(norm="per_endpoint_min_max"),
+        )
+        with pytest.raises(ValueError, match="未知 contract_version"):
+            load_contract_config(cfg_path)
+
+
+def test_v2_requires_expand_train_pool(tmp_path):
+    """v2 的 per-case 参照系要求每个故障 case 都有 baseline 行进 fit 集合：
+    expand_train_pool=false 时故障 case 完全不进 fit，静默退回跨 case 参照系。"""
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v2\n"
+        "window_size_s: 15\n"
+        "modalities:\n" + _MODALITY_BLOCK["endpoint_red"].format(norm="per_case_endpoint_z_score"),
+    )
+    with pytest.raises(ValueError, match="expand_train_pool"):
+        load_contract_config(cfg_path)
+
+
+def test_v2_requires_positive_baseline_fraction(tmp_path):
+    """fault_baseline_train_fraction=0 与 expand_train_pool=false 同效：
+    故障 case 的 baseline 行不进训练池也不进 fit。"""
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v2\n"
+        "window_size_s: 15\n"
+        "expand_train_pool: true\n"
+        "fault_baseline_train_fraction: 0.0\n"
+        "modalities:\n" + _MODALITY_BLOCK["endpoint_red"].format(norm="per_case_endpoint_z_score"),
+    )
+    with pytest.raises(ValueError, match="fault_baseline_train_fraction"):
+        load_contract_config(cfg_path)
+
+
+def test_v1_config_with_min_max_still_loads(tmp_path):
+    """守卫只约束 v2：v1/v0 的 min_max 是既有唯一合法形态，不能被新守卫误伤。"""
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v1\n"
+        "window_size_s: 15\n"
+        "modalities:\n" + _MODALITY_BLOCK["endpoint_red"].format(norm="per_endpoint_min_max"),
+    )
+    cfg = load_contract_config(cfg_path)
+    assert cfg.contract_version == "v1"
+
+
+def test_v1_config_with_per_case_z_score_rejected_at_load(tmp_path):
+    """对称守卫：per-case z-score 是 v2 专属，v1 配它必须在加载期拒绝。
+
+    实测（v2_fit_scope_mini fixture + v1 config 跑 build_contract.py）：该组合
+    并非"静默跑通后被 clip 截断"，而是在归一化阶段抛裸 KeyError: 'case_id'——
+    per-case scope 的分组键含 case_id（normalization.py 的 _GROUP_COLS），而 v1
+    路径传给 Normalizer.transform 的 group_cols 不含该列。裸 KeyError 报错质量
+    差，守卫把它换成带说明的 ValueError。
+    """
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v1\n"
+        "window_size_s: 15\n"
+        "modalities:\n" + _MODALITY_BLOCK["endpoint_red"].format(norm="per_case_endpoint_z_score"),
+    )
+    with pytest.raises(ValueError, match="v2"):
+        load_contract_config(cfg_path)
+
+
+def test_v0_config_with_per_case_z_score_rejected_at_load(tmp_path):
+    """v0 同样不接受 per-case z-score，且报错必须点出 case_id/KeyError 根因。"""
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v0\n"
+        "window_size_s: 15\n"
+        "modalities:\n" + _MODALITY_BLOCK["service_metric"].format(norm="per_case_service_z_score"),
+    )
+    with pytest.raises(ValueError, match="case_id"):
+        load_contract_config(cfg_path)
+
+
+def test_v2_endpoint_red_requires_endpoint_scope(tmp_path):
+    """modality↔scope 配对：endpoint_red 必须配 per_case_endpoint_z_score。
+
+    错配成 service 版会静默按 (case_id, service_name) 聚合——当前数据集
+    service↔endpoint 1:1 数字不变，但未来一个 service 多 endpoint 的数据集上
+    会把不同 endpoint 的窗混在一起算 z 值，且没有任何报错。
+    """
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v2\n"
+        "window_size_s: 15\n"
+        "modalities:\n" + _MODALITY_BLOCK["endpoint_red"].format(norm="per_case_service_z_score"),
+    )
+    with pytest.raises(ValueError, match=r"endpoint_red.*per_case_endpoint_z_score"):
+        load_contract_config(cfg_path)
+
+
+def test_v2_service_metric_requires_service_scope(tmp_path):
+    cfg_path = _write_yaml(
+        tmp_path,
+        "contract_version: v2\n"
+        "window_size_s: 15\n"
+        "modalities:\n"
+        + _MODALITY_BLOCK["service_metric"].format(norm="per_case_endpoint_z_score"),
+    )
+    with pytest.raises(ValueError, match=r"service_metric.*per_case_service_z_score"):
+        load_contract_config(cfg_path)
 
 
 def test_nontarget_fractions_quoted_string_raises(tmp_path):
