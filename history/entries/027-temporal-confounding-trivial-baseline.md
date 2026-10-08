@@ -100,6 +100,12 @@ rel_pos 平凡基线（只用"窗口在 case 内的相对时间位置"，不看�
 
 ```bash
 # 六机制重跑（本轮已执行）
+# ⚠ 2026-10-07 追注：data/new_merge 现有 189 个未 dvc commit 的
+# _pipeline_out 漂移文件，照抄下方裸 repro 会误触发 build_contract 并删掉
+# contract 产物（entry 029/031 已三次付出恢复成本）。今天复现必须改用
+# --single-item 形式逐 stage 跑：
+#   dvc repro --single-item dvc_new_merge/dvc.yaml:<stage>
+# 详见 CLAUDE.md Known Gotchas 末条。
 dvc repro dvc_new_merge/dvc.yaml
 
 # 时间混淆与朴素基线诊断（不进 dvc pipeline，只读）
