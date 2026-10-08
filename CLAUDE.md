@@ -13,7 +13,7 @@
 
 当前主数据集：`data/new_merge/`（Train-Ticket 微服务系统，27 case，2026-07-28/29 单一批次采集，不与历史批次混合——entry 017 已证实跨 run 合并会污染评估），由 `configs/data/new_merge.yaml` 声明（`roots`/`normal_source` 均为 `data/new_merge`，见 `configs/contract/v1_new_merge.yaml`）。原始采集 28 case，已剔除 `Lv_S_KILLPOD_gateway`（inject 阶段 trace 数据永久缺失导致 AUROC 无定义，见 history/entries/023）。
 
-历史数据源（**其中三个已永久丢失，见下**；余者判定待重采/不再深化，仅供复现旧实验参考，见 history/entries/021/022/023/025）：`data/anomod_v1/`（11 个 service 级故障注入 case，仍在磁盘上）。**`data/endpoint_raw2/`、`data/normal_v2/`、`data/new_ep1/` 三者已永久丢失**——磁盘、DVC cache、DVC remote 三处皆无（`endpoint_raw2` 由 `326b885` 物理删除，另两个的丢失于 entry 025 核实）。因此 `configs/data/merged_v2.yaml`（anomod_v1 + endpoint_raw2 + normal_v2）依赖的链路（根 `dvc.yaml` 的 build_contract/train_v0/eval_v0/build_contract_v1/train_v1/eval_v1，以及 `dvc_reliability_gate/`、`dvc_deviation_weighted/`、`dvc_new_ep1/`）**已无法从原始数据 `dvc repro` 重建，且无法通过重跑刷新其数字**——entry 014/016/018/022 的 AUROC/AUPRC/gate 权重只能标记作废（它们同时还建立在 entry 025 修掉的错误 service 级标签之上）。仅已提交的 `metrics.json` 可作为"当时如此"的历史记录查阅，不要在此基础上继续实验、不要与 entry 025 之后的数字并列比较。`configs/data/merged_v1.yaml` 同理保留不动仅供参考。**当前唯一口径正确且可重建的数据集是 `data/new_merge`**（entry 025 从异机备份恢复，字节数与 `data/new_merge.dvc` 一致；但其 DVC cache 与 remote 均为空，**禁止对它跑 `dvc checkout`**——cache 里没有内容，会有清掉工作区 124GB 的风险；正确方向是 `dvc commit`）。
+历史数据源（**其中三个已永久丢失，见下**；余者判定待重采/不再深化，仅供复现旧实验参考，见 history/entries/021/022/023/025）：`data/anomod_v1/`（11 个 service 级故障注入 case，仍在磁盘上）。**`data/endpoint_raw2/`、`data/normal_v2/`、`data/new_ep1/` 三者已永久丢失**——磁盘、DVC cache、DVC remote 三处皆无（`endpoint_raw2` 由 `326b885` 物理删除，另两个的丢失于 entry 025 核实）。因此 `configs/data/merged_v2.yaml`（anomod_v1 + endpoint_raw2 + normal_v2）依赖的链路（根 `dvc.yaml` 的 build_contract/train_v0/eval_v0/build_contract_v1/train_v1/eval_v1，以及 `dvc_reliability_gate/`、`dvc_deviation_weighted/`、`dvc_new_ep1/`）**已无法从原始数据 `dvc repro` 重建，且无法通过重跑刷新其数字**——entry 014/016/018/022 的 AUROC/AUPRC/gate 权重只能标记作废（它们同时还建立在 entry 025 修掉的错误 service 级标签之上）。仅已提交的 `metrics.json` 可作为"当时如此"的历史记录查阅，不要在此基础上继续实验、不要与 entry 025 之后的数字并列比较。`configs/data/merged_v1.yaml` 同理保留不动仅供参考。**当前唯一口径正确且可重建的数据集是 `data/new_merge`**（entry 025 从异机备份恢复，字节数与 `data/new_merge.dvc` 一致；189 个 `_pipeline_out` 漂移文件已于 entry 032 `dvc commit` 承认现状——cache 已填充完整内容，`dvc checkout` 技术上安全，但数据仍 READ-ONLY、无理由执行）。
 
 数据集字段口径、pipeline 逻辑与已知问题详见 `docs/agent-docs/dataset-guide.md`（**注意**：该文档写于项目最早期，仍描述已弃用的 `data/anomod/` 单批次格式与 `process_tt_traces.py`/`build_endpoint_health.py` 老 pipeline，未覆盖 endpoint_raw2/normal_v2/contract v1/new_ep1/new_merge 等后续所有数据集和现行 pipeline——这些以本文件和各 `configs/data/*.yaml`/`configs/contract/*.yaml` 注释为准），接触数据相关代码前必读。
 
@@ -169,9 +169,8 @@ python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_ep1_expa
 # dvc_new_merge/dvc.yaml，裸 dvc repro 不触发。四种方式已全部跑通并按 seed{1,2,3,42}
 # 四组重跑，多 seed 对比结果见 history/entries/023。
 # （RG 两个 stage 已于 entry 031 退役移除；类代码/配置/产物保留在树中。）
-# ⚠ data/new_merge 有 189 个未 dvc commit 的 _pipeline_out 漂移文件，裸 repro 会误
-# 触发 build 删 contract 产物——跑单个 stage 必须
-# `dvc repro --single-item dvc_new_merge/dvc.yaml:<stage>`（见 Known Gotchas）。
+# ✅ 189 个 _pipeline_out 漂移文件已于 entry 032 dvc commit 处置 + lock 同步，
+# 裸 repro 已恢复安全（dry-run 零触发验证，见 Known Gotchas 末条）。
 dvc repro dvc_new_merge/dvc.yaml
 
 # 单独运行（不走 DVC 缓存）
@@ -186,11 +185,12 @@ python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_merge_ex
 python scripts/eval_baseline_v0.py --scores artifacts/baseline_new_merge_concat_seed1/scores.parquet --out artifacts/baseline_new_merge_concat_seed1/metrics.json
 
 # === contract v2（per-case z-score 归一化，见 history/entries/031）===
-# v2 contract 没有 dvc 构建 stage，手动构建（stage 待补，见 entry 031 遗留 TODO）：
+# v2 contract 没有 dvc 构建 stage，手动构建（stage 待补；漂移已于 entry 032 处置，
+# 补注册不再受阻，见 entry 031/032 遗留 TODO）：
 python scripts/build_contract.py --config configs/contract/v2_new_merge.yaml --dataset configs/data/new_merge.yaml --out-dir artifacts/contract_new_merge_v2 --seed 42
 
 # v2 四臂与三条平凡基线的 seed42 训练/评估注册在 dvc_new_merge/dvc.yaml，
-# 逐个 --single-item 跑（禁止裸 repro，理由见上）：
+# 可裸 repro（entry 032 起恢复安全）也可 --single-item 单跑：
 #   train_new_merge_v2_{concat,independent_concat,gated,deviation_weighted_selfref}（+ 同名 eval_ 前缀）
 #   score_trivial_v2_{rel_pos,zscore_l2,zscore_max}（+ 同名 eval_ 前缀）
 dvc repro --single-item dvc_new_merge/dvc.yaml:train_new_merge_v2_concat
@@ -288,7 +288,7 @@ pytest tests/
 - **DeviationWeightedFusion（DWF）零参数逐特征加权，判定不达标不做后续深化（见 history/entries/018）**（v2 另有自参照新类 `SelfReferentialDeviationFusion`：公式不变、直读特征当偏离量、无 sidecar，是 v2 四臂之一，见 history/entries/031）：ABORT/REPLACE 宏平均 AUROC 0.632/0.538，与 RG 基本无差异（REPLACE 更差）。构造时用 `EndpointBaselineStats.red_cols`/`svc_cols` 属性按值校验传入的 `red_cols`/`svc_cols` 顺序与内部 fit 顺序一致（不只是长度），因为 `schema.json` 的列顺序与 `EndpointBaselineStats` 的 fit 顺序是独立派生的两条链路，理论上可能同长度但顺序不同，此时 `branch_stats()` 的 mean/std 会被错位应用到错误的特征位置，计算不报错但结果是错的。
 - **`MAX_CONTENT_CHARS=2000` 截断对 log 特征有实测可量化的损耗，不是"行为不变"（见 history/entries/019、020）**：截断只对占比 88%+ 的短行不改变 Drain3 template 归类，但超长行（占比约 12%，真实数据里可达近百万字符）本身的 template 归类会变，落到 `service_log__template_diversity` 特征上，约 60% 的 15s 窗口取值会变化（平均绝对偏差 ~0.017，最大 ~0.16；`event_rate`/`error_ratio` 不受影响）。阈值 2000→3000 CPU 几乎零代价但损耗改善有限（~14%），继续加大阈值到 20000 才有中等改善但 CPU 涨到 2.3 倍，逼近数据集真实离群值（几十万字符）时 CPU 暴涨到 80 倍。调整该阈值前先读 entry 020 的实测曲线，不要凭直觉猜测。该常量只在 `feature/deviation-weighted-fusion` 分支存在，`master` 无此逻辑——`v0`/`v1`/`v1_expanded`（RG）三条既有 contract 管线因此 `dvc status` 显示 deps 过期，已提交的 `metrics.json` 是旧代码（无截断）产物；决定不重跑（见 entry 021），因为这批数据集已知需要重采（PATCH 类故障对现有 endpoint RED 特征全隐形，entry 017），重跑旧数据集无法产出会被后续引用的新结论。
 - **v2 退役 rate `[0,1]` 校验与两段 clip，改为全特征列量级 sanity（见 history/entries/031）**：per-case z-score 下 rate 列不再落在 `[0,1]`（z 值天然有负有正、可大于 1），v1 的 rate `clip(0,1)` 与 `content_length_mean` ±5 clip（都是治 min-max 跨批次参照系错位的症状）在 v2 全部退役，替换为对**全部特征列**的 `|x| ≤ 1e6` 量级 sanity（`V2_ZSCORE_MAGNITUDE_BOUND`，只兜 entry 013 式 1e9 数值爆炸；最大真实信号 HTTPDELAY z≈2000，余量 500×）。v1/v0 的校验与 clip 行为不变。
-- **裸 `dvc repro dvc_new_merge/dvc.yaml` 会误触发 build 并删掉 contract 产物，只能用 `--single-item`（见 history/entries/029、031）**：磁盘上 `data/new_merge` 自 2026-08-24 起有 189 个 `_pipeline_out/tt_fused_*.csv`/report.md 内容漂移未 `dvc commit`（上游派生产物，**不是** contract 的输入，但在 .dir 清单里，任何哈希漂移都让 build stage 失效）。裸 repro 会先重跑 build_contract、删掉现有 contract 产物；已三次产生恢复成本（entry 029、031 两次）。跑单个 stage 用 `dvc repro --single-item dvc_new_merge/dvc.yaml:<stage>`；漂移处置（`dvc commit` 承认现状 vs 备份恢复）留给独立 `[Data]` PR，处置前**禁止**裸 repro 与 `dvc checkout`。
+- **`data/new_merge` 漂移已于 entry 032 处置完毕**（本 gotcha 的历史形态见 029/031）：2026-08-24 起 189 个 `_pipeline_out/tt_fused_*.csv`/report.md（上游派生产物，非 contract 输入，但 build stage 的 dep 是整个目录，任何漂移都让它失效）内容漂移未 commit，曾导致裸 `dvc repro` 误触发 build 删 contract 产物、三次恢复成本，期间只能靠 `--single-item` 跑单 stage。entry 032 以 `dvc commit` 承认现状（用户确认 AnoMod 论文统计基于漂移后状态）+ 同步 11 个 v1 时代 stage 的 lock dep 哈希，四道验证：哈希级枚举漂移恰为 27 case×7 派生文件且 contract 输入零漂移、`dvc status` 全绿、裸 repro `--dry` 零触发、commit 前后 2268 文件 md5 快照逐字节一致。**结构教训保留**：build stage 用整目录做 dep，目录内任何非输入文件的漂移都会作废整条链——未来新数据集接入时，`_pipeline_out` 这类派生物应拆成独立 DVC 输出或排除在 dep 之外。
 
 ## Git Commit Convention
 MUST: 撰写提交信息__必须__严格遵守提交格式。
