@@ -1,0 +1,120 @@
+# 030 · 训练池 inject 非目标行吸收对照（fraction 1.0→0.0）：5380 行无稳健净收益，L0/DWF 同向但 |Δ|<1σ
+
+> 标题 2026-10-07 随 C1 重跑结论改写同步更新：X1 修复（expanded 侧 seed{1,2,3} 以当前特征集重跑）后两机制方向一致（均为 expanded 更好方向），原标题"L0/DWF 方向相反"系旧口径叙事，详见下方"数字更新"节。
+
+- **日期**: 2026-09-19
+- **PR**: #29（contract v2 计划 PR-3，栈在 #28 之上） · **Commit**: 见本 PR merge（产物入库 `ec45190`，对照脚本 `c52e310`/`19b1061`）
+- **类型**: Experiment
+- **影响域**: `configs/contract/v1_new_merge_inject0.yaml`, `scripts/compare_train_pool_ablation.py`, `artifacts/contract_new_merge_inject0/`, `artifacts/baseline_new_merge_inject0_*/`, `artifacts/train_pool_ablation/report.md`, 训练池吸收 fraction / 评估口径
+
+## 做了什么
+
+entry 027 P0 挂账项的实测裁决。现行 `v1_new_merge.yaml` 的 `fault_inject_nontarget_train_fraction=1.0`（entry 022 引入、entry 025 加第二道闸门）把故障 case inject 阶段的 **5380 行非目标行**吸进了 One-Class 训练池当正常数据。设计初衷是补训练池规模/类别平衡，但 entry 025/027 反复指出：故障传播期间"非目标 endpoint"的行并不真的正常（下游被拖累的 service 一样在产生异常 RED 特征）。"污染正常边界"与"平衡类别/扩展覆盖"哪个代价大，此前只有直觉，没有对照实验。
+
+### 已知混淆（2026-10 review 发现，先于一切结论阅读）
+
+**expanded 侧 seed{1,2,3} 的 scores 来自 #25 之前的特征集**（mtime 2026-08-22，不含 `client_content_length_*` / `client_body_hash_mismatch_rate` 三个特征），inject0 侧 8 组均为当前特征集——本对照只有 **seed42 是真单变量配对**（L0 Δ=−0.1299，DWF Δ=−0.0031）。DWF"3 正 1 平"的 3 个正 Δ 全部落在混淆 seed 上，下方主表的 mean Δ、方向计数与结论都要带着此混淆读。（已于 2026-10-07 完成处置：v1 四臂 seed{1,2,3} 以当前特征集在 #30 重跑（#30 commit `f65925e`），对照报告已重新生成，见下方"数字更新"。）
+
+### 数字更新（2026-10-07，X1 修复后重算；结论段已按此改写并经用户确认）
+
+expanded 侧 seed{1,2,3} 换成当前特征集后，`artifacts/train_pool_ablation/report.md` 已重新生成。新旧并排（mean Δ = inject0 − expanded，共有子集 14186 行，ddof=0；Δ<0 = 吸收是净收益方向）：
+
+| fusion | 旧 mean Δ（混淆口径） | 旧符号（正/平/负） | 新 mean Δ | 新符号（正/平/负） | 方向变化 |
+|---|---|---|---|---|---|
+| L0 concat | −0.0658（Δ std 0.0808） | 1/1/2 | **−0.0365**（Δ std 0.0789） | 2/0/2 | 方向不变（净收益方向），量级约减半 |
+| DWF | +0.0398（Δ std 0.0324） | 3/1/0 | **−0.0178**（Δ std 0.0250） | 0/2/2 | **方向反转**：净损害 → 净收益方向 |
+
+- 旧口径下"L0 与 DWF 方向相反"的叙事不再成立：新口径两机制同向（都是 expanded 更好的方向），但 **|mean Δ| 仍均小于 1σ**（L0 0.037 vs 0.079，DWF 0.018 vs 0.025），DWF 4 seed 里 2 平 2 负——报告自动判定维持"种子间波动与均值同量级，结论需谨慎"。
+- ddof=1 参考值：L0 Δ std 0.0911、DWF Δ std 0.0289；DWF |mean Δ| vs 1σ 在 ddof=1 下为 0.018 vs 0.029。
+- expanded 侧 per-seed 变化：L0 seed{1,2,3} 0.8835/0.8949/0.8931 → 0.8442/0.8781/0.8319；DWF seed{1,2,3} 0.8826/0.8884/0.8780 → 0.9603/0.9686/0.9502。seed42 不变（本就是真单变量配对：L0 −0.1299，DWF −0.0031）。
+- inject0 侧 8 组与 contract 未动（其 scores 本就是当前特征集），新数字的变化全部来自 expanded 侧 X1 修复。
+- **下方主表与结论段已按新数字改写**（2026-10-07，经用户确认）；本节保留作为新旧对照的 changelog。
+
+### 方法：单变量对照 + 共有 sample_id 子集口径
+
+- 新增 `configs/contract/v1_new_merge_inject0.yaml`，与 `v1_new_merge.yaml` **仅** `fault_inject_nontarget_train_fraction` 1.0→0.0 一处之差（其余两个 fraction 不动：baseline 0.2、recover nontarget 1.0）。重建 contract：train **9513 → 4133** 行（差恰为 5380），eval_all **14186 → 19566** 行（同样差 5380，吸收摘除与留 eval 严格对偶），**两版正样本均为 916 行**——本实验动的只是负样本的归宿，正样本定义一行没碰。
+- L0(concat) 与 DWF × seed{42,1,2,3} = **8 次新训练**（inject0 侧；expanded 侧复用既有 scores——seed42 来自 entry 027 重跑，seed{1,2,3} 来自 entry 025（#24）时期，特征集不同，见上方"已知混淆"）。
+- **关键口径：两版 AUROC 不能直接拿全量比**（eval 集构成不同，14186 vs 19566，CLAUDE.md 早就记录"expand_train_pool 开关会改变 eval_all 行数，不同取值不可直接横向比较"）。核验 expanded eval_all **⊆** inject0 eval_all（14186 行全部在 19566 中）后，把两版 scores 都限制到这 14186 行的**共有子集**上现算指标，训练效应与评估集构成效应就此隔离。共有行的 `is_endpoint_anomaly` 标签已逐行核验一致（正样本定义本就不随 fraction 变）。
+- 对照脚本：`scripts/compare_train_pool_ablation.py`（对 scores.parquet 复用 `eval_baseline_v0.compute_stratified_metrics` 现算，指标实现无分叉）；产物报告 `artifacts/train_pool_ablation/report.md`，本 entry 全部数字以其为准。
+
+### 主表：共有子集 per-case macro AUROC，4 seed
+
+| fusion | expanded（吸收 5380 行） | inject0（不吸收） | mean Δ（inj−exp） | Δ std | Δ 符号（正/平/负） |
+|---|---|---|---|---|---|
+| **L0 concat** | **0.8670 ± 0.0320** | 0.8306 ± 0.0758 | **−0.0365** | 0.0789 | 2 / 0 / 2 |
+| **DWF** | **0.9507 ± 0.0169** | 0.9330 ± 0.0188 | **−0.0178** | 0.0250 | 0 / 2 / 2 |
+
+per-seed 明细（共有子集 macro / pooled）：
+
+| fusion | seed | expanded macro | inject0 macro | Δ macro | expanded pooled | inject0 pooled |
+|---|---|---|---|---|---|---|
+| L0 | 42 | 0.9140 | 0.7840 | −0.1299 | 0.9095 | 0.7825 |
+| L0 | 1 | 0.8442 | 0.8837 | +0.0395 | 0.8324 | 0.8822 |
+| L0 | 2 | 0.8781 | 0.9221 | +0.0440 | 0.8744 | 0.9160 |
+| L0 | 3 | 0.8319 | 0.7325 | −0.0993 | 0.8226 | 0.7262 |
+| DWF | 42 | 0.9238 | 0.9207 | −0.0031 | 0.9200 | 0.9202 |
+| DWF | 1 | 0.9603 | 0.9474 | −0.0129 | 0.9589 | 0.9452 |
+| DWF | 2 | 0.9686 | 0.9089 | −0.0597 | 0.9667 | 0.8974 |
+| DWF | 3 | 0.9502 | 0.9548 | +0.0046 | 0.9439 | 0.9563 |
+
+（"平"= |Δ|<0.005。主表 std 为总体标准差 ddof=0；ddof=1 参考值：L0 Δ std 0.0911、DWF Δ std 0.0289。）
+
+### 结论
+
+1. **5380 行吸收既无稳健净收益，也无稳健净损害；X1 修复后 L0 与 DWF 同向（均为 expanded 更好的方向），但 |mean Δ| 均小于 1σ。**（旧口径"L0 与 DWF 方向相反"系混淆产物，见上方"数字更新"。）
+2. **L0**：均值上 expanded 高 0.037，但 |mean Δ| < 1σ（0.037 vs 0.079），且 4 个 seed 方向反转（2 正 2 负）——均值"收益"不稳健，换一个 seed 结论就可能翻面。最一致的观察是**吸收把 L0 的 seed 间 std 从 0.076 压到 0.032**（约 2.4 倍 std 压缩；n=4）：吸收行在均值意义上未必加分，但降低了训练结果对初始化的敏感度。（旧稿"约 7 倍压缩（0.076→0.011）"系混淆口径——expanded 的 std 0.0110 来自 #25 之前特征集，X1 修复后为 0.0320。）
+3. **DWF**：方向同为 expanded 更好——0 正 2 平 2 负，|mean Δ| < 1σ（0.018 vs 0.025；ddof=1 下为 0.018 vs 0.029）。**"吸收对零参数的 DWF 是净损害"不成立**（旧口径 +0.0398 的三个正 Δ 全部落在混淆 seed 上，见上方"已知混淆"与"数字更新"）。
+4. 两种融合新口径下同向，但都不稳健。**机制层面能确定的只有一条**：两版 contract 的 `endpoint_baseline_stats.json`、`normalization_stats.json`、`train_fit.parquet` 逐字节相同（EBS 只 fit 纯 Normal `train_fit`），5380 行只通过 Deep SVDD 训练池起作用——两种融合受影响的路径都只有 SVDD 训练池，L0 与 DWF 走同一通路。（旧稿的"DWF per-endpoint 偏离量参照被故障行直接带偏"机制解释已删除：参照统计量两版逐字节相同，该解释与事实矛盾。）
+
+### 对 contract v2（PR-4）的含义
+
+contract v2 为保住 **v1↔v2 行等价回归断言**（同 config 产出的行集合必须逐行一致），三个 fraction 沿用 0.2 / 1.0 / 1.0 不动。注意本实验的证据**对 v2 自参照 DWF 是否成立未测**（v2 更换了归一化参照系，DWF 也换为自参照新类，v1 DWF 的 Δ 不能外推）。是否把 inject fraction 正式退回 0.0 留作 v2 之后的独立决策——改 fraction 会改变行集合、直接破坏行等价基准，不能搭车进 v2。
+
+## 关键决策（不在 commit 里）
+
+- **主表只认共有子集，全量数字降级为附注**：两版 eval_all 构成不同，任何全量差距都可能只是"多出来的 5380 行本身更好/更差分"。实测这个坑的量级见下方——直接比全量会把 L0 seed42 的 inject0 读成 0.7521 的"惨相"，而同一模型在完全相同的 14186 行评估集上是 0.7840。
+- **对照脚本对 scores.parquet 现算指标，而不是读两边 metrics.json**：expanded seed{1,2,3} 的 metrics.json 当时是 entry 023 时期的**旧 eval 格式**（无 `per_case_auroc_macro` 三键，entry 029 才新增；seed42 已在 entry 029 随 dvc stage 刷新为新格式）。若按 metrics.json 读，4 个 seed 里 3 个直接拿不到主指标。scores.parquet 是 scores_v0 契约钉住的接口墙，旧 scores 被新版 eval 无改造消费——接口墙的稳定性又一次被实际依赖验证。（2026-10-07 起 seed{1,2,3} 已于 #30 以当前特征集重跑、metrics.json 为新格式；脚本仍维持对 scores 现算，不变。）
+- **只做 L0/DWF，不补 L1/L2/RG**：entry 023/027 已确定 L0/DWF 是当前最强且最稳的两种机制（RG 高方差、L1 不优于 L0），裁决"吸收是否值得保留"只需这两个代表；其余机制的同口径对照留待需要时按同脚本重跑（脚本本身支持任意已产出的 fusion 目录）。
+- **不顺手改 `v1_new_merge.yaml` 默认值**：本 PR 只新增 inject0 config + 对照，现行 expanded 链路（dvc_new_merge 全部 stage、平凡基线 stage、entry 029 的常驻参照线）一行不动。改默认值是 v2 之后的独立决策（理由见上节）。
+
+## 坑 / 已知问题
+
+- **全量口径不可比的实际演示**（CLAUDE.md 既有 gotcha 的量化版）：expanded 的全量 = 共有子集（14186 即交集本身），inject0 全量是 19566。同一批 inject0 scores 上，全量 per-case macro 比共有子集**系统性偏低**：L0 四个 seed 分别低 0.032 / 0.023 / 0.014 / 0.012（seed42 0.7521 vs 0.7840），DWF 低 0.029 / 0.035 / 0.033 / 0.020。即多出来的 5380 行（正是被取消吸收的那些行）在 per-case macro 上整体更难，直接比全量会凭空给 inject0 叠加一个 −0.01~−0.04 的纯构成偏差。pooled 方向相同。
+- **L0 inject0 的高方差（seed42 0.784 / seed3 0.733）不是训练发散**：8 次训练 loss 均正常收敛；scores.parquet 已逐文件核验——min 均贴近 0、max 同为正距离量纲、无 NaN/无穷值。**分数的绝对量纲不携带训练健康信息**：Deep SVDD 距离分数的量纲随训练池构成与 center/radius 变化，inject0 各 run 的 max（concat 8.7e3~7.8e4、DWF 1.2e3~5.3e3）与 expanded 并不严格同域（expanded concat 9.5~1.1e4、DWF 6.1~7.0e2），甚至 expanded 自身跨 seed 的 max 也跨约三个数量级（concat 9.5 vs 1.12e4）；而评估只依赖分数排序（AUROC），比较绝对尺度没有意义。高方差的实质是去掉 5380 行覆盖后**正常边界欠覆盖的方差放大**——训练池从 9513 缩到 4133、纯 Normal 仍只有 478 行，不同初始化圈出的边界在故障传播行上表现差异被放大。诊断上要与"优化崩坏"区分：看收敛曲线 + score 是否含 NaN/无穷值，而不是看分数量纲，也不是看到低分 seed 就判训练失败。
+- **子集前提自检必须在算指标之前失败**：共有子集口径隐含"expanded ⊆ inject0"前提，若两个 `--*-contract` 参数拿反（或误用别的数据集），交集会变成真子集，"expanded"列将静默失去与历史口径的可比性。脚本在读 scores 前先断言 `exp_ids <= inj_ids`，不满足直接 `SystemExit`（已做参数对调的负向验证：拿反时如期报错退出）；每个 run pair 另有"交集行数在两版 scores 中齐全"的断言，缺行即 `RuntimeError`。
+- **n=4 的统计纪律**：|mean Δ| 超过 1 个 Δ std 只是启发式，不是显著性检验。n=4 配对 Wilcoxon 单侧 p 的下限是 0.0625（4/4 同向才达到）；DWF 实际 3 负 1 正（正的那个 |Δ|=0.0046，秩 2），单侧 p=0.1875，双侧 0.375，**不构成统计显著**。本 entry 结论措辞统一保持"方向 + 方差量级"，不写"显著"；论文若引用该对照，需配 bootstrap CI 或配对 Wilcoxon，并增大 seed 数。
+
+## 遗留 TODO
+
+- 论文引用前的统计加固：bootstrap CI / 配对 Wilcoxon + 增加 seed 数（reviewer 建议，n=4 对 Wilcoxon 的分辨力天花板太低）。
+- 两机制同向但都不稳健的机制原因未做分解实验；若 v2 之后决定动 inject fraction，先补 per-case 分解（哪些 anomaly_level 的行贡献了 Δ）与训练池规模/构成的析因对照，再改默认值。
+- inject fraction 是否正式退回 0.0：v2（PR-4）行等价基准落地之后的独立决策；届时同步评估 entry 029 三条平凡基线在 inject0 口径下的变化（lean z-score 的 fit 源含这 5380 行，退回 0.0 会改变 l2/max 基线数字——entry 029 的 lean vs transductive 对照已预告该耦合）。
+- L1/L2/RG 的同口径对照未跑，需要时用 `scripts/compare_train_pool_ablation.py` 对已补齐的 scores 目录直接重算，无需改脚本。
+
+## 复现命令
+
+```bash
+# 1. 构建 inject0 contract（单变量：仅 fault_inject_nontarget_train_fraction 1.0→0.0）
+conda run -n interface python scripts/build_contract.py \
+  --config configs/contract/v1_new_merge_inject0.yaml --dataset configs/data/new_merge.yaml \
+  --out-dir artifacts/contract_new_merge_inject0 --seed 42
+
+# 2. 训练+评估：fusion ∈ {concat, deviation_weighted}，seed ∈ {42,1,2,3}；
+#    seed42 目录无后缀，seed{1,2,3} 目录加 _seed<s> 后缀
+conda run -n interface python scripts/train_baseline_v0.py \
+  contract_dir=artifacts/contract_new_merge_inject0 \
+  out=artifacts/baseline_new_merge_inject0_<fusion>[_seed<s>]/scores.parquet \
+  seed=<s> training.epochs=50 fusion=<fusion> model=deep_svdd
+conda run -n interface python scripts/eval_baseline_v0.py \
+  --scores artifacts/baseline_new_merge_inject0_<fusion>[_seed<s>]/scores.parquet \
+  --out artifacts/baseline_new_merge_inject0_<fusion>[_seed<s>]/metrics.json
+
+# 3. 生成对照报告
+conda run -n interface python scripts/compare_train_pool_ablation.py \
+  --expanded-contract artifacts/contract_new_merge_expanded \
+  --inject0-contract artifacts/contract_new_merge_inject0 \
+  --scores-root artifacts --out artifacts/train_pool_ablation/report.md
+```
+
+- 训练时代码 commit：训练窗口（2026-09-19 04:10–04:17，`outputs/train_pool_ablation_logs/*.log`）介于 `72172f4`（04:07）与 `c52e310`（04:20）之间，期间 HEAD 为 `72172f4`；日志本身未记录 commit。
+- inject0 的 contract 与 scores 只存在本机，不在 git/DVC（`artifacts/contract_new_merge_inject0/` 与 `artifacts/baseline_new_merge_inject0_*/scores.parquet` 被 gitignore，仅 metrics.json 与 report.md 入库）。
