@@ -255,3 +255,89 @@ stages:
     metrics:
       - artifacts/baseline_new_merge_deviation_weighted/metrics.json:
           cache: false
+
+  # 平凡基线常驻参照线（entry 027 P0 / entry 029）：不含任何学习过程，
+  # scores 走 scores_v0 接口墙由 eval_baseline_v0.py 原样消费。以后每个实验的
+  # metrics.json 旁边必须并列这三条参照，per-case macro 为主指标。z-score 两路
+  # 是 lean 口径（fit 源 train.parquet），rel_pos 只依赖 eval_all。
+  score_trivial_rel_pos:
+    wdir: ..
+    cmd: python scripts/score_trivial_baselines.py
+      --contract-dir artifacts/contract_new_merge_expanded
+      --baseline rel_pos
+      --out artifacts/trivial_baseline_rel_pos/scores.parquet
+    deps:
+      - scripts/score_trivial_baselines.py
+      - src/contracts
+      - artifacts/contract_new_merge_expanded/eval_all.parquet
+    outs:
+      - artifacts/trivial_baseline_rel_pos/scores.parquet
+
+  eval_trivial_rel_pos:
+    wdir: ..
+    cmd: python scripts/eval_baseline_v0.py
+      --scores artifacts/trivial_baseline_rel_pos/scores.parquet
+      --out artifacts/trivial_baseline_rel_pos/metrics.json
+    deps:
+      - scripts/eval_baseline_v0.py
+      - src/contracts
+      - artifacts/trivial_baseline_rel_pos/scores.parquet
+    metrics:
+      - artifacts/trivial_baseline_rel_pos/metrics.json:
+          cache: false
+
+  score_trivial_zscore_l2:
+    wdir: ..
+    cmd: python scripts/score_trivial_baselines.py
+      --contract-dir artifacts/contract_new_merge_expanded
+      --baseline zscore_l2
+      --out artifacts/trivial_baseline_zscore_l2/scores.parquet
+    deps:
+      - scripts/score_trivial_baselines.py
+      - src/contracts
+      - artifacts/contract_new_merge_expanded/eval_all.parquet
+      - artifacts/contract_new_merge_expanded/train.parquet
+      - artifacts/contract_new_merge_expanded/schema.json
+    outs:
+      - artifacts/trivial_baseline_zscore_l2/scores.parquet
+
+  eval_trivial_zscore_l2:
+    wdir: ..
+    cmd: python scripts/eval_baseline_v0.py
+      --scores artifacts/trivial_baseline_zscore_l2/scores.parquet
+      --out artifacts/trivial_baseline_zscore_l2/metrics.json
+    deps:
+      - scripts/eval_baseline_v0.py
+      - src/contracts
+      - artifacts/trivial_baseline_zscore_l2/scores.parquet
+    metrics:
+      - artifacts/trivial_baseline_zscore_l2/metrics.json:
+          cache: false
+
+  score_trivial_zscore_max:
+    wdir: ..
+    cmd: python scripts/score_trivial_baselines.py
+      --contract-dir artifacts/contract_new_merge_expanded
+      --baseline zscore_max
+      --out artifacts/trivial_baseline_zscore_max/scores.parquet
+    deps:
+      - scripts/score_trivial_baselines.py
+      - src/contracts
+      - artifacts/contract_new_merge_expanded/eval_all.parquet
+      - artifacts/contract_new_merge_expanded/train.parquet
+      - artifacts/contract_new_merge_expanded/schema.json
+    outs:
+      - artifacts/trivial_baseline_zscore_max/scores.parquet
+
+  eval_trivial_zscore_max:
+    wdir: ..
+    cmd: python scripts/eval_baseline_v0.py
+      --scores artifacts/trivial_baseline_zscore_max/scores.parquet
+      --out artifacts/trivial_baseline_zscore_max/metrics.json
+    deps:
+      - scripts/eval_baseline_v0.py
+      - src/contracts
+      - artifacts/trivial_baseline_zscore_max/scores.parquet
+    metrics:
+      - artifacts/trivial_baseline_zscore_max/metrics.json:
+          cache: false
