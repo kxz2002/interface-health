@@ -19,17 +19,17 @@ stages:
       size: 1802
     - path: data/new_merge
       hash: md5
-      md5: 2f049a3d96afd23ef0ddde375b0e6f01.dir
-      size: 132155637198
+      md5: 9f2080cbe7e32461412b724975607fda.dir
+      size: 132158990555
       nfiles: 2268
     - path: scripts/build_contract.py
       hash: md5
-      md5: cc42f3fb08b0eaa70f9bda8ffe0bc6d5
-      size: 48785
+      md5: b1a758f39d58cf3701e9e4f592dd3a85
+      size: 62270
     - path: src/contracts/contract_v0.py
       hash: md5
-      md5: 590df3bed7881608fb29e7def424b161
-      size: 4763
+      md5: 2c22d52d4cc0337050ded74a3b6fd7fc
+      size: 7345
     - path: src/contracts/split_fault_phase.py
       hash: md5
       md5: 4f44fb9931ada5a641d37fe487a78f38
@@ -48,8 +48,8 @@ stages:
       size: 8915
     - path: src/data/normalization.py
       hash: md5
-      md5: 974246ed8c75097a4b6e630074e863a9
-      size: 5674
+      md5: 3ff793d471e812db86baa66a91071783
+      size: 22914
     - path: src/preprocessors
       hash: md5
       md5: 66b951411af1d598edd9e63a402f18bd.dir
@@ -280,12 +280,12 @@ stages:
       size: 263764
     - path: scripts/eval_baseline_v0.py
       hash: md5
-      md5: fb2d4c4d0cfb7894f5d0508f51da47d4
-      size: 5834
+      md5: 07c945c83fe7a452a99fe9237b387600
+      size: 6768
     - path: src/contracts
       hash: md5
-      md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
-      size: 30470
+      md5: 3154937fdd3102cf8e4e1f396af1210f.dir
+      size: 39852
       nfiles: 8
     outs:
     - path: artifacts/baseline_new_merge_independent_concat/metrics.json
@@ -303,12 +303,12 @@ stages:
       size: 263914
     - path: scripts/eval_baseline_v0.py
       hash: md5
-      md5: fb2d4c4d0cfb7894f5d0508f51da47d4
-      size: 5834
+      md5: 07c945c83fe7a452a99fe9237b387600
+      size: 6768
     - path: src/contracts
       hash: md5
-      md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
-      size: 30470
+      md5: 3154937fdd3102cf8e4e1f396af1210f.dir
+      size: 39852
       nfiles: 8
     outs:
     - path: artifacts/baseline_new_merge_gated/metrics.json
@@ -326,12 +326,12 @@ stages:
       size: 263335
     - path: scripts/eval_baseline_v0.py
       hash: md5
-      md5: fb2d4c4d0cfb7894f5d0508f51da47d4
-      size: 5834
+      md5: 07c945c83fe7a452a99fe9237b387600
+      size: 6768
     - path: src/contracts
       hash: md5
-      md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
-      size: 30470
+      md5: 3154937fdd3102cf8e4e1f396af1210f.dir
+      size: 39852
       nfiles: 8
     outs:
     - path: artifacts/baseline_new_merge_concat/metrics.json
@@ -420,12 +420,12 @@ stages:
       size: 263018
     - path: scripts/eval_baseline_v0.py
       hash: md5
-      md5: fb2d4c4d0cfb7894f5d0508f51da47d4
-      size: 5834
+      md5: 07c945c83fe7a452a99fe9237b387600
+      size: 6768
     - path: src/contracts
       hash: md5
-      md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
-      size: 30470
+      md5: 3154937fdd3102cf8e4e1f396af1210f.dir
+      size: 39852
       nfiles: 8
     outs:
     - path: artifacts/baseline_new_merge_deviation_weighted/metrics.json
@@ -443,12 +443,12 @@ stages:
       size: 798401
     - path: scripts/score_trivial_baselines.py
       hash: md5
-      md5: d98258fe56277ae78e830a08d49cbf86
-      size: 8333
+      md5: 00a9d41270b3dd49e0ffcdf93919960f
+      size: 10959
     - path: src/contracts
       hash: md5
-      md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
-      size: 30470
+      md5: 3154937fdd3102cf8e4e1f396af1210f.dir
+      size: 39852
       nfiles: 8
     outs:
     - path: artifacts/trivial_baseline_rel_pos/scores.parquet
@@ -474,12 +474,12 @@ stages:
       size: 593200
     - path: scripts/score_trivial_baselines.py
       hash: md5
-      md5: d98258fe56277ae78e830a08d49cbf86
-      size: 8333
+      md5: 00a9d41270b3dd49e0ffcdf93919960f
+      size: 10959
     - path: src/contracts
       hash: md5
-      md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
-      size: 30470
+      md5: 3154937fdd3102cf8e4e1f396af1210f.dir
+      size: 39852
       nfiles: 8
     outs:
     - path: artifacts/trivial_baseline_zscore_l2/scores.parquet
@@ -505,12 +505,12 @@ stages:
       size: 593200
     - path: scripts/score_trivial_baselines.py
       hash: md5
-      md5: d98258fe56277ae78e830a08d49cbf86
-      size: 8333
+      md5: 00a9d41270b3dd49e0ffcdf93919960f
+      size: 10959
     - path: src/contracts
       hash: md5
-      md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
-      size: 30470
+      md5: 3154937fdd3102cf8e4e1f396af1210f.dir
+      size: 39852
       nfiles: 8
     outs:
     - path: artifacts/trivial_baseline_zscore_max/scores.parquet
@@ -528,12 +528,12 @@ stages:
       size: 161365
     - path: scripts/eval_baseline_v0.py
       hash: md5
-      md5: fb2d4c4d0cfb7894f5d0508f51da47d4
-      size: 5834
+      md5: 07c945c83fe7a452a99fe9237b387600
+      size: 6768
     - path: src/contracts
       hash: md5
-      md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
-      size: 30470
+      md5: 3154937fdd3102cf8e4e1f396af1210f.dir
+      size: 39852
       nfiles: 8
     outs:
     - path: artifacts/trivial_baseline_rel_pos/metrics.json
@@ -551,12 +551,12 @@ stages:
       size: 291366
     - path: scripts/eval_baseline_v0.py
       hash: md5
-      md5: fb2d4c4d0cfb7894f5d0508f51da47d4
-      size: 5834
+      md5: 07c945c83fe7a452a99fe9237b387600
+      size: 6768
     - path: src/contracts
       hash: md5
-      md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
-      size: 30470
+      md5: 3154937fdd3102cf8e4e1f396af1210f.dir
+      size: 39852
       nfiles: 8
     outs:
     - path: artifacts/trivial_baseline_zscore_l2/metrics.json
@@ -574,12 +574,12 @@ stages:
       size: 251264
     - path: scripts/eval_baseline_v0.py
       hash: md5
-      md5: fb2d4c4d0cfb7894f5d0508f51da47d4
-      size: 5834
+      md5: 07c945c83fe7a452a99fe9237b387600
+      size: 6768
     - path: src/contracts
       hash: md5
-      md5: c4795b8fd3ed1f280a5ae3b40bb51362.dir
-      size: 30470
+      md5: 3154937fdd3102cf8e4e1f396af1210f.dir
+      size: 39852
       nfiles: 8
     outs:
     - path: artifacts/trivial_baseline_zscore_max/metrics.json
