@@ -60,6 +60,7 @@ data/endpoint_raw/
 data/lo2-sample/
 data/external/
 
-# Claude Code local config
+# Claude Code local config（.claude/rules/ 是项目共享的按需规则，入 git；其余仍为本地配置）
 .aris/
-.claude/
+.claude/*
+!.claude/rules/

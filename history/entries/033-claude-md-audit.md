@@ -3,11 +3,13 @@
 - **日期**: 2026-10-11
 - **PR**: 待开（`feature/claude-md-audit`） · **Commit**: 见本 PR merge
 - **类型**: Docs
-- **影响域**: `CLAUDE.md`, `history/`, DVC 操作纪律, 数据采集协议
+- **影响域**: `CLAUDE.md`, `.claude/rules/`, `.gitignore`, `history/`, DVC 操作纪律, 数据采集协议
 
 ## 做了什么
 
-PR #31 合并后，用 `claude-md-improver` 流程审计根 CLAUDE.md，按用户确认的 9 组改动落地：
+分两轮。第二轮是瘦身：根 CLAUDE.md 从 291 行 / 2.9 万字符压到 137 行 / 1.25 万字符，低于官方建议的"每个 CLAUDE.md 不超过 200 行"。模块级 gotcha 原文迁到 `.claude/rules/` 下 4 个带 `paths:` 的规则文件（contract-and-labels / normalization / fusion-and-models / preprocessors-and-raw-data），Claude 读写匹配文件时才加载；根文件只留跨模块的一句话摘要和规则索引。`.gitignore` 由 `.claude/` 改为 `.claude/*` + `!.claude/rules/`，让规则入 git，其余本地配置仍忽略。
+
+第一轮是 PR #31 合并后，用 `claude-md-improver` 流程审计根 CLAUDE.md，按用户确认的 9 组改动落地：
 - Commands 里 v0/v1/RG/DWF/new_ep1 五个历史管线块（约 64 行）压缩为一段"不可重建、勿运行"警告。
 - 研究背景新增"当前研究状态"，汇总 027→031 的平凡基线结论与 P1/P2。
 - 核心任务定义改为现行口径：expand 训练池、三档正样本、per-case 宏平均主指标。
@@ -39,7 +41,11 @@ PR #31 合并后，用 `claude-md-improver` 流程审计根 CLAUDE.md，按用�
 
   也就是说，带状态码的 span 看起来全是 5xx。`trace_5xx_rate` 确实是退化列；`trace_error_rate` 实际是"5xx span 占比"，和 `client_error_rate>0` 几乎同时出现（2576/2578），不能一概判为不可用。论文要不要回改由用户决定，本次没有动 AnoMod 仓库。
 - **KILLPOD gotcha 是补判据，不是推翻**：AnoMod §6.3 更正的是 order/preserve：inject 阶段 trace 完好，trace_request_count 中位数从 7 涨到 62/18，属于重试风暴。本次复核 gateway 的缺陷成立：AnoMod 拷贝里该 case 的 561 行全是 baseline，inject 阶段 0 行。所以判据是"被杀的服务是否承担上报职责"，与故障类型无关。
-- **这次不压缩 Known Gotchas 的长段落**：这些段落是证据链，压缩容易丢细节，适合单独做一轮，见遗留 TODO。
+- **第一轮不压缩 Known Gotchas 的长段落**：这些段落是证据链，压缩容易丢细节，留给第二轮单独处理。
+- **（第二轮）用 `.claude/rules/` + `paths:`，不用子目录 CLAUDE.md**：子目录 CLAUDE.md 只能按目录绑定，而标签/训练池规则同时涉及 `scripts/build_contract.py`、`src/contracts/`、`configs/contract/`，放子目录要么重复、要么放进 `scripts/CLAUDE.md` 导致读任何脚本都加载。`@path` import 不考虑：被导入文件启动时就展开，不省上下文。
+- **（第二轮）迁移时原文照搬，不压缩**：规则文件按需加载，长度不再拖累每个会话；改写反而有丢证据链的风险。压缩只发生在根文件，每条摘要后附 entry 编号。
+- **（第二轮）跨模块、在读代码之前就要知道的规则留在根文件**：路径规则只在 Claude 读写匹配文件时加载，只跑 `dvc repro`、只解读 metrics.json 时不会触发。所以 DVC 安全、标签三档、eval_all 可比性、单 seed 陷阱、`trace_*` 错误列、KILLPOD 判据、整目录 dep 这几条在根文件保留了摘要。
+- **（第二轮）不改代码注释里的"见 CLAUDE.md ×× gotcha"**：这些注释散在 `scripts/build_contract.py`、`src/preprocessors/metric_preprocessor.py` 等文件里，两者都是 `dvc_new_merge` build stage 的 dep，改一个字符就会让整条链在 `dvc status` 里失效，破坏 entry 032 刚恢复的全绿状态。改为在根 CLAUDE.md 的规则索引里注明"注释里的 gotcha 指向这些规则文件"。
 
 ## 坑 / 已知问题
 
@@ -55,12 +61,13 @@ PR #31 合并后，用 `claude-md-improver` 流程审计根 CLAUDE.md，按用�
 
   三处都是写进 CLAUDE.md 前逐项复核时发现的。"全绿 / 为 0 / 一致"这类结论，落笔前要按原始数据重算。
 - **`configs/data/ep2_0729.yaml` 指向的 root `/tmp/ep2_0729_nolog` 已不存在**：entry 024 的产物 `artifacts/contract_ep2_0729*` 还在，但这个 config 已经无法再跑。
+- **`.gitignore` 里目录模式 `.claude/` 无法用 `!` 反选子目录**：git 不会进入已被排除的目录去看里面的反选规则。必须写成 `.claude/*`（排除目录内容）再 `!.claude/rules/`。已用 `git check-ignore` 验证：rules 不被忽略，`settings.local.json`、`agents/` 仍被忽略。
+- **规则文件的 `paths:` glob 写错不会报错**，只会让规则永远不加载。本次逐条用 `glob` 核对过，39 个模式都至少匹配到一个真实文件；以后重命名或移动文件时要同步改 frontmatter。
 
 ## 遗留 TODO
 
-- **CLAUDE.md 进一步瘦身**：文件还有 291 行、约 2.9 万字符，其中 Known Gotchas 一节约占 43%（25 条，最长一条 1.6k 字符）。可行方向：
-  - 长 gotcha 压成"规则 + entry 指针"；
-  - 按目录拆到子目录 CLAUDE.md 或 `.claude/rules/`。注意 `.claude/` 目前被 `.gitignore` 排除。
+- 第一轮留下的"CLAUDE.md 进一步瘦身"已由第二轮消化。规则文件仍是原文（`contract-and-labels.md` 6.6k 字符），若以后发现加载时占用过大，再按"规则 + entry 指针"压缩。
+- 代码注释里"见 CLAUDE.md ×× gotcha"的指针现在实际指向 `.claude/rules/`。等相关文件因真实改动需要重跑 DVC 时顺手改，不单独为注释动 DVC dep。
 - entry 031/032 的遗留项不变：注册 v2 contract build stage；开源发布前配置 DVC remote。
 - AnoMod PAPER_SPEC §6.4 对 `trace_error_rate` "不可用"的说法要不要回改，由用户决定。
 - `src/utils/logger.py` 的 `ExperimentLogger`（MLflow 封装）除了 `src/utils/__init__.py` 的导出，没有任何调用方；接入还是删除待定。
