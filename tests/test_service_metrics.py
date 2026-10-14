@@ -289,3 +289,39 @@ def test_round_timestamp_before_interval_filter(tmp_path, protocol):
     pd.DataFrame([row(119.9996, 13), row(-30.0004, 10)]).to_csv(path, index=False)
     f = pd.concat(list(iter_metric_batches([path], protocol)))
     assert f.query_time_ms.tolist() == [-30000]
+
+
+def test_returning_identity_restarts_transition(tmp_path, protocol):
+    # Removing episode restart would score 135s despite the switch at 120s.
+    protocol.config["cases"][0]["window_end_ms"] = 180000
+    rows = []
+    for identity, points in [("old", [0, 15]), ("new", [60, 75]), ("old", [120, 135, 150])]:
+        for t in points:
+            for metric, value in [
+                (CPU, t),
+                ("container_memory_usage_bytes", 100),
+                ("container_spec_memory_limit_bytes", 200),
+                ("container_processes", 1),
+            ]:
+                r = row(t, value, metric)
+                r["id"] = identity
+                rows.append(r)
+    f, _ = build(tmp_path, protocol, rows, end=180000)
+    assert f.loc[120000, "cpu_cores__status"] == "TRANSITION"
+    assert f.loc[135000, "cpu_cores__status"] == "TRANSITION"
+    assert not f.loc[135000, "resource_valid"]
+    assert f.loc[150000, "cpu_cores"] == 1.0
+    assert f.loc[150000, "resource_valid"]
+    assert f.loc[15000, "cpu_cores"] == 1.0  # Future episodes do not alter past output.
+
+
+def test_counter_rate_overflow_is_unsupported(tmp_path, protocol):
+    # Finite counter inputs with dt=.001s must not abort the full grid with inf.
+    f, q = build(tmp_path, protocol, [row(0, 0), row(0.001, 1e308)])
+    assert np.isnan(f.loc[0, "cpu_cores"])
+    assert f.loc[0, "cpu_cores__status"] == "UNSUPPORTED"
+    point = q[q.query_time_ms.eq(1)].iloc[0]
+    assert point.series_status == "UNSUPPORTED"
+    assert point.counter_dt_s == 0.001
+    assert point.counter_delta == 1e308
+    assert point.value == 1e308

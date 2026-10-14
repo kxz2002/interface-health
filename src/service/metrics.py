@@ -173,7 +173,7 @@ def _series_observations(raw: pd.DataFrame, protocol: ServiceProtocol) -> pd.Dat
                     record["series_status"] = "UNOBSERVED"
                 else:
                     dt = (time - previous_time) / 1000
-                    delta = value - previous_value
+                    delta = float(value) - float(previous_value)
                     record.update(counter_dt_s=dt, counter_delta=delta)
                     if dt <= 0:
                         record["series_status"] = "UNSUPPORTED"
@@ -182,7 +182,11 @@ def _series_observations(raw: pd.DataFrame, protocol: ServiceProtocol) -> pd.Dat
                     elif delta < 0:
                         record["series_status"] = "COUNTER_RESET"
                     else:
-                        record["feature_value"] = delta / dt
+                        rate = delta / dt
+                        if np.isfinite(rate):
+                            record["feature_value"] = rate
+                        else:
+                            record["series_status"] = "UNSUPPORTED"
             if record["series_status"] != "OBSERVED":
                 record["feature_value"] = np.nan
             result.append(record)
@@ -248,12 +252,20 @@ def build_metric_windows(
             else:
                 ident = tuple(current.iloc[0][IDENTITY])
                 history = all_service[all_service.query_time_ms.lt(end)]
-                firsts = history.groupby(IDENTITY, dropna=False).query_time_ms.min()
-                first = int(firsts.loc[ident])
-                # Initial identity has no demonstrated switch; later novel identities cool down.
-                switch = first > int(firsts.min())
-                if switch and start < first + cfg["transition_ms"]:
-                    override = "TRANSITION"
+                same_identity = pd.Series(True, index=history.index)
+                for column, value in zip(IDENTITY, ident):
+                    same_identity &= history[column].eq(value)
+                other = history[~same_identity]
+                if not other.empty:
+                    # Each return after another observed identity starts a new episode.
+                    # Include a same-time overlap: its first new observation starts
+                    # cooling even while the recent-identity rule takes precedence.
+                    last_other = int(other.query_time_ms.max())
+                    episode = history[same_identity & history.query_time_ms.ge(last_other)]
+                    if not episode.empty:
+                        switch_time = int(episode.query_time_ms.min())
+                        if start < switch_time + cfg["transition_ms"]:
+                            override = "TRANSITION"
             if override:
                 for name in FEATURE_VALUE_COLUMNS:
                     record[name + "__status"] = override
