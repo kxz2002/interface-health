@@ -340,13 +340,196 @@ def prepare(
         raise
 
 
+def score(
+    config_path: Path,
+    dataset_path: Path,
+    data_dir: Path,
+    out: Path,
+    *,
+    resolved_config: dict | None = None,
+) -> Path:
+    """Consume content-locked prepared data; fit each frozen reference once."""
+    import tempfile
+
+    import pyarrow
+    import sklearn
+
+    from src.service.baselines import fit_baselines, load_bundle, save_bundle, score_baselines
+
+    start = datetime.now(timezone.utc).isoformat()
+    if resolved_config is None:
+        protocol = load_protocol(config_path, dataset_path)
+    else:
+        with tempfile.TemporaryDirectory(prefix="service-score-config-") as folder:
+            path = Path(folder) / "protocol.yaml"
+            path.write_text(yaml.safe_dump(resolved_config))
+            protocol = load_protocol(path, dataset_path)
+    data_dir = Path(data_dir).resolve()
+    if not (data_dir / "_SUCCESS").is_file() or (data_dir / "_FAILURE").exists():
+        raise ValueError("score input requires successful frozen prepare")
+    manifest = json.loads((data_dir / "manifest.json").read_text())
+    # Recheck every output hash, including config/provenance, before any fit.
+    input_identities = []
+    for name, expected in manifest["outputs"].items():
+        if Path(name).name != name:
+            raise ValueError("unsafe manifest artifact name")
+        identity = _identify(data_dir / name, small=True)
+        if (
+            identity["sha256"] != expected["sha256"]
+            or identity["size_bytes"] != expected["size_bytes"]
+        ):
+            raise ValueError(f"prepared input hash mismatch: {name}")
+        input_identities.append(identity)
+    for key, value in protocol.config.items():
+        if key in {"command", "out", "data_dir", "run_dir", "evaluation_dir", "dataset"}:
+            continue
+        if manifest["config"].get(key) != value:
+            raise ValueError(f"prepared protocol mismatch: {key}")
+    features = pd.read_parquet(data_dir / "features.parquet")
+    index = pd.read_parquet(data_dir / "index.parquet")
+    protected = [REPO / "data", REPO.parent / "AnoMod", data_dir]
+    protected += [Path(p) for p in protocol.config["dataset_resolved"]["roots"]]
+    protected += [
+        p for p in (REPO / "artifacts").glob("*") if p.name.startswith(("contract", "baseline"))
+    ]
+    out = reserve_output(out, protected)
+    try:
+        (out / ".gitignore").write_text("/*.parquet\n/*.joblib\n")
+        bundle = fit_baselines(features, index, protocol)
+        scores = score_baselines(features, index, bundle, protocol)
+        # save_bundle refuses existing output; stage below newly reserved run.
+        staged = out / "bundle"
+        save_bundle(bundle, staged)
+        reloaded = score_baselines(features, index, load_bundle(staged), protocol)
+        for column in ("anomaly_score", "calibrated_score"):
+            np.testing.assert_allclose(
+                scores[column], reloaded[column], rtol=1e-10, atol=1e-12, equal_nan=True
+            )
+        pd.testing.assert_frame_equal(
+            scores.drop(columns=["anomaly_score", "calibrated_score"]),
+            reloaded.drop(columns=["anomaly_score", "calibrated_score"]),
+        )
+        for artifact in staged.iterdir():
+            artifact.rename(out / artifact.name)
+        staged.rmdir()
+        scores.to_parquet(out / "scores.parquet", index=False)
+        normal = scores[scores.partition.isin(["normal_fit", "normal_calibration", "normal_tail"])]
+        normal.to_parquet(out / "normal_reference_scores.parquet", index=False)
+        index[index.partition.isin(["normal_fit", "normal_calibration", "normal_tail"])][
+            [
+                "sample_id",
+                "case_id",
+                "canonical_service_id",
+                "window_start_ms",
+                "window_end_ms",
+                "partition",
+                "paired_resource_eligible",
+            ]
+        ].to_parquet(out / "normal_reference_ids.parquet", index=False)
+        diagnostic = normal.groupby(
+            ["canonical_service_id", "feature_group", "method", "partition"]
+        ).agg(
+            n_expected=("sample_id", "size"),
+            n_scored=("anomaly_score", "count"),
+            raw_min=("anomaly_score", "min"),
+            raw_median=("anomaly_score", "median"),
+            raw_max=("anomaly_score", "max"),
+            calibrated_min=("calibrated_score", "min"),
+            calibrated_median=("calibrated_score", "median"),
+            calibrated_max=("calibrated_score", "max"),
+        )
+        diagnostic.to_csv(out / "normal_reference_summary.csv")
+        # Equality includes Unknown/Untrained rows and every partition.
+        counts = scores.groupby(["sample_id", "feature_group"]).score_status.first().unstack()
+        if not counts["R3"].equals(counts["CPU-only"]):
+            raise AssertionError("CPU-only and R3 scoring eligibility differs")
+        _json(
+            out / "quality_report.json",
+            dict(
+                score_rows=len(scores),
+                expected_score_rows=len(features) * 8,
+                status_counts=scores.score_status.value_counts().to_dict(),
+                trained_service_groups=sum(
+                    r["status"] == "Trained" for r in bundle.references.values()
+                ),
+                model_fit_count=len(bundle.models),
+                shared_resource_ids_verified=True,
+                roundtrip_score_match=True,
+                reference_note="Simple baselines are research foundations; no independent Service state gold or method innovation claim",
+            ),
+        )
+        (out / "resolved_config.yaml").write_text(
+            yaml.safe_dump(protocol.config, allow_unicode=True, sort_keys=False)
+        )
+        code_paths = [
+            Path(__file__),
+            REPO / "src/service/baselines.py",
+            REPO / "src/service/protocol.py",
+            REPO / "scripts/benchmark_downstream.py",
+        ]
+        for identity in input_identities:
+            if _identify(Path(identity["path"]), small=True)["sha256"] != identity["sha256"]:
+                raise RuntimeError(f"input changed during score: {identity['path']}")
+        _json(
+            out / "source_manifest.json",
+            dict(
+                started_at_utc=start,
+                finished_at_utc=datetime.now(timezone.utc).isoformat(),
+                command=sys.argv,
+                sources=input_identities + [_identify(data_dir / "manifest.json", small=True)],
+                executed_code=[_identify(p, small=True) for p in code_paths],
+                config_sources=[
+                    _identify(Path(config_path), small=True),
+                    _identify(Path(dataset_path), small=True),
+                ],
+                git_commit=_git(["rev-parse", "HEAD"]),
+                git_status=_git(["status", "--short"]),
+                environment=dict(
+                    python=sys.version,
+                    numpy=np.__version__,
+                    pandas=pd.__version__,
+                    pyarrow=pyarrow.__version__,
+                    sklearn=sklearn.__version__,
+                    platform=platform.platform(),
+                ),
+                seed=42,
+                fit_budget=100,
+                score_direction="higher is more anomalous",
+                calibration_note="empirical tail ranking with ties; no probability or conformal guarantee",
+            ),
+        )
+        write_manifest(
+            out,
+            [data_dir / "manifest.json", *[Path(x["path"]) for x in input_identities]],
+            protocol,
+        )
+        output_manifest = json.loads((out / "manifest.json").read_text())
+        output_manifest["excluded_outputs"][
+            "run_manifest.json"
+        ] = "manifest alias; self-reference excluded"
+        _json(out / "manifest.json", output_manifest)
+        _json(out / "run_manifest.json", output_manifest)
+        (out / "_SUCCESS").write_text(datetime.now(timezone.utc).isoformat() + "\n")
+        return out
+    except Exception as error:
+        (out / "_FAILURE").write_text(f"{type(error).__name__}: {error}\n")
+        raise
+
+
 @hydra.main(config_path="../configs/service", config_name="minimal_v1", version_base=None)
 def main(cfg: DictConfig) -> None:
     command = cfg.command
-    if command != "prepare":
-        raise NotImplementedError(
-            f"Service command {command!r} is not implemented in T2; prepare only"
+    if command == "score":
+        score(
+            REPO / "configs/service/minimal_v1.yaml",
+            Path(cfg.dataset),
+            Path(cfg.data_dir),
+            Path(cfg.out),
+            resolved_config=OmegaConf.to_container(cfg, resolve=True),
         )
+        return
+    if command != "prepare":
+        raise NotImplementedError(f"Service command {command!r} is not implemented")
     # Overrides are validated through load_protocol; original config stays identifiable.
     prepare(
         REPO / "configs/service/minimal_v1.yaml",
