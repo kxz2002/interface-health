@@ -141,7 +141,7 @@ identity:
     ts-rebook-service-6b9b7fbb8b-9lh2n: ts-rebook-service
     ts-route-service-6f96d6c98-fmgwv: ts-route-service
     ts-seat-service-5d55754f88-xkxwj: ts-seat-service
-    ts-security-service-64996ff28d8-gwdfs: ts-security-service
+    ts-security-service-64996ff68-gwdfs: ts-security-service
     ts-station-service-7fdcb4d5df-xjkm4: ts-station-service
     ts-train-service-6798ffd58d-9mwlc: ts-train-service
     ts-travel-service-8fb54c6bb-s69w2: ts-travel-service

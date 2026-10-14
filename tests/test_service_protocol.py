@@ -187,6 +187,7 @@ def _make_feature_frame(index: pd.DataFrame) -> pd.DataFrame:
     for col in FEATURE_COLS:
         frame[col] = rng.random(len(frame)).astype(np.float64)
         frame[f"{col}__status"] = "OBSERVED"
+    frame["process_count"] = 1.0
     frame["observed_instance_count"] = pd.array([1] * len(frame), dtype="Int64")
     frame["identity_ambiguity"] = False
     frame["metric_last_query_time_ms"] = pd.array(frame["window_end_ms"], dtype="Int64")
@@ -270,6 +271,7 @@ def test_evidence_not_auto_gold(protocol: sp.ServiceProtocol) -> None:
         source_path="log_data/kubernetes_events.json",
         source_locator=json.dumps({"reason": "Killing", "first_ms": 1785272238000}),
         depends_on_input_sources=[],
+        review_status="confirmed",
         independent_label=1,
         proxy_label=None,
     )
@@ -294,6 +296,7 @@ def test_evidence_not_auto_gold(protocol: sp.ServiceProtocol) -> None:
                 fact_type="INSTANCE_TERMINATION",
                 evidence_grade="INDEPENDENT_STATE",
                 depends_on_input_sources=[],
+                review_status="confirmed",
                 independent_label=1,
             )
         ],
@@ -457,6 +460,7 @@ def test_evidence_schema_gaps_rejected() -> None:
         fact_type="INSTANCE_TERMINATION",
         depends_on_input_sources=[],
         heldout_from_model=False,
+        review_status="confirmed",
         independent_label=1,
         proxy_label=None,
     )
@@ -553,3 +557,85 @@ def test_resolved_config_rejects_mutations(mutate: object, message: str) -> None
     with pytest.raises(ValueError, match=message):
         # 直接驱动 resolved 校验，避免每个参数化用例落一个临时 YAML
         sp._validate_resolved(raw)
+
+
+@pytest.mark.parametrize("change", ["role", "target"])
+def test_frozen_case_identity_guard(protocol, change):
+    import copy
+
+    config = copy.deepcopy(protocol.config)
+    for key in ("registry", "dataset_resolved"):
+        config.pop(key, None)
+    if change == "role":
+        config["cases"][1].update(
+            role="normal",
+            is_anomaly_case=False,
+            inject_start_ms=None,
+            inject_end_ms=None,
+            target_service=None,
+        )
+    else:
+        config["cases"][1]["target_service"] = "ts-order-service"
+    with pytest.raises(ValueError):
+        sp._validate_resolved(config)
+
+
+@pytest.mark.parametrize(
+    "change", ["null_status", "observed_nan", "negative", "count", "valid", "null_bool"]
+)
+def test_resource_status_consistency_guard(protocol, change):
+    frame = _make_feature_frame(
+        sp.make_grid(protocol.config["cases"][0], protocol.config["services"])
+    )
+    if change == "null_status":
+        frame.loc[0, "cpu_cores__status"] = None
+    elif change == "observed_nan":
+        frame.loc[0, "cpu_cores"] = np.nan
+    elif change == "negative":
+        frame.loc[0, "cpu_cores"] = -1.0
+    elif change == "count":
+        frame.loc[0, "observed_instance_count"] = -1
+    elif change == "valid":
+        frame.loc[0, "resource_valid"] = False
+    else:
+        frame["resource_valid"] = frame["resource_valid"].astype("boolean")
+        frame.loc[0, "resource_valid"] = pd.NA
+    with pytest.raises(ValueError):
+        sp.validate_features(frame, protocol)
+
+
+@pytest.mark.parametrize("grade", ["CONTROLLED_EVENT", "OBSERVATION_DERIVED", "UNKNOWN"])
+def test_weak_evidence_cannot_carry_independent_label(grade):
+    row = _evidence_row(evidence_grade=grade, independent_label=1)
+    with pytest.raises(ValueError, match="independent_label"):
+        sp.validate_evidence(pd.DataFrame([row], columns=EVIDENCE_COLS))
+
+
+@pytest.mark.parametrize("service", ["security", "execute", "travel", "user"])
+def test_changed_nine_character_rs_hash(protocol, service):
+    name = f"ts-{service}-service"
+    assert sp.canonical_service(f"{name}-64996ff68-abcde", protocol.config["registry"]) == name
+
+
+@pytest.mark.parametrize("review", ["pending_human_review", "rejected"])
+def test_independent_label_requires_confirmed_review(review):
+    row = _evidence_row(
+        evidence_grade="INDEPENDENT_STATE",
+        independent_label=1,
+        depends_on_input_sources=[],
+        review_status=review,
+    )
+    with pytest.raises(ValueError, match="independent_label"):
+        sp.validate_evidence(pd.DataFrame([row], columns=EVIDENCE_COLS))
+
+
+def test_legitimate_unknown_and_zero_denominator(protocol):
+    frame = _make_feature_frame(
+        sp.make_grid(protocol.config["cases"][0], protocol.config["services"])
+    )
+    frame.loc[0, "memory_limit_bytes"] = 0.0
+    frame.loc[0, "memory_usage_ratio"] = np.nan
+    frame.loc[0, "memory_usage_ratio__status"] = "NO_DENOMINATOR"
+    frame.loc[0, "resource_valid"] = False
+    frame.loc[1, "process_count"] = 0.0
+    sp.validate_features(frame, protocol)

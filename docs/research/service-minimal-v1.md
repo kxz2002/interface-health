@@ -2,7 +2,7 @@
 
 > 状态：T0 协议冻结（2026-10-14）。本文档与 `configs/service/minimal_v1.yaml`、
 > `configs/service/evidence_minimal_v1.json`、`src/service/protocol.py` 同步；
-> 证据条目全部 `pending_human_review`，数字结论待人工核验后才能进入论文。
+> 9 条证据记录均为 `confirmed`；确认记录不改变证据等级，也不补足完整 Service 状态金标。
 
 ## 1. 任务定义
 
@@ -144,14 +144,17 @@ source_locator 只记录稳定标识（事件时间/Pod/指标选择器/source �
 
 - CPU 变化的唯一观测通道是 metric——而 metric 正是模型主输入，循环论证；
 - 服务不可用性没有独立观测：集群侧缺 readiness/endpoint Ready 历史导出，
-  应用侧的错误信号（trace 5xx、log、客户端错误率）全部属于模型可消费来源，
-  即便人工逐条读过也只能 OBSERVATION_DERIVED；
+  应用侧的 trace/log/client 错误需按实际配置的模型输入来源与状态语义判断独立性：
+  本版资源模型仅输入 Metric，同一 Metric 派生标签仍属 OBSERVATION_DERIVED；
+  留出的其他来源还需证明其对应的 Service 状态、单位及覆盖，不能直接把
+  客户端 HTTP 错误等同于内部资源异常或整个 Service 不可用；
 - 因此 v1 的评估叙述必须分层：
   - S1 可声明的：干预发生（CONTROLLED_EVENT）、实例终止（INDEPENDENT_STATE）；
   - 只能弱对照的：目标资源变化（proxy exposure，baseline 窗=0 / inject_core 窗=1）；
   - 暂不声明的：故障窗 = 服务不可用金标。
 - 模型输出的解读相应限定为"资源层偏离正常"，下游若要主张检测到了服务故障，
-  必须经过 T4 的 S2 固定事件检索，不允许在分数侧做阈值相关的事后选择。
+  T4 的 S2 仅评价注入目标 Service 检索，不能据此声称服务不可用性检测；
+  不允许在分数侧做阈值相关的事后选择。
 
 ## 4. PPT 第一页草案（一句话 + 三张证据卡）
 
@@ -220,14 +223,15 @@ T1 fixture 验证涉及真实 dt、系列身份、容器隔离、重复/冲突�
 选择、无记录完整网格、分母/进程零值、原始来源、过滤与时间舍入边界。此处仅交付
 预处理；检测器训练和正式事件评价由后续任务实现。
 
-### 6.1 本轮只读原始检查与待修复协议边界
+### 6.1 T1 原始检查与 T0 身份修复
 
 本轮在 T0 原始身份配置下读取 Normal/CPU 两个指定 Metric CSV：分别得到3000/3175
 完整网格行，2880/3048个有效 R3 窗。剩余候选 `ts-security-service` 的原始 Pod 实为
-`ts-security-service-64996ff68-gwdfs`，现 T0 registry 写成
-`ts-security-service-64996ff28d-gwdfs`，且 Deployment 正则限定10位 hash，使实际9位
-Pod 未被识别。这是已定位的 T0 身份配置/解析缺陷，不能当原始数据缺失；由后续 T0
-修复处理，再复核覆盖。T1不放宽规则绕过冻结配置。
+`ts-security-service-64996ff68-gwdfs`，修复前 T0 registry 实际写成
+`ts-security-service-64996ff28d8-gwdfs`，且 Deployment 正则限定10位 hash，使实际9位
+Pod 未被识别。这是 T0 身份配置/解析缺陷；现已修正 registry，并允许严格9或10位
+ReplicaSet hash，同时仍要求完整服务白名单及5位 Pod 后缀。修复后限定 Normal/CPU
+覆盖复核记录在 `.superpowers/sdd/plan/task-0-fix-report.md`。
 
 post-build 用元数据做诊断（不参与特征计算）：CPU preserve 的 baseline 中位数为
 cpu=.0084028、ratio=.21540039、process=1；inject_core 为 .53116107、.22043164、4。

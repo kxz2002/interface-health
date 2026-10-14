@@ -51,6 +51,17 @@ FROZEN_CASE_IDS = (
     "Lv_S_KILLPOD_order_20260728T203705Z_em",
     "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
 )
+FROZEN_CASE_IDENTITIES = dict(
+    zip(
+        FROZEN_CASE_IDS,
+        (
+            ("normal", False, None),
+            ("cpu", True, "ts-preserve-service"),
+            ("kill", True, "ts-order-service"),
+            ("kill", True, "ts-preserve-service"),
+        ),
+    )
+)
 FROZEN_SERVICES = (
     "ts-assurance-service",
     "ts-auth-service",
@@ -281,6 +292,20 @@ def _validate_resolved(raw: dict[str, Any]) -> dict[str, Any]:
             case["is_anomaly_case"] == (case["role"] != "normal"),
             f"case {case['case_id']} 的 role={case['role']} 与 is_anomaly_case 不一致",
         )
+        _require(
+            (case["role"], case["is_anomaly_case"], case.get("target_service"))
+            == FROZEN_CASE_IDENTITIES[case["case_id"]],
+            f"case {case['case_id']} 的 role/is_anomaly_case/target_service 必须冻结",
+        )
+        _require(case["window_start_ms"] < case["window_end_ms"], "window 起止必须有序")
+        if not case["is_anomaly_case"]:
+            _require(
+                all(
+                    case.get(k) is None
+                    for k in ("inject_start_ms", "inject_end_ms", "target_service")
+                ),
+                "Normal 注入时间与目标必须 null",
+            )
         if case["is_anomaly_case"]:
             for key in ("inject_start_ms", "inject_end_ms", "target_service"):
                 _require(
@@ -293,6 +318,12 @@ def _validate_resolved(raw: dict[str, Any]) -> dict[str, Any]:
             _require(
                 case["target_service"] in FROZEN_SERVICES,
                 f"{case['case_id']} target_service 不在候选集合",
+            )
+
+            _require(
+                case["window_start_ms"] <= case["inject_start_ms"] < case["window_end_ms"]
+                and case["inject_start_ms"] < case["inject_end_ms"],
+                "inject 起止必须有序且起点位于 capture window",
             )
 
     services = raw.get("services")
@@ -514,7 +545,7 @@ def canonical_service(pod: str, registry: dict[str, str]) -> str | None:
     parts = pod.rsplit("-", 2)
     if (
         len(parts) == 3
-        and re.fullmatch(r"[a-z0-9]{10}", parts[1]) is not None
+        and re.fullmatch(r"[a-z0-9]{9,10}", parts[1]) is not None
         and re.fullmatch(r"[a-z0-9]{5}", parts[2]) is not None
         and parts[0] in FROZEN_SERVICES
     ):
@@ -687,8 +718,17 @@ def validate_features(frame: pd.DataFrame, protocol: ServiceProtocol) -> None:
             np.isfinite(finite.to_numpy()).all(),
             f"{col} 不允许 inf，只允许有限值或 NaN",
         )
+        _require(frame[status_col].notna().all(), f"{status_col} 不允许 null")
         bad_status = set(frame[status_col].dropna().unique()) - set(FEATURE_STATUS_ENUM)
         _require(not bad_status, f"{status_col} 出现非法枚举: {sorted(bad_status)}")
+
+        observed = frame[status_col].eq("OBSERVED")
+        _require(
+            observed.eq(values.notna()).all(), f"{col} OBSERVED 必须对应有限值，其余状态必须 NaN"
+        )
+        _require(values.dropna().ge(0).all(), f"{col} 不允许负值")
+        if col == "process_count":
+            _require(values.dropna().mod(1).eq(0).all(), "process_count 必须是整数计数")
 
     for col in DIAGNOSTIC_COLUMNS:
         _require(col in frame.columns, f"features 表缺少诊断列: {col}")
@@ -702,6 +742,17 @@ def validate_features(frame: pd.DataFrame, protocol: ServiceProtocol) -> None:
             pd.api.types.is_integer_dtype(frame[col]),
             f"{col} 必须是 nullable 整数列",
         )
+
+    for col in ("identity_ambiguity", "resource_valid"):
+        _require(frame[col].notna().all(), f"{col} 不允许 null")
+    counts = frame["observed_instance_count"]
+    _require(counts.notna().all() and counts.ge(0).all(), "observed_instance_count 必须非空非负")
+    expected_valid = counts.eq(1) & ~frame["identity_ambiguity"]
+    for col in protocol.config["feature_groups"]["R3"]:
+        expected_valid &= frame[col + "__status"].eq("OBSERVED") & frame[col].notna()
+    _require(
+        frame["resource_valid"].eq(expected_valid).all(), "resource_valid 与 R3/身份状态不一致"
+    )
 
     allowed = set(KEY_COLUMNS) | set(DIAGNOSTIC_COLUMNS)
     allowed |= set(FEATURE_VALUE_COLUMNS) | {f"{c}__status" for c in FEATURE_VALUE_COLUMNS}
@@ -853,6 +904,14 @@ def validate_evidence(frame: pd.DataFrame) -> None:
             raise ValueError(
                 f"evidence {row['evidence_id']}: INDEPENDENT_STATE 声称独立于模型输入来源，"
                 "heldout_from_model=false 与之矛盾，必须对模型留一"
+            )
+        if pd.notna(row["independent_label"]):
+            _require(
+                row["evidence_grade"] == "INDEPENDENT_STATE"
+                and row["heldout_from_model"]
+                and not deps
+                and row["review_status"] == "confirmed",
+                "independent_label 必须具有 confirmed/heldout/无输入依赖的 INDEPENDENT_STATE 证据",
             )
         if (
             row["fact_type"] in TERMINATION_FACT_TYPES
