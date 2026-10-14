@@ -797,6 +797,13 @@ def evaluate(
 @hydra.main(config_path="../configs/service", config_name="minimal_v1", version_base=None)
 def main(cfg: DictConfig) -> None:
     command = cfg.command
+    if command == "report":
+        from src.service.evaluation import render_report
+
+        render_report(
+            Path(cfg.data_dir), Path(cfg.run_dir), Path(cfg.evaluation_dir), Path(cfg.out)
+        )
+        return
     if command == "evaluate":
         evaluate(
             REPO / "configs/service/minimal_v1.yaml",

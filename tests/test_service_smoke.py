@@ -229,3 +229,70 @@ def test_prepare_detects_same_stat_small_source_mutation(tmp_path, monkeypatch):
         experiment.prepare(config, dataset, out)
     assert (out / "_FAILURE").exists()
     assert not (out / "_SUCCESS").exists()
+
+
+def test_report_is_score_readonly(tmp_path, monkeypatch):
+    import hashlib
+
+    from sklearn.ensemble import IsolationForest
+    from sklearn.svm import OneClassSVM
+
+    import scripts.service_experiment as experiment
+    from src.service.evaluation import render_report
+
+    config, dataset, _, _ = fixture_inputs(tmp_path)
+    data, run, evaluation = [tmp_path / name for name in ["data", "run", "evaluation"]]
+    # Extend only the synthetic Normal fixture to exercise actual toy model fitting.
+    raw_config = yaml.safe_load(config.read_text())
+    normal = next(c for c in raw_config["cases"] if c["role"] == "normal")
+    root = Path(yaml.safe_load(dataset.read_text())["roots"][0])
+    metric_path = root / normal["case_id"] / "metric_data" / f"{normal['case_id']}_metrics.csv"
+    seed_rows = pd.read_csv(metric_path)
+    first = seed_rows[seed_rows.timestamp == seed_rows.timestamp.min()]
+    expanded = []
+    count = int((normal["window_end_ms"] - normal["window_start_ms"]) // 15000)
+    for i in range(count):
+        chunk = first.copy()
+        chunk["timestamp"] = normal["window_start_ms"] / 1000 + 15 * i
+        chunk.loc[chunk.metric_name == "container_cpu_usage_seconds_total", "value"] = i * 3
+        expanded.append(chunk)
+    pd.concat(expanded, ignore_index=True).to_csv(metric_path, index=False)
+    experiment.prepare(config, dataset, data)
+    experiment.score(config, dataset, data, run)
+    experiment.evaluate(config, dataset, data, run, evaluation)
+    import joblib
+
+    assert joblib.load(run / "models.joblib")
+    saved_scores = pd.read_parquet(run / "scores.parquet")
+    assert saved_scores.score_status.eq("Unknown").any()
+    assert saved_scores[["feature_group", "method"]].drop_duplicates().shape[0] == 8
+    snapshots = {
+        p: hashlib.sha256(p.read_bytes()).hexdigest()
+        for folder in [data, run, evaluation]
+        for p in folder.iterdir()
+        if p.is_file()
+    }
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("report must not fit, prepare, score or parse raw")
+
+    for name in ["prepare", "score", "build_metric_windows"]:
+        monkeypatch.setattr(experiment, name, forbidden)
+    monkeypatch.setattr(IsolationForest, "fit", forbidden)
+    monkeypatch.setattr(OneClassSVM, "fit", forbidden)
+    out = tmp_path / "report"
+    render_report(data, run, evaluation, out)
+    assert (out / "_SUCCESS").is_file()
+    assert len(pd.read_csv(out / "event_comparison.csv")) == 24
+    assert pd.read_csv(out / "event_comparison.csv").n_candidates.eq(25).all()
+    assert pd.read_csv(out / "service_coverage.csv").canonical_service_id.nunique() == 25
+    assert all(
+        hashlib.sha256(p.read_bytes()).hexdigest() == digest for p, digest in snapshots.items()
+    )
+    with pytest.raises(ValueError, match="exists"):
+        render_report(data, run, evaluation, out)
+    target = data / "features.parquet"
+    target.write_bytes(target.read_bytes() + b"x")
+    with pytest.raises(ValueError, match="hash mismatch"):
+        render_report(data, run, evaluation, tmp_path / "tampered")
+    assert not (tmp_path / "tampered").exists()
