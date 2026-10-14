@@ -258,3 +258,38 @@ UNSUPPORTED，保留原值、dt与delta诊断，避免一个非法值使完整�
 T1复审round2补充old@0/15/45与new@30/60/75/90交错测试：new保护起点保持30，
 旧快照45仍由30秒身份歧义规则保护，75窗恢复有效观测。回归身份保护与CPU溢出测试
 同时保留，最终T0/T1共58项通过。身份段只代表原始观测连续性，不宣称真实实例生命周期。
+
+## 7. T2：独立 prepare 数据与覆盖（2026-10-14）
+
+`scripts/service_experiment.py` 实现 Hydra `command=prepare`，其余命令明确待实现。
+prepare 逐项验证四 case 的真实元数据及唯一原始 Metric 文件，消费 T1 公共函数；
+完整网格上冻结 `features / instance_quality / index / events / evidence`。
+主索引的配对资格来自 R3 `resource_valid`，证据仅按同 case、同 Service、半开区间
+相交关联。CPU 受控暴露弱标签单独保留；Killing 不用于筛选资源实例或修补 Unknown。
+
+|资产|本轮状态|范围与 Unknown|
+|---|---|---|
+|原始 Metric、真实 case metadata、冻结证据|已有输入，仅只读|4 case、25 候选；不改正式 Endpoint 标签|
+|Service 资源完整网格与共享时间索引|T2 新增|12,150 行；12,072 R3 有效，78 Unknown|
+|Normal 参考分段|T2 新增索引，尚未训练|25 服务各 120 窗：fit 72 / calibration 24 / tail 24；全部 R3 有效|
+|CPU preserve|T2 新增资源观测|127/127 有效；baseline 77、inject_core 35、boundary 10、recover 5|
+|KILL order / preserve|T2 新增身份与质量诊断|目标分别 80/120、81/119 有效；各 inject_core 0/35，有效覆盖 0；候选仍保留|
+|Service 独立可用性金标|仍缺失|Killing 只证明实例终止，CPU 变化依赖输入；不生成独立 AUROC/AP|
+|检测器、评分与事件检索性能|待 T3/T4|本轮 prepare 没有拟合或训练|
+
+两 KILL 目标的资源观测分别出现 47 / 45 个 container id；注入核心窗口全部因
+近期多身份观测保留 `IDENTITY_AMBIGUOUS`。这些 id 数量不表示同时存活实例数；
+Killing 的 201 条记录仍属于一个干预事件内重复动作。两个 KILL 的其余 24 服务
+网格均有有效资源观测，不据此额外认定服务健康。
+
+Normal/CPU 中 preserve、order 以及非目标 auth、gateway 均为稳定单系列。
+CPU case preserve 的注入核心 CPU 最大值为 .984408 cores，auth / gateway 分别为
+.030298 / .108675；这些是输入描述，没有拟合模型，也没有宣称检测能力。
+所有查询时间保留 query_range 语义，真实 scrape 新鲜度和接收时间仍未知；
+被裁掉的首尾部分窗口时长与原因存入 `quality_report.json`。
+
+主数据目录为 `artifacts/service_minimal_v1_20261014T095447Z/data`。
+首轮 `...20261014T095105Z/data` 保留开发审计并加 `superseded.md`：后来 fixture
+揭示证据 nullable Int8 与有效 R3 行排除字段两项 Schema 问题，已修正后生成新目录。
+不覆盖原产物，后续 score 使用主数据目录。大原始文件仅保存 path/size/mtime_ns，
+明确是 stat 标识而非完整内容锁定；小配置/元数据与实际执行代码保存 SHA256。

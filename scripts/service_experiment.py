@@ -1,0 +1,343 @@
+"""Isolated Service preparation; resource model fitting belongs to score."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import platform
+import resource
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+import hydra
+import numpy as np
+import pandas as pd
+import yaml
+from omegaconf import DictConfig, OmegaConf
+
+# Direct script invocation follows the repository's existing entrypoint convention.
+REPO = Path(__file__).resolve().parents[1]
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+
+from src.service.metrics import build_metric_windows
+from src.service.protocol import (
+    EVIDENCE_COLUMNS,
+    PROTOCOL_ID,
+    load_case_meta,
+    load_protocol,
+    make_indices,
+    reserve_output,
+    validate_evidence,
+    write_manifest,
+)
+
+LOG = logging.getLogger(__name__)
+EVIDENCE = REPO / "configs/service/evidence_minimal_v1.json"
+
+
+def _json(path: Path, value: object) -> None:
+    path.write_text(
+        json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    )
+
+
+def _identify(path: Path, *, small: bool) -> dict:
+    stat = path.stat()
+    result = dict(
+        path=str(path.resolve()),
+        size_bytes=stat.st_size,
+        mtime_ns=stat.st_mtime_ns,
+        identification="sha256" if small else "stat-only; not a content lock",
+    )
+    if small:
+        result["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return result
+
+
+def _git(args: list[str]) -> str:
+    return subprocess.check_output(["git", *args], cwd=REPO, text=True).strip()
+
+
+def _events(protocol, evidence):
+    records = []
+    for case in protocol.config["cases"]:
+        if not case["is_anomaly_case"]:
+            continue
+        effects = evidence[
+            (evidence.case_id == case["case_id"])
+            & evidence.fact_type.isin(["CPU_RESOURCE_CHANGE", "INSTANCE_TERMINATION"])
+        ]
+        records.append(
+            dict(
+                event_id=case["case_id"],
+                case_id=case["case_id"],
+                fault_type=case["role"],
+                configured_target_service=case["target_service"],
+                configured_start_ms=case["inject_start_ms"],
+                configured_end_ms=case["inject_end_ms"],
+                first_effect_evidence_ms=int(effects.start_ms.min()) if len(effects) else None,
+                effect_evidence_ids=effects.evidence_id.tolist(),
+                effect_grade=";".join(sorted(set(effects.evidence_grade))),
+                candidate_set_id=PROTOCOL_ID + "::25-services",
+                evaluation_start_ms=case["inject_start_ms"] + protocol.config["guard_ms"],
+                evaluation_end_ms=min(
+                    case["inject_end_ms"] - protocol.config["guard_ms"], case["window_end_ms"]
+                ),
+                review_status=(
+                    "confirmed"
+                    if len(effects) and effects.review_status.eq("confirmed").all()
+                    else "pending_human_review"
+                ),
+                causal_ambiguity="CPU change is input-derived; Killing establishes instance termination only; service availability unknown",
+            )
+        )
+    events = pd.DataFrame(records)
+    events["first_effect_evidence_ms"] = events.first_effect_evidence_ms.astype("Int64")
+    return events
+
+
+def prepare(
+    config_path: Path,
+    dataset_path: Path,
+    out: Path,
+    evidence_path: Path = EVIDENCE,
+    *,
+    resolved_config: dict | None = None,
+) -> Path:
+    """Validate selected inputs before any resource read; never overwrite outputs."""
+    start = time.monotonic()
+    started = datetime.now(timezone.utc).isoformat()
+    if resolved_config is None:
+        protocol = load_protocol(Path(config_path), Path(dataset_path))
+    else:
+        import tempfile
+
+        with tempfile.TemporaryDirectory(prefix="service-resolved-") as folder:
+            resolved = Path(folder) / "protocol.yaml"
+            resolved.write_text(yaml.safe_dump(resolved_config))
+            protocol = load_protocol(resolved, Path(dataset_path))
+    roots = [Path(p).resolve() for p in protocol.config["dataset_resolved"]["roots"]]
+    protected = [REPO / "data", REPO.parent / "AnoMod", *roots]
+    protected.extend(
+        p for p in (REPO / "artifacts").glob("*") if p.name.startswith(("contract", "baseline"))
+    )
+    out = reserve_output(Path(out), protected)
+    try:
+        (out / ".gitignore").write_text("/*.parquet\n/*.joblib\n")
+        evidence_path = Path(evidence_path)
+        evidence = pd.DataFrame(
+            json.loads(evidence_path.read_text())["evidence"], columns=EVIDENCE_COLUMNS
+        )
+        for label in ("independent_label", "proxy_label"):
+            evidence[label] = pd.array(evidence[label], dtype="Int8")
+        validate_evidence(evidence)
+        selected = []
+        small_inputs = [Path(config_path), Path(dataset_path), evidence_path]
+        raw_inputs = []
+        for case in protocol.config["cases"]:
+            candidates = [
+                root / case["case_id"] for root in roots if (root / case["case_id"]).is_dir()
+            ]
+            if len(candidates) != 1:
+                raise FileNotFoundError(
+                    f"case {case['case_id']} requires exactly one dataset directory; found {candidates}"
+                )
+            folder = candidates[0]
+            meta = load_case_meta(folder)
+            for key in (
+                "case_id",
+                "is_anomaly_case",
+                "window_start_ms",
+                "window_end_ms",
+                "inject_start_ms",
+                "inject_end_ms",
+                "target_service",
+                "chaos_kind",
+                "chaos_yaml",
+                "recoverable",
+            ):
+                if meta.get(key) != case.get(key):
+                    raise ValueError(
+                        f"case metadata {folder}: {key} differs from frozen config: {meta.get(key)!r} != {case.get(key)!r}"
+                    )
+            paths = sorted((folder / "metric_data").glob(f"{case['case_id']}_metrics*.csv"))
+            if len(paths) != 1:
+                raise FileNotFoundError(
+                    f"case {case['case_id']} requires exactly one original Metric CSV; found {paths}"
+                )
+            selected.append((paths, meta))
+            raw_inputs.extend(paths)
+            small_inputs.append(folder / "trace_data/case_metadata.json")
+        # Small held-out Kubernetes event files and chaos plans are provenance only.
+        # Original CSV content hashes in evidence are historical citations, not checked here.
+        for source in evidence.source_path.dropna().unique():
+            source = Path(source)
+            if source not in raw_inputs:
+                if not source.is_file():
+                    raise FileNotFoundError(f"evidence source missing: {source}")
+                # Fixture evidence may cite real sources; only small metadata is hashed.
+                raw_inputs.append(source)
+        source_before = [_identify(p, small=True) for p in small_inputs]
+        source_before += [_identify(p, small=False) for p in raw_inputs]
+        feature_frames, quality_frames, case_reports = [], [], []
+        for paths, meta in selected:
+            case_start = time.monotonic()
+            features, quality = build_metric_windows(paths, meta, protocol)
+            case_reports.append(
+                dict(
+                    case_id=meta["case_id"],
+                    feature_rows=len(features),
+                    instance_quality_rows=len(quality),
+                    elapsed_s=time.monotonic() - case_start,
+                    metric_input_bytes=sum(p.stat().st_size for p in paths),
+                    partial_windows=features.attrs.get("partial_windows"),
+                    timestamp_semantics=features.attrs.get("timestamp_semantics"),
+                )
+            )
+            feature_frames.append(features)
+            quality_frames.append(quality)
+        features = pd.concat(feature_frames, ignore_index=True)
+        quality = pd.concat(quality_frames, ignore_index=True)
+        index = make_indices(features, protocol)
+        valid = features.set_index("sample_id").resource_valid
+        reasons = features.set_index("sample_id").quality_reasons
+        index["paired_resource_eligible"] = index.sample_id.map(valid).astype(bool)
+        index["exclusion_reasons"] = [
+            [] if eligible else list(reasons.loc[sample])
+            for sample, eligible in zip(index.sample_id, index.paired_resource_eligible)
+        ]
+        # Half-open interval overlap establishes an evidence link, never a new label.
+        index["evidence_ids"] = [
+            evidence.loc[
+                (evidence.case_id == row.case_id)
+                & (evidence.canonical_service_id == row.canonical_service_id)
+                & (evidence.start_ms < row.window_end_ms)
+                & (evidence.end_ms > row.window_start_ms),
+                "evidence_id",
+            ].tolist()
+            for row in index.itertuples()
+        ]
+        tables = dict(
+            features=features,
+            instance_quality=quality,
+            index=index,
+            events=_events(protocol, evidence),
+            evidence=evidence,
+        )
+        for name, frame in tables.items():
+            frame.to_parquet(out / f"{name}.parquet", index=False)
+        coverage = (
+            index.groupby(["case_id", "canonical_service_id", "partition", "phase"], observed=True)
+            .paired_resource_eligible.agg(["size", "sum"])
+            .reset_index()
+        )
+        coverage.columns = [
+            "case_id",
+            "canonical_service_id",
+            "partition",
+            "phase",
+            "n_expected",
+            "n_resource_valid",
+        ]
+        coverage["coverage"] = coverage.n_resource_valid / coverage.n_expected
+        coverage.to_csv(out / "coverage.csv", index=False)
+        # Inputs must remain stable over preparation; stat guard detects obvious drift.
+        for identity in source_before:
+            now = Path(identity["path"]).stat()
+            if (now.st_size, now.st_mtime_ns) != (identity["size_bytes"], identity["mtime_ns"]):
+                raise RuntimeError(f"input changed during prepare: {identity['path']}")
+        finished = datetime.now(timezone.utc).isoformat()
+        import pyarrow
+        import sklearn
+
+        code_sources = [
+            _identify(Path(__file__), small=True),
+            _identify(REPO / "src/service/protocol.py", small=True),
+            _identify(REPO / "src/service/metrics.py", small=True),
+        ]
+        environment = dict(
+            python=sys.version,
+            platform=platform.platform(),
+            numpy=np.__version__,
+            pandas=pd.__version__,
+            pyarrow=pyarrow.__version__,
+            sklearn=sklearn.__version__,
+        )
+        (out / "resolved_config.yaml").write_text(
+            yaml.safe_dump(protocol.config, allow_unicode=True, sort_keys=False)
+        )
+        _json(
+            out / "source_manifest.json",
+            dict(
+                started_at_utc=started,
+                finished_at_utc=finished,
+                sources=source_before,
+                executed_code=code_sources,
+                resolved_config_sha256=hashlib.sha256(
+                    (out / "resolved_config.yaml").read_bytes()
+                ).hexdigest(),
+                raw_identification_note="stat-only; no full raw content hash; no raw copies",
+                evidence_hash_note="source_sha256 in evidence is frozen historical provenance; not recomputed for raw CSV",
+                git_commit=_git(["rev-parse", "HEAD"]),
+                git_status=_git(["status", "--short"]),
+                environment=environment,
+            ),
+        )
+        _json(
+            out / "schema.json",
+            dict(
+                protocol_id=PROTOCOL_ID,
+                schema=protocol.config["schema"],
+                tables={n: {c: str(t) for c, t in f.dtypes.items()} for n, f in tables.items()},
+            ),
+        )
+        _json(
+            out / "quality_report.json",
+            dict(
+                cases=case_reports,
+                feature_rows=len(features),
+                resource_valid_rows=int(features.resource_valid.sum()),
+                unknown_rows=int((~features.resource_valid).sum()),
+                state_gold_note="Independent Service availability labels absent; Unknown remains unknown",
+                cases_evidence_count=len(evidence),
+                elapsed_s=time.monotonic() - start,
+                peak_rss_bytes=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
+                metric_input_bytes=sum(p.stat().st_size for paths, _ in selected for p in paths),
+                artifacts={
+                    n: dict(rows=len(f), bytes=(out / f"{n}.parquet").stat().st_size)
+                    for n, f in tables.items()
+                },
+            ),
+        )
+        write_manifest(out, [*small_inputs, *raw_inputs], protocol)
+        (out / "_SUCCESS").write_text(finished + "\n")
+        LOG.info("Service prepare complete: %s", out)
+        return out
+    except Exception as error:
+        (out / "_FAILURE").write_text(f"{type(error).__name__}: {error}\n")
+        raise
+
+
+@hydra.main(config_path="../configs/service", config_name="minimal_v1", version_base=None)
+def main(cfg: DictConfig) -> None:
+    command = cfg.command
+    if command != "prepare":
+        raise NotImplementedError(
+            f"Service command {command!r} is not implemented in T2; prepare only"
+        )
+    # Overrides are validated through load_protocol; original config stays identifiable.
+    prepare(
+        REPO / "configs/service/minimal_v1.yaml",
+        Path(cfg.dataset),
+        Path(cfg.out),
+        resolved_config=OmegaConf.to_container(cfg, resolve=True),
+    )
+
+
+if __name__ == "__main__":
+    main()

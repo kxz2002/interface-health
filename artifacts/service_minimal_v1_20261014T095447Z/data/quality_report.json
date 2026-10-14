@@ -1,0 +1,82 @@
+{
+  "artifacts": {
+    "events": {
+      "bytes": 12523,
+      "rows": 3
+    },
+    "evidence": {
+      "bytes": 23713,
+      "rows": 9
+    },
+    "features": {
+      "bytes": 430289,
+      "rows": 12150
+    },
+    "index": {
+      "bytes": 141902,
+      "rows": 12150
+    },
+    "instance_quality": {
+      "bytes": 871038,
+      "rows": 66791
+    }
+  },
+  "cases": [
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "elapsed_s": 29.286992982961237,
+      "feature_rows": 3000,
+      "instance_quality_rows": 15125,
+      "metric_input_bytes": 65126805,
+      "partial_windows": {
+        "leading_partial_ms": 8365,
+        "trailing_partial_ms": 279
+      },
+      "timestamp_semantics": "Prometheus query_range timestamp; scrape freshness and receipt time unknown"
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "elapsed_s": 31.40703759016469,
+      "feature_rows": 3175,
+      "instance_quality_rows": 16125,
+      "metric_input_bytes": 69440747,
+      "partial_windows": {
+        "leading_partial_ms": 11025,
+        "trailing_partial_ms": 13099
+      },
+      "timestamp_semantics": "Prometheus query_range timestamp; scrape freshness and receipt time unknown"
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "elapsed_s": 31.57576879300177,
+      "feature_rows": 3000,
+      "instance_quality_rows": 17879,
+      "metric_input_bytes": 71893364,
+      "partial_windows": {
+        "leading_partial_ms": 2918,
+        "trailing_partial_ms": 5881
+      },
+      "timestamp_semantics": "Prometheus query_range timestamp; scrape freshness and receipt time unknown"
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "elapsed_s": 32.28010929375887,
+      "feature_rows": 2975,
+      "instance_quality_rows": 17662,
+      "metric_input_bytes": 71723518,
+      "partial_windows": {
+        "leading_partial_ms": 12581,
+        "trailing_partial_ms": 11274
+      },
+      "timestamp_semantics": "Prometheus query_range timestamp; scrape freshness and receipt time unknown"
+    }
+  ],
+  "cases_evidence_count": 9,
+  "elapsed_s": 128.76493020588532,
+  "feature_rows": 12150,
+  "metric_input_bytes": 278184434,
+  "peak_rss_bytes": 329805824,
+  "resource_valid_rows": 12072,
+  "state_gold_note": "Independent Service availability labels absent; Unknown remains unknown",
+  "unknown_rows": 78
+}
