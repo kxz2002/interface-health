@@ -376,3 +376,180 @@ def test_output_protection(tmp_path: Path, protocol: sp.ServiceProtocol) -> None
     (bogus / "trace_data" / "case_metadata.json").write_text(json.dumps({"case_id": "case_x"}))
     with pytest.raises(ValueError, match="window_start_ms"):
         sp.load_case_meta(bogus)
+
+
+EVIDENCE_JSON = REPO / "configs/service/evidence_minimal_v1.json"
+
+
+def test_committed_evidence_file_passes_schema(protocol: sp.ServiceProtocol) -> None:
+    """落盘证据文件必须被 validate_evidence 接受，且顶层标识与协议一致。"""
+    doc = json.loads(EVIDENCE_JSON.read_text())
+    assert doc["schema_version"] == "service_minimal_v1"
+    assert doc["protocol_id"] == protocol.config["protocol_id"]
+    frame = pd.DataFrame(doc["evidence"], columns=sp.EVIDENCE_COLUMNS)
+    sp.validate_evidence(frame)
+
+
+def test_features_reject_nonfrozen_members(protocol: sp.ServiceProtocol) -> None:
+    services = protocol.config["services"]
+    meta = next(c for c in protocol.config["cases"] if c["case_id"] == CPU_CASE)
+    features = _make_feature_frame(sp.make_indices(sp.make_grid(meta, services), protocol))
+    sp.validate_features(features, protocol)
+
+    bad_case = features.copy()
+    bad_case.loc[0, "case_id"] = "Lv_NOT_A_FROZEN_CASE"
+    bad_case.loc[0, "sample_id"] = json.dumps(
+        [
+            "Lv_NOT_A_FROZEN_CASE",
+            bad_case.loc[0, "canonical_service_id"],
+            int(bad_case.loc[0, "window_start_ms"]),
+        ],
+        ensure_ascii=False,
+    )
+    with pytest.raises(ValueError, match="case_id"):
+        sp.validate_features(bad_case, protocol)
+
+    bad_svc = features.copy()
+    bad_svc.loc[0, "canonical_service_id"] = "tsdb-mysql"
+    bad_svc.loc[0, "sample_id"] = json.dumps(
+        [bad_svc.loc[0, "case_id"], "tsdb-mysql", int(bad_svc.loc[0, "window_start_ms"])],
+        ensure_ascii=False,
+    )
+    with pytest.raises(ValueError, match="canonical_service_id"):
+        sp.validate_features(bad_svc, protocol)
+
+
+def test_evidence_schema_gaps_rejected() -> None:
+    base = _evidence_row()
+
+    # 非空 string 枚举列为 None/NaN 必须报错（dropna 静默放行是 bug）
+    for col in ("unit", "state_class", "evidence_grade"):
+        row = _evidence_row(evidence_id=f"ev-nan-{col}")
+        row[col] = None
+        with pytest.raises(ValueError, match=col):
+            sp.validate_evidence(pd.DataFrame([row], columns=EVIDENCE_COLS))
+
+    # review_status 必须在枚举内（yaml 的 review_status_enum 不是死配置）
+    row = _evidence_row(evidence_id="ev-review", review_status="approved_by_boss")
+    with pytest.raises(ValueError, match="review_status"):
+        sp.validate_evidence(pd.DataFrame([row], columns=EVIDENCE_COLS))
+
+    # case/service 必须属于冻结集合
+    row = _evidence_row(evidence_id="ev-case", case_id="not-a-frozen-case")
+    with pytest.raises(ValueError, match="case_id"):
+        sp.validate_evidence(pd.DataFrame([row], columns=EVIDENCE_COLS))
+    row = _evidence_row(evidence_id="ev-svc", canonical_service_id="tsdb-mysql")
+    with pytest.raises(ValueError, match="canonical_service_id"):
+        sp.validate_evidence(pd.DataFrame([row], columns=EVIDENCE_COLS))
+
+    # start_ms > end_ms 非法
+    row = _evidence_row(evidence_id="ev-time", start_ms=2000, end_ms=1000)
+    with pytest.raises(ValueError, match="start_ms"):
+        sp.validate_evidence(pd.DataFrame([row], columns=EVIDENCE_COLS))
+
+    # INDEPENDENT_STATE 声称独立于输入来源，heldout_from_model=false 自相矛盾
+    row = _evidence_row(
+        evidence_id="ev-heldout",
+        case_id=KILL_ORDER_CASE,
+        unit="INSTANCE",
+        state_class="INSTANCE_TERMINATION",
+        evidence_grade="INDEPENDENT_STATE",
+        fact_type="INSTANCE_TERMINATION",
+        depends_on_input_sources=[],
+        heldout_from_model=False,
+        independent_label=1,
+        proxy_label=None,
+    )
+    with pytest.raises(ValueError, match="heldout_from_model"):
+        sp.validate_evidence(pd.DataFrame([row], columns=EVIDENCE_COLS))
+    # 对照组：heldout=true 合法
+    row["heldout_from_model"] = True
+    sp.validate_evidence(pd.DataFrame([row], columns=EVIDENCE_COLS))
+
+
+def test_load_case_meta_rejects_nonbool_flag(tmp_path: Path) -> None:
+    trace = tmp_path / "trace_data"
+    trace.mkdir()
+    meta_path = trace / "case_metadata.json"
+    meta_path.write_text(
+        json.dumps(
+            {
+                "case_id": "c",
+                "window_start_ms": 0,
+                "window_end_ms": 1000,
+                # 字符串 "false" 在 if 判断里 truthy，必须在加载阶段拒绝
+                "is_anomaly_case": "false",
+                "inject_start_ms": None,
+                "inject_end_ms": None,
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="is_anomaly_case"):
+        sp.load_case_meta(tmp_path)
+
+
+def test_meta_bool_type_and_fault_without_inject_window_raises() -> None:
+    # is_anomaly_case 必须是 bool：字符串 "false" 在分支判断里 truthy，必须在加载时拒绝
+    good = {
+        "case_id": "c",
+        "window_start_ms": 0,
+        "window_end_ms": 200000,
+        "is_anomaly_case": True,
+        "inject_start_ms": 100000,
+        "inject_end_ms": 150000,
+    }
+    assert sp.assign_phase(0, 50, good) == "baseline"
+    bad_meta = dict(good, inject_start_ms=None, inject_end_ms=None)
+    with pytest.raises(ValueError, match="inject"):
+        sp.assign_phase(0, 50, bad_meta)
+
+
+def _load_raw_config() -> dict:
+    import yaml
+
+    return yaml.safe_load(CONFIG.read_text())
+
+
+def _swap_first_two_services(raw: dict) -> None:
+    raw["services"][0], raw["services"][1] = raw["services"][1], raw["services"][0]
+
+
+@pytest.mark.parametrize(
+    "mutate,message",
+    [
+        (_swap_first_two_services, "services"),
+        (lambda r: r["identity"]["registry"].update({"evil-pod": "not-a-service"}), "registry"),
+        (
+            lambda r: r["identity"]["statefulset_aliases"].update({"evil-0": "ts-order-service"}),
+            "别名",
+        ),
+        (
+            lambda r: r["identity"]["application_container_mapping"].pop("ts-user-service"),
+            "application_container_mapping",
+        ),
+        (
+            lambda r: r["identity"]["extra_container_aliases"].update(
+                {"ts-user-service": "sidecar"}
+            ),
+            "extra_container_aliases",
+        ),
+        (lambda r: r.update({"bogus_top_key": 1}), "未声明字段"),
+        (lambda r: r.update(window_ms=16000), "window_ms"),
+        (lambda r: r.update(guard_ms=999), "guard_ms"),
+        (lambda r: r.update(methods=["L2"]), "methods"),
+        (lambda r: r["cases"][1].update(role="cPu"), "role"),
+        (lambda r: r["cases"][0].update(unknown_per_case_key=1), "case"),
+        (
+            lambda r: r["identity"]["statefulset_aliases"].update(
+                {"ts-order-service-6c44d949d9-kmd96": "tsdb-mysql"}
+            ),
+            "冲突",
+        ),
+    ],
+)
+def test_resolved_config_rejects_mutations(mutate: object, message: str) -> None:
+    raw = _load_raw_config()
+    mutate(raw)
+    with pytest.raises(ValueError, match=message):
+        # 直接驱动 resolved 校验，避免每个参数化用例落一个临时 YAML
+        sp._validate_resolved(raw)

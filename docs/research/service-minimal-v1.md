@@ -118,12 +118,25 @@ source_locator 只记录稳定标识（事件时间/Pod/指标选择器/source �
 - 审计划记中保留"目标运行观测歧义"（前序可行性审计提出，待 T4 核实），
   可用性 UNKNOWN 的 review_note 已显式记录该歧义。
 
-### 2.4 定级规则（已由 validate_evidence 锁死）
+### 2.4 定级规则（validate_evidence 的强制边界与人工纪律）
+
+代码层强制（违反即校验失败，有测试锁定）：
 
 - `depends_on_input_sources` 非空 ⇒ 禁止 INDEPENDENT_STATE
   （人工阅读同一 Log/Trace 只增强语义，模型也消费该来源时仍是 OBSERVATION_DERIVED）；
+- INDEPENDENT_STATE ⇒ 必须 `heldout_from_model=true`（声称独立于模型输入来源，
+  就不能同时对模型可见，二者矛盾即拒绝；review_status=confirmed 不是 schema 层要求，
+  那是 T4 评审流程的事）；
 - Killing/实例终止类 fact_type ⇒ 禁止自动派生 SERVICE_UNAVAILABLE + independent_label=1；
-- 未确认时段一律 state_class=UNKNOWN，不允许用计划区间回填实际状态。
+- 此外 schema 还机械强制：非空枚举列（unit/state_class/evidence_grade/review_status）
+  不允许 NaN、case/service 必须在冻结集合内、start_ms ≤ end_ms、枚举值合法。
+
+人工评审纪律（schema 无法机械判定，靠 pending_human_review 与后续评审把关）：
+
+- 2.1–2.3 的 UNKNOWN 条目（CPU 恢复滞后、KILL 两 case 的服务可用性、KILL preserve
+  目标运行观测歧义）是按"无独立证据不猜"的纪律保留的，不是 schema 强制；
+- 未确认时段用计划区间回填实际状态、把 OBSERVATION_DERIVED 升级成 INDEPENDENT_STATE、
+  review 状态随意升级，均属于评审阶段拦截范围。
 
 ## 3. S1（独立状态证据）为什么不足
 

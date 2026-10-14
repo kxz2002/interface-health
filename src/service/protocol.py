@@ -23,6 +23,27 @@ from src.data.dataset_config import load_dataset_config
 LOG = logging.getLogger(__name__)
 
 PROTOCOL_ID = "service_minimal_v1"
+# 与 configs/service/minimal_v1.yaml 的 window_ms 镜像：load_protocol 校验两者一致，
+# make_grid/validate_features 直接引用本常量，避免代码与配置漂移
+WINDOW_MS = 15_000
+CASE_ROLES = ("normal", "cpu", "kill")
+REVIEW_STATUS_ENUM = ("pending_human_review", "confirmed", "rejected")
+# 每个 case 条目允许的键集合（per-case 封闭，未知键报错）
+CASE_KEYS = frozenset(
+    {
+        "case_id",
+        "role",
+        "is_anomaly_case",
+        "window_start_ms",
+        "window_end_ms",
+        "inject_start_ms",
+        "inject_end_ms",
+        "target_service",
+        "recoverable",
+        "chaos_kind",
+        "chaos_yaml",
+    }
+)
 
 FROZEN_CASE_IDS = (
     "Normal_20260728T161044Z",
@@ -206,7 +227,7 @@ def _validate_resolved(raw: dict[str, Any]) -> dict[str, Any]:
         )
 
     req("protocol_id", PROTOCOL_ID)
-    req("window_ms", 15000)
+    req("window_ms", WINDOW_MS)
     req("guard_ms", 30000)
     req("seed", 42)
     req("min_fit_rows", 30)
@@ -238,15 +259,37 @@ def _validate_resolved(raw: dict[str, Any]) -> dict[str, Any]:
         f"cases 必须恰好是冻结的 4 个且顺序固定: {FROZEN_CASE_IDS}",
     )
     for case in cases:
-        for key in ("case_id", "window_start_ms", "window_end_ms", "is_anomaly_case"):
+        unknown_case_keys = set(case) - CASE_KEYS
+        _require(
+            not unknown_case_keys,
+            f"case {case.get('case_id')!r} 出现未声明字段: {sorted(unknown_case_keys)}",
+        )
+        for key in ("case_id", "role", "window_start_ms", "window_end_ms", "is_anomaly_case"):
             _require(key in case, f"case {case.get('case_id')!r} 缺少 {key}")
+        _require(
+            case["role"] in CASE_ROLES,
+            f"case {case['case_id']}.role 必须是 {CASE_ROLES} 之一，实际 {case['role']!r}",
+        )
+        _require(
+            isinstance(case["is_anomaly_case"], bool),
+            f"case {case['case_id']}.is_anomaly_case 必须是 bool",
+        )
         _require(_is_int(case["window_start_ms"]), f"{case['case_id']}.window_start_ms 必须是 int")
         _require(_is_int(case["window_end_ms"]), f"{case['case_id']}.window_end_ms 必须是 int")
+        # role 与 is_anomaly_case 必须互相一致，防止两条身份通道分叉
+        _require(
+            case["is_anomaly_case"] == (case["role"] != "normal"),
+            f"case {case['case_id']} 的 role={case['role']} 与 is_anomaly_case 不一致",
+        )
         if case["is_anomaly_case"]:
             for key in ("inject_start_ms", "inject_end_ms", "target_service"):
                 _require(
                     key in case and case[key] is not None, f"故障 case {case['case_id']} 缺少 {key}"
                 )
+            _require(
+                _is_int(case["inject_start_ms"]) and _is_int(case["inject_end_ms"]),
+                f"故障 case {case['case_id']} 的 inject 时段必须是 int",
+            )
             _require(
                 case["target_service"] in FROZEN_SERVICES,
                 f"{case['case_id']} target_service 不在候选集合",
@@ -275,6 +318,9 @@ def _validate_resolved(raw: dict[str, Any]) -> dict[str, Any]:
             svc not in FROZEN_SERVICES,
             f"StatefulSet 别名目标 {svc} 是基础设施组件，禁止加入 v1 候选",
         )
+    # 同一 Pod 同时出现在 registry 与 aliases 时合并视图会静默覆盖——冲突即报错
+    overlap = set(registry) & set(aliases)
+    _require(not overlap, f"registry 与 statefulset_aliases 存在键冲突: {sorted(overlap)}")
     container_map = identity.get("application_container_mapping")
     _require(
         isinstance(container_map, dict)
@@ -284,7 +330,8 @@ def _validate_resolved(raw: dict[str, Any]) -> dict[str, Any]:
     )
     _require(
         identity.get("extra_container_aliases") == {},
-        "v1 不允许登记额外 container 别名（异常 container/sidecar 不自动混入）",
+        "extra_container_aliases: v1 不允许登记额外 container 别名"
+        "（异常 container/sidecar 不自动混入）",
     )
     _require(
         identity.get("allowed_namespaces") == ["default"],
@@ -332,9 +379,14 @@ def _validate_resolved(raw: dict[str, Any]) -> dict[str, Any]:
         ("state_class_enum", STATE_CLASS_ENUM),
         ("evidence_grade_enum", EVIDENCE_GRADE_ENUM),
         ("evidence_unit_enum", EVIDENCE_UNIT_ENUM),
+        ("review_status_enum", REVIEW_STATUS_ENUM),
         ("score_status_enum", SCORE_STATUS_ENUM),
     ):
         _require(tuple(schema.get(key, ())) == enum, f"schema.{key} 与冻结枚举不符")
+    _require(
+        tuple(schema.get("termination_fact_types", ())) == tuple(sorted(TERMINATION_FACT_TYPES)),
+        "schema.termination_fact_types 与冻结集合不符",
+    )
 
     freeze = raw.get("freeze")
     _require(
@@ -423,6 +475,12 @@ def load_case_meta(case_dir: Path) -> dict[str, object]:
     for key in _META_REQUIRED:
         if key not in meta:
             raise ValueError(f"case metadata {meta_path} 缺少必填字段: {key}")
+    if not isinstance(meta["is_anomaly_case"], bool):
+        # 字符串 "false" 在分支判断里 truthy，会把 Normal 静默识别成故障 case
+        raise ValueError(
+            f"case metadata {meta_path} 的 is_anomaly_case 必须是 bool，"
+            f"实际 {type(meta['is_anomaly_case']).__name__}"
+        )
     for key in ("window_start_ms", "window_end_ms"):
         if not _is_int(meta[key]):
             raise ValueError(f"case metadata {meta_path} 的 {key} 必须是 int")
@@ -472,9 +530,10 @@ def _sample_id(case_id: str, service: str, start_ms: int) -> str:
 def make_grid(meta: dict[str, object], services: list[str]) -> pd.DataFrame:
     """生成 (case × service × 完整窗) 笛卡尔网格。
 
-    首窗 ceil 对齐 window_ms，只保留 end <= window_end_ms 的完整窗。
+    首窗 ceil 对齐 WINDOW_MS（与 yaml window_ms 镜像，load_protocol 已校验一致），
+    只保留 end <= window_end_ms 的完整窗。
     """
-    window_ms = 15000
+    window_ms = WINDOW_MS
     start0 = -(-int(meta["window_start_ms"]) // window_ms) * window_ms
     end_limit = int(meta["window_end_ms"])
     starts = list(range(start0, end_limit - window_ms + 1, window_ms))
@@ -512,10 +571,14 @@ def assign_phase(
     """按全窗包含规则赋阶段；guard 外的过渡整窗为 boundary。"""
     if not meta.get("is_anomaly_case"):
         return "normal"
-    inj_start = meta["inject_start_ms"]
-    inj_end = meta["inject_end_ms"]
+    inj_start = meta.get("inject_start_ms")
+    inj_end = meta.get("inject_end_ms")
     if inj_start is None or inj_end is None:
-        return "normal"
+        # 故障 case 缺注入时段是方向性元数据错误：返回 normal 会静默污染切分与标签
+        raise ValueError(
+            f"故障 case {meta.get('case_id')!r} 缺少 inject_start_ms/inject_end_ms，"
+            "无法判定 phase"
+        )
     if end_ms <= inj_start - guard_ms:
         return "baseline"
     if start_ms >= inj_start + guard_ms and end_ms <= inj_end - guard_ms:
@@ -599,6 +662,16 @@ def validate_features(frame: pd.DataFrame, protocol: ServiceProtocol) -> None:
         (frame["schema_version"] == PROTOCOL_ID).all(),
         f"schema_version 必须全部为 {PROTOCOL_ID}",
     )
+    # 冻结成员校验：表中不允许出现 4 case / 25 service 之外的实体
+    _require(
+        set(frame["case_id"]) <= set(FROZEN_CASE_IDS),
+        f"features 含冻结协议外 case_id: {sorted(set(frame['case_id']) - set(FROZEN_CASE_IDS))}",
+    )
+    _require(
+        set(frame["canonical_service_id"]) <= set(FROZEN_SERVICES),
+        "features 含冻结协议外 canonical_service_id: "
+        f"{sorted(set(frame['canonical_service_id']) - set(FROZEN_SERVICES))}",
+    )
 
     for col in FEATURE_VALUE_COLUMNS:
         _require(col in frame.columns, f"features 表缺少数值特征列: {col}")
@@ -652,8 +725,8 @@ def validate_features(frame: pd.DataFrame, protocol: ServiceProtocol) -> None:
     ]
     _require(frame["sample_id"].tolist() == expected, "sample_id 与主键三元组序列化不一致")
     _require(
-        (frame["window_end_ms"] == frame["window_start_ms"] + 15000).all(),
-        "window_end_ms 必须 = start + 15000",
+        (frame["window_end_ms"] == frame["window_start_ms"] + WINDOW_MS).all(),
+        f"window_end_ms 必须 = start + {WINDOW_MS}",
     )
     _require(
         (frame["score_time_lower_bound_ms"] == frame["window_end_ms"]).all(),
@@ -713,37 +786,58 @@ def validate_evidence(frame: pd.DataFrame) -> None:
     extra = set(frame.columns) - set(EVIDENCE_COLUMNS)
     _require(not extra, f"evidence 表出现协议外列: {sorted(extra)}")
 
-    for col, enum in (
-        ("unit", EVIDENCE_UNIT_ENUM),
-        ("state_class", STATE_CLASS_ENUM),
-        ("evidence_grade", EVIDENCE_GRADE_ENUM),
-    ):
-        bad = set(frame[col].dropna()) - set(enum)
-        _require(not bad, f"evidence.{col} 非法枚举: {sorted(map(str, bad))}")
-    for col in ("start_ms", "end_ms"):
-        _require(pd.api.types.is_integer_dtype(frame[col]), f"evidence.{col} 必须是 int64")
-    for col in (
+    # 非空 string 枚举列：先 notna 再校验枚举，NaN 不允许被 dropna 静默放行
+    required_string_cols = (
         "evidence_id",
         "case_id",
         "canonical_service_id",
         "fact_type",
         "source_path",
         "source_locator",
-        "review_status",
-    ):
+    )
+    for col in required_string_cols:
         _require(
-            frame[col].notna().all() and (frame[col].astype(str) != "").all(),
-            f"evidence.{col} 不允许空值",
+            frame[col].map(lambda v: isinstance(v, str) and v != "").all(),
+            f"evidence.{col} 必须是非空 string（不允许 NaN/空串）",
         )
+    # review_note 允许空串但必须是 str（缺列已在上面拦截，None 不允许）
+    _require(
+        frame["review_note"].map(lambda v: isinstance(v, str)).all(),
+        "evidence.review_note 必须是 string（允许空串，不允许 NaN）",
+    )
+    for col, enum in (
+        ("unit", EVIDENCE_UNIT_ENUM),
+        ("state_class", STATE_CLASS_ENUM),
+        ("evidence_grade", EVIDENCE_GRADE_ENUM),
+        ("review_status", REVIEW_STATUS_ENUM),
+    ):
+        _require(frame[col].notna().all(), f"evidence.{col} 不允许 NaN，必须取枚举值 {enum}")
+        bad = set(frame[col]) - set(enum)
+        _require(not bad, f"evidence.{col} 非法枚举: {sorted(map(str, bad))}")
+    _require(
+        set(frame["case_id"]) <= set(FROZEN_CASE_IDS),
+        f"evidence 含冻结协议外 case_id: {sorted(set(frame['case_id']) - set(FROZEN_CASE_IDS))}",
+    )
+    _require(
+        set(frame["canonical_service_id"]) <= set(FROZEN_SERVICES),
+        "evidence 含冻结协议外 canonical_service_id: "
+        f"{sorted(set(frame['canonical_service_id']) - set(FROZEN_SERVICES))}",
+    )
+    for col in ("start_ms", "end_ms"):
+        _require(pd.api.types.is_integer_dtype(frame[col]), f"evidence.{col} 必须是 int64")
+        _require(frame[col].notna().all(), f"evidence.{col} 不允许 NaN")
+    _require(
+        (frame["start_ms"] <= frame["end_ms"]).all(),
+        "evidence start_ms 必须 <= end_ms",
+    )
     _require(
         frame["heldout_from_model"].map(lambda v: isinstance(v, (bool, np.bool_))).all(),
         "heldout_from_model 必须是 bool",
     )
-    for col in ("depends_on_input_sources",):
-        _require(
-            frame[col].map(lambda v: isinstance(v, list)).all(),
-            f"{col} 必须是 list",
-        )
+    _require(
+        frame["depends_on_input_sources"].map(lambda v: isinstance(v, list)).all(),
+        "depends_on_input_sources 必须是 list",
+    )
     for col in ("independent_label", "proxy_label"):
         _nullable_label_values(frame[col], col)
     _require(not frame["evidence_id"].duplicated().any(), "evidence_id 必须唯一")
@@ -754,6 +848,11 @@ def validate_evidence(frame: pd.DataFrame) -> None:
             raise ValueError(
                 f"evidence {row['evidence_id']}: depends_on_input_sources 非空时"
                 "不得标 INDEPENDENT_STATE（模型可消费来源不构成独立状态金标）"
+            )
+        if row["evidence_grade"] == "INDEPENDENT_STATE" and not row["heldout_from_model"]:
+            raise ValueError(
+                f"evidence {row['evidence_id']}: INDEPENDENT_STATE 声称独立于模型输入来源，"
+                "heldout_from_model=false 与之矛盾，必须对模型留一"
             )
         if (
             row["fact_type"] in TERMINATION_FACT_TYPES
