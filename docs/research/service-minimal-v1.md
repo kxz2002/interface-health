@@ -176,3 +176,61 @@ source_locator 只记录稳定标识（事件时间/Pod/指标选择器/source �
 - 明确不做（留给后续任务）：流读 metric CSV 与实体消解（T1）、prepare 入口/Hydra CLI（T2）、
   基线与检测器（T3）、S2 固定事件检索（T4）。
 - 任何签名或 schema 与冻结 spec 不符时，停下来改 spec，不在实现里静默变通。
+
+## 6. T1：资源观测实现与 PPT 容器/身份示意（2026-10-14）
+
+`src/service/metrics.py` 新增只读流读和资源构建；旧 MetricPreprocessor 保持原状。
+原始 CSV 用 PyArrow 投影必要列，逐批过滤配置中的 case、应用容器及五类指标，
+保留完整系列键与一基数据行号（不计 CSV 表头）。只读预算为 case 范围及其开始前
+30 秒，不读取日志、Trace、Endpoint 或 Kubernetes 生命周期事件。
+
+| 原始观测 | T1 处理 | 示例含义 |
+|---|---|---|
+| 父 cgroup、空 container、POD、sidecar | 排除，不参与应用资源聚合 | 父级 usage 不再覆盖应用 usage |
+| 注册应用 usage=100、limit=200 | ratio=.5 | 分母必须来自当前窗同身份；ratio>1 保留 |
+| limit=0 | 保留 limit=0，ratio=NaN/NO_DENOMINATOR | 已观测分母无定义 |
+| limit 缺席 | ratio=NaN/UNOBSERVED | 缺少分母观测，区别于已观测零 |
+| 同系列 CPU 10→13，真实间隔15秒 | cpu=.2核 | 间隔25秒时10→15同样=.2；不固定除15 |
+| 首点、reset、间隔>30秒、空id | NaN，保留各自状态 | 零增量可为0，但不证明 Ready/死亡 |
+| 同系列同时间同值/异值 | 同值去重；异值 CONFLICTING_SAMPLE | 冲突逐来源保留原值、文件、行号；不按文件顺序取值 |
+
+CPU 优先 `cpu=total`，仅在闭窗前该完整 exporter 系列尚无 total 时使用空 cpu
+标签；未来 total 不改变过去结果。每指标每窗取最新点；窗内任何同系列冲突使
+涉及指标整窗缺测，且 `identity_ambiguity=True` 排除整窗资源评分。诊断字段冲突时
+可保留合法 R3 值，但 `resource_valid=False`，覆盖损失显式报告。
+
+```mermaid
+flowchart LR
+  A[同一 Service 的旧 id 与新 id] --> B[当前窗及闭窗前30秒身份集合]
+  B --> C{恰好一个身份?}
+  C -->|否| D[IDENTITY_AMBIGUOUS / R3 NaN]
+  C -->|是| E{已观察到新身份切换且未满30秒?}
+  E -->|是| F[TRANSITION / R3 NaN]
+  E -->|否| G[最新当前窗指标与连续有效 CPU 差分]
+  G --> H[保留有效观测；缺指标仍 Unknown]
+```
+
+旧新身份的 process=1 不会相加为2。无当前记录则 UNOBSERVED，不插值、不沿用旧
+Gauge、不借 Killing 删除实例。全部25个候选的完整网格始终保留，两个无恢复范围的
+KILL case 不生成额外恢复窗。`features.attrs.partial_windows` 记录首尾部分窗毫秒数，
+`timestamp_semantics` 声明 Prometheus query_range 时间无法确认 scrape 新鲜度；后续
+prepare 应将这些说明写入持久化质量报告，receipt 字段本版始终 null。
+
+T1 fixture 验证涉及真实 dt、系列身份、容器隔离、重复/冲突、切换、CPU 因果标签
+选择、无记录完整网格、分母/进程零值、原始来源、过滤与时间舍入边界。此处仅交付
+预处理；检测器训练和正式事件评价由后续任务实现。
+
+### 6.1 本轮只读原始检查与待修复协议边界
+
+本轮在 T0 原始身份配置下读取 Normal/CPU 两个指定 Metric CSV：分别得到3000/3175
+完整网格行，2880/3048个有效 R3 窗。剩余候选 `ts-security-service` 的原始 Pod 实为
+`ts-security-service-64996ff68-gwdfs`，现 T0 registry 写成
+`ts-security-service-64996ff28d-gwdfs`，且 Deployment 正则限定10位 hash，使实际9位
+Pod 未被识别。这是已定位的 T0 身份配置/解析缺陷，不能当原始数据缺失；由后续 T0
+修复处理，再复核覆盖。T1不放宽规则绕过冻结配置。
+
+post-build 用元数据做诊断（不参与特征计算）：CPU preserve 的 baseline 中位数为
+cpu=.0084028、ratio=.21540039、process=1；inject_core 为 .53116107、.22043164、4。
+此前可行性审计的 inject 为 .53378597、.22042188、4。小差异来自完整窗范围、边界
+保护和每窗最新观测等聚合语义；没有改规则逼近旧数。两者是输入侧观测对照，不能
+充当独立状态金标或新检测器性能。
