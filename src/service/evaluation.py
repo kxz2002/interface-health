@@ -297,7 +297,12 @@ def render_report(data_dir: Path, run_dir: Path, evaluation_dir: Path, out: Path
         RUN_REQUIRED_ARTIFACTS,
         _load_score_manifest,
     )
-    from src.service.protocol import reserve_output, write_manifest
+    from src.service.protocol import (
+        reserve_output,
+        validate_features,
+        validate_scores,
+        write_manifest,
+    )
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -370,18 +375,89 @@ def render_report(data_dir: Path, run_dir: Path, evaluation_dir: Path, out: Path
         repo / "data",
         repo.parent / "AnoMod",
         *directories,
+        admission,
+        *(Path(path).parent for path in inventory),
         *map(Path, config["dataset_resolved"]["roots"]),
     ]
     protected += [
         p for p in (repo / "artifacts").glob("*") if p.name.startswith(("contract", "baseline"))
     ]
+    # Verify semantic alignment before reserving any output, without re-scoring.
+    scores = pd.read_parquet(run_dir / "scores.parquet")
+    features = pd.read_parquet(data_dir / "features.parquet")
+    index = pd.read_parquet(data_dir / "index.parquet")
+    events = pd.read_parquet(data_dir / "events.parquet")
+    evidence = pd.read_parquet(data_dir / "evidence.parquet")
+    comparison = pd.read_csv(evaluation_dir / "event_comparison.csv")
+    rankings = pd.read_parquet(evaluation_dir / "event_rankings.parquet")
+    validate_scores(scores)
+    validate_features(features, ServiceProtocol(config))
+    keys = ["case_id", "canonical_service_id", "window_start_ms", "window_end_ms", "partition"]
+    if (
+        index.sample_id.duplicated().any()
+        or set(scores.sample_id) != set(index.sample_id)
+        or set(features.sample_id) != set(index.sample_id)
+    ):
+        raise ValueError("report stable sample identity mismatch")
+    for frame in [scores, features]:
+        frame_keys = [key for key in keys if key in frame.columns]
+        joined = frame.merge(
+            index[["sample_id", *frame_keys]],
+            on="sample_id",
+            suffixes=("", "__index"),
+            validate="many_to_one",
+        )
+        for key in frame_keys:
+            if not joined[key].equals(joined[key + "__index"]):
+                raise ValueError(f"report sample metadata mismatch: {key}")
+    expected_events = {c["case_id"]: c for c in config["cases"] if c["role"] != "normal"}
+    if events.event_id.duplicated().any() or set(events.event_id) != set(expected_events):
+        raise ValueError("report event set mismatch")
+    arms = {(g, m) for g in config["feature_groups"] for m in config["methods"]}
+    for event in events.itertuples():
+        c = expected_events[event.event_id]
+        if (
+            event.case_id != c["case_id"]
+            or event.configured_target_service != c["target_service"]
+            or event.evaluation_start_ms != c["inject_start_ms"] + config["guard_ms"]
+            or event.evaluation_end_ms
+            != min(c["inject_end_ms"] - config["guard_ms"], c["window_end_ms"])
+        ):
+            raise ValueError("report frozen event interval mismatch")
+        rows = comparison[comparison.event_id == event.event_id]
+        if (
+            len(rows) != len(arms)
+            or set(zip(rows.feature_group, rows.method)) != arms
+            or not rows.target_service.eq(event.configured_target_service).all()
+            or not rows.n_candidates.eq(len(config["services"])).all()
+        ):
+            raise ValueError("report event comparison linkage mismatch")
+        for group, method in arms:
+            candidates = rankings[
+                (rankings.event_id == event.event_id)
+                & (rankings.feature_group == group)
+                & (rankings.method == method)
+            ]
+            if (
+                len(candidates) != len(config["services"])
+                or set(candidates.canonical_service_id) != set(config["services"])
+                or not candidates.case_id.eq(event.case_id).all()
+            ):
+                raise ValueError("report event ranking candidate mismatch")
+            target = candidates[
+                candidates.canonical_service_id == event.configured_target_service
+            ].iloc[0]
+            compared = rows[(rows.feature_group == group) & (rows.method == method)].iloc[0]
+            if target.status != compared.target_status or not np.isclose(
+                target.coverage, compared.target_coverage
+            ):
+                raise ValueError("report target evaluation linkage mismatch")
+    if len(comparison) != len(events) * len(arms) or len(rankings) != len(events) * len(arms) * len(
+        config["services"]
+    ):
+        raise ValueError("report evaluation row completeness mismatch")
     out = reserve_output(Path(out), protected)
     try:
-        scores = pd.read_parquet(run_dir / "scores.parquet")
-        features = pd.read_parquet(data_dir / "features.parquet")
-        events = pd.read_parquet(data_dir / "events.parquet")
-        evidence = pd.read_parquet(data_dir / "evidence.parquet")
-        comparison = pd.read_csv(evaluation_dir / "event_comparison.csv")
         for name in [
             "event_comparison.csv",
             "normal_tail_summary.csv",

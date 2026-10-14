@@ -296,3 +296,76 @@ def test_report_is_score_readonly(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="hash mismatch"):
         render_report(data, run, evaluation, tmp_path / "tampered")
     assert not (tmp_path / "tampered").exists()
+
+
+@pytest.mark.parametrize(
+    "mutation", ["schema", "missing_arm", "identity", "candidate", "event_link"]
+)
+def test_report_rejects_validly_hashed_invalid_saved_tables(tmp_path, mutation):
+    import hashlib
+    import shutil
+
+    from src.service.evaluation import render_report
+
+    original = Path("artifacts/service_minimal_v1_20261014T100628Z")
+    for name in ["data", "run", "evaluation"]:
+        shutil.copytree(original / name, tmp_path / name)
+    folder, filename = tmp_path / "run", "scores.parquet"
+    if mutation == "candidate":
+        folder, filename = tmp_path / "evaluation", "event_rankings.parquet"
+    if mutation == "event_link":
+        folder, filename = tmp_path / "evaluation", "event_comparison.csv"
+    frame = (
+        pd.read_csv(folder / filename)
+        if filename.endswith("csv")
+        else pd.read_parquet(folder / filename)
+    )
+    if mutation == "schema":
+        frame.loc[0, "score_status"] = "INVALID"
+    elif mutation in ["missing_arm", "candidate"]:
+        frame = frame.iloc[1:]
+    elif mutation == "identity":
+        frame.loc[0, "window_start_ms"] += 15000
+    else:
+        frame.loc[0, "target_service"] = "ts-order-service"
+    if filename.endswith("csv"):
+        frame.to_csv(folder / filename, index=False)
+    else:
+        frame.to_parquet(folder / filename, index=False)
+    manifest = json.loads((folder / "manifest.json").read_text())
+    manifest["outputs"][filename] = dict(
+        sha256=hashlib.sha256((folder / filename).read_bytes()).hexdigest(),
+        size_bytes=(folder / filename).stat().st_size,
+    )
+    for name in ["manifest.json", "run_manifest.json", "evaluation_manifest.json"]:
+        if (folder / name).is_file():
+            (folder / name).write_text(json.dumps(manifest))
+    with pytest.raises(ValueError):
+        render_report(
+            tmp_path / "data",
+            tmp_path / "run",
+            tmp_path / "evaluation",
+            tmp_path / "invalid-report",
+        )
+    assert not (tmp_path / "invalid-report").exists()
+
+
+@pytest.mark.parametrize("destination", ["new-report", "nested/new-report"])
+def test_report_protects_consumed_admission(tmp_path, destination):
+    import shutil
+
+    from src.service.evaluation import render_report
+
+    original = Path("artifacts/service_minimal_v1_20261014T100628Z")
+    for name in ["data", "run", "evaluation"]:
+        shutil.copytree(original / name, tmp_path / name)
+    admission = tmp_path / "admission"
+    admission.mkdir()
+    (admission / "method_admission.md").write_text("frozen admission")
+    (admission / "analysis_manifest.json").write_text(
+        json.dumps(dict(consumed_sha256={}, output_sha256={}))
+    )
+    out = admission / destination
+    with pytest.raises(ValueError, match="受保护|protected"):
+        render_report(tmp_path / "data", tmp_path / "run", tmp_path / "evaluation", out)
+    assert not out.exists()
