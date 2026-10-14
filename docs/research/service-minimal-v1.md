@@ -331,3 +331,11 @@ CPU 暴露弱对照单独保存：77 个 baseline 对照窗、35 个 inject_core
 全臂 Hit@1=0。CPU 校准饱和并列没有用 raw 分数打破；资源 Unknown 不能解释为健康。
 这些结果展示固定基线及观测规则的适用边界，尚不能据此宣称新方法必要或完整 RCA 成立。
 报告图表与 PPT 由后续 T6 整合；本轮 `render_report` 明确未实现。
+
+## 9. T5 方法准入（2026-10-14）
+
+本轮已完成基于冻结 data/run/evaluation 的失败模式分析，结论为 **A停止资源模型扩展、B条件性、C尚未验证**。完整五项PASS/FAIL、证据与预算边界见 [service-method-admission.md](service-method-admission.md)。新输出独立放在冻结根的 `admission/`，原有数据、模型和评价未覆盖。
+
+CPU弱对照时间辨识较强（CPU-only L2/max/OCSVM AUROC=.988868；R3为1），而跨Service S2校准饱和造成保守并列：CPU-only同分候选2–8个，R3为12–19个。这两类任务的结果不矛盾；R3较弱S2排名不能证明新模型必要。两KILL目标0/35有效，属于身份歧义下无有效观测；独立S1标签仍0。Normal漂移未验证，不能以饱和直接证明。
+
+本轮没有新模型/拟合/重评分或原始数据解析，仅消费现有表生成可复现CSV及SHA256清单。人工预算未知，未来日历节点不是完成记录；B/C实施和新方法验证都需要新的Spec/Plan与确认事件条件。
