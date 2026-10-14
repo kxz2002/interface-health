@@ -346,3 +346,28 @@ def test_interleaved_old_snapshots_do_not_restart_new_cooldown(tmp_path, protoco
     assert not f.loc[75000, "identity_ambiguity"]
     assert f.loc[75000, "cpu_cores"] == 1.0
     assert f.loc[75000, "resource_valid"]
+
+
+@pytest.mark.parametrize("reverse_rows", [False, True])
+def test_same_time_other_identity_is_not_intervening_switch(tmp_path, protocol, reverse_rows):
+    # Otheridentity@15 is simultaneous with new's prior, not inside its15→60gap.
+    rows = []
+    for identity, points in [("old", [0, 15]), ("new", [15, 60, 75, 90])]:
+        for t in points:
+            for metric, value in [
+                (CPU, t),
+                ("container_memory_usage_bytes", 100),
+                ("container_spec_memory_limit_bytes", 200),
+                ("container_processes", 1),
+            ]:
+                r = row(t, value, metric)
+                r["id"] = identity
+                rows.append(r)
+    if reverse_rows:
+        rows.reverse()
+    f, _ = build(tmp_path, protocol, rows)
+    assert f.loc[15000, "cpu_cores__status"] == "IDENTITY_AMBIGUOUS"
+    assert f.loc[60000, "cpu_cores__status"] == "GAP"
+    assert not f.loc[75000, "identity_ambiguity"]
+    assert f.loc[75000, "cpu_cores"] == 1.0
+    assert f.loc[75000, "resource_valid"]

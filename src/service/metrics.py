@@ -215,7 +215,7 @@ def _mark_identity_episodes(observations: pd.DataFrame, transition_ms: int) -> p
             for ident in identities:
                 prior = last_seen.get(ident)
                 other_since = any(
-                    other != ident and (prior is None or seen >= prior)
+                    other != ident and (prior is None or seen > prior)
                     for other, seen in last_seen.items()
                 )
                 new_episode = prior is None or time - prior > transition_ms
