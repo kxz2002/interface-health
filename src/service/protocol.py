@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -956,11 +957,28 @@ def reserve_output(path: Path, protected_roots: list[Path]) -> Path:
 
 def write_manifest(out: Path, inputs: list[Path], protocol: ServiceProtocol) -> None:
     out = Path(out)
+    excluded = {
+        "manifest.json": "self-reference excluded",
+        "_SUCCESS": "completion marker written after manifest",
+        "_FAILURE": "failure marker is not an immutable data artifact",
+    }
+    outputs = {}
+    for path in sorted(out.iterdir(), key=lambda p: p.name):
+        if not path.is_file() or path.name in excluded:
+            continue
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for block in iter(lambda: stream.read(1 << 20), b""):
+                digest.update(block)
+        outputs[path.name] = {"size_bytes": path.stat().st_size, "sha256": digest.hexdigest()}
     manifest = {
+        "output_hash_scope": "direct artifact files present before completion; SHA256 full content",
+        "outputs": outputs,
+        "excluded_outputs": excluded,
         "protocol_id": PROTOCOL_ID,
         "inputs": [str(Path(p)) for p in inputs],
         "config": protocol.config,
     }
     (out / "manifest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True)
+        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     )

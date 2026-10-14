@@ -145,3 +145,87 @@ def test_prepare_rejects_metadata_drift(tmp_path, field, value):
         prepare(config, dataset, out)
     assert not (out / "features.parquet").exists()
     assert (out / "_FAILURE").exists()
+
+
+def test_prepare_manifest_output_hashes_and_small_sources(tmp_path):
+    import hashlib
+
+    from scripts.service_experiment import prepare
+    from src.service.protocol import write_manifest
+
+    config, dataset, _, _ = fixture_inputs(tmp_path)
+    out = tmp_path / "hashed"
+    prepare(config, dataset, out)
+    manifest = json.loads((out / "manifest.json").read_text())
+    expected = {
+        "features.parquet",
+        "instance_quality.parquet",
+        "index.parquet",
+        "events.parquet",
+        "evidence.parquet",
+        "resolved_config.yaml",
+        "schema.json",
+        "quality_report.json",
+        "source_manifest.json",
+        "coverage.csv",
+        ".gitignore",
+    }
+    assert set(manifest["outputs"]) == expected
+    assert manifest["excluded_outputs"] == {
+        "manifest.json": "self-reference excluded",
+        "_SUCCESS": "completion marker written after manifest",
+        "_FAILURE": "failure marker is not an immutable data artifact",
+    }
+    for name, identity in manifest["outputs"].items():
+        assert identity["sha256"] == hashlib.sha256((out / name).read_bytes()).hexdigest()
+        assert identity["size_bytes"] == (out / name).stat().st_size
+    first = (out / "manifest.json").read_bytes()
+    protocol = load_protocol(config, dataset)
+    write_manifest(out, [Path(p) for p in manifest["inputs"]], protocol)
+    assert (out / "manifest.json").read_bytes() == first
+    parquet = out / "features.parquet"
+    original = parquet.read_bytes()
+    parquet.write_bytes(bytes([original[0] ^ 1]) + original[1:])
+    assert parquet.stat().st_size == manifest["outputs"]["features.parquet"]["size_bytes"]
+    assert (
+        hashlib.sha256(parquet.read_bytes()).hexdigest()
+        != manifest["outputs"]["features.parquet"]["sha256"]
+    )
+    sources = json.loads((out / "source_manifest.json").read_text())["sources"]
+    small_evidence = [s for s in sources if s["path"].endswith((".yaml", ".json"))]
+    assert small_evidence
+    assert all("sha256" in s for s in small_evidence)
+    assert all("sha256" not in s for s in sources if s["path"].endswith(".csv"))
+
+
+def test_prepare_detects_same_stat_small_source_mutation(tmp_path, monkeypatch):
+    import os
+
+    import scripts.service_experiment as experiment
+
+    config, dataset, root, _ = fixture_inputs(tmp_path)
+    meta_path = root / "Normal_20260728T161044Z" / "trace_data/case_metadata.json"
+    original_build = experiment.build_metric_windows
+    modified = False
+
+    def mutate_after_snapshot(*args):
+        nonlocal modified
+        if not modified:
+            snapshot = meta_path.stat()
+            text = meta_path.read_text()
+            assert '"normal"' in text
+            meta_path.write_text(text.replace('"normal"', '"NORMAL"'))
+            os.utime(meta_path, ns=(snapshot.st_atime_ns, snapshot.st_mtime_ns))
+            modified = True
+        return original_build(*args)
+
+    # Add unrelated same-length metadata text; core validation still matches config.
+    meta = json.loads(meta_path.read_text())
+    meta["note"] = "normal"
+    meta_path.write_text(json.dumps(meta))
+    monkeypatch.setattr(experiment, "build_metric_windows", mutate_after_snapshot)
+    out = tmp_path / "changed"
+    with pytest.raises(RuntimeError, match="input changed"):
+        experiment.prepare(config, dataset, out)
+    assert (out / "_FAILURE").exists()
+    assert not (out / "_SUCCESS").exists()

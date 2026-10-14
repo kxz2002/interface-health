@@ -180,8 +180,15 @@ def prepare(
             if source not in raw_inputs:
                 if not source.is_file():
                     raise FileNotFoundError(f"evidence source missing: {source}")
-                # Fixture evidence may cite real sources; only small metadata is hashed.
-                raw_inputs.append(source)
+                # Only bounded metadata/config sources receive a second full read.
+                # Metric/Log observations remain stat-only, regardless of fixture size.
+                if (
+                    source.suffix.lower() in {".yaml", ".yml", ".json"}
+                    and source.stat().st_size <= 8 << 20
+                ):
+                    small_inputs.append(source)
+                else:
+                    raw_inputs.append(source)
         source_before = [_identify(p, small=True) for p in small_inputs]
         source_before += [_identify(p, small=False) for p in raw_inputs]
         feature_frames, quality_frames, case_reports = [], [], []
@@ -246,10 +253,18 @@ def prepare(
         ]
         coverage["coverage"] = coverage.n_resource_valid / coverage.n_expected
         coverage.to_csv(out / "coverage.csv", index=False)
-        # Inputs must remain stable over preparation; stat guard detects obvious drift.
+        # Small full-content snapshots also detect changes that preserve file stat.
         for identity in source_before:
             now = Path(identity["path"]).stat()
-            if (now.st_size, now.st_mtime_ns) != (identity["size_bytes"], identity["mtime_ns"]):
+            content_changed = (
+                "sha256" in identity
+                and hashlib.sha256(Path(identity["path"]).read_bytes()).hexdigest()
+                != identity["sha256"]
+            )
+            if content_changed or (now.st_size, now.st_mtime_ns) != (
+                identity["size_bytes"],
+                identity["mtime_ns"],
+            ):
                 raise RuntimeError(f"input changed during prepare: {identity['path']}")
         finished = datetime.now(timezone.utc).isoformat()
         import pyarrow
@@ -281,7 +296,9 @@ def prepare(
                 resolved_config_sha256=hashlib.sha256(
                     (out / "resolved_config.yaml").read_bytes()
                 ).hexdigest(),
-                raw_identification_note="stat-only; no full raw content hash; no raw copies",
+                raw_identification_note="large Metric/Log sources stat-only; no full raw content hash; no raw copies",
+                small_evidence_hash_budget_bytes=8 << 20,
+                source_snapshot_policy="bounded config/metadata full SHA256 before and after scan; large Metric/Log stat-only",
                 evidence_hash_note="source_sha256 in evidence is frozen historical provenance; not recomputed for raw CSV",
                 git_commit=_git(["rev-parse", "HEAD"]),
                 git_status=_git(["status", "--short"]),

@@ -6,3 +6,5 @@
 最终代码已修正并通过 66 项 T0/T1/T2 测试。主数据将来自新的不可覆盖目录
 artifacts/service_minimal_v1_20261014T095447Z/data。
 本目录所有既有 parquet、manifest 和成功标记保持首轮实际内容。
+
+T2复审冻结修复后的最终主数据是artifacts/service_minimal_v1_20261014T100628Z/data。

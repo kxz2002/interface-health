@@ -293,3 +293,17 @@ CPU case preserve 的注入核心 CPU 最大值为 .984408 cores，auth / gatewa
 揭示证据 nullable Int8 与有效 R3 行排除字段两项 Schema 问题，已修正后生成新目录。
 不覆盖原产物，后续 score 使用主数据目录。大原始文件仅保存 path/size/mtime_ns，
 明确是 stat 标识而非完整内容锁定；小配置/元数据与实际执行代码保存 SHA256。
+
+### 7.1 T2 复审：冻结内容摘要
+
+后续 score 主输入更新为 `artifacts/service_minimal_v1_20261014T100628Z/data`，
+两个旧目录仅追加 superseded 说明。新 manifest 对 prepare 完成前的直接产物文件
+保存完整 SHA256/大小，覆盖五份 parquet、resolved_config、schema、quality_report、
+source_manifest、coverage 与 .gitignore；排除 manifest 自引用和完成/失败标记。
+后续消费必须按此清单验证内容，不能只看行数、文件大小或 `_SUCCESS`。
+
+三份 Chaos YAML 与两份 Kubernetes JSON 都小于固定 8 MiB 预算，现保存本轮完整
+SHA256；小配置/元数据在资源扫描前后比较内容摘要，能检出保留大小与mtime的变动。
+大 Metric/Log 仍仅stat标识，不为计算来源hash再次扫描原始大文件。
+本次增加输出摘要范围/可重复性/同大小篡改检测和同stat来源变动检查，T0/T1/T2
+共 **68项通过**，资源观测与Unknown规则未修改。

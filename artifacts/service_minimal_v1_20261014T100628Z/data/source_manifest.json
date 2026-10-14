@@ -1,0 +1,152 @@
+{
+  "environment": {
+    "numpy": "2.1.2",
+    "pandas": "2.2.3",
+    "platform": "Linux-7.0.0-31-generic-x86_64-with-glibc2.39",
+    "pyarrow": "17.0.0",
+    "python": "3.12.13 | packaged by Anaconda, Inc. | (main, Mar 19 2026, 20:20:58) [GCC 14.3.0]",
+    "sklearn": "1.5.2"
+  },
+  "evidence_hash_note": "source_sha256 in evidence is frozen historical provenance; not recomputed for raw CSV",
+  "executed_code": [
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791972366319436605,
+      "path": "/home/kxz2002/Code/Repos/interface-health/scripts/service_experiment.py",
+      "sha256": "6eff745e2a35f8d1ae7c1658e238367395c1fcaaf41dc9e4c4a41fe0ab0a286c",
+      "size_bytes": 14779
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791972364275012160,
+      "path": "/home/kxz2002/Code/Repos/interface-health/src/service/protocol.py",
+      "sha256": "208e801e74303c73a4a85c888d4b0717694fcc988140585f298b315d7e0c0069",
+      "size_bytes": 37304
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791971058324296491,
+      "path": "/home/kxz2002/Code/Repos/interface-health/src/service/metrics.py",
+      "sha256": "c9dbd33a660eec8d307623305b079eff67394db4330b0f2dbbf57616a2d02fab",
+      "size_bytes": 17867
+    }
+  ],
+  "finished_at_utc": "2026-10-14T10:08:57.036479+00:00",
+  "git_commit": "f762b603e5921629b0a7c25f77073c1815c30423",
+  "git_status": "M artifacts/service_minimal_v1_20261014T095105Z/data/superseded.md\n M docs/research/service-minimal-v1.md\n M scripts/service_experiment.py\n M src/service/protocol.py\n M tests/test_service_smoke.py\n?? AGENTS.md\n?? artifacts/service_minimal_v1_20261014T095447Z/data/superseded.md\n?? artifacts/service_minimal_v1_20261014T100628Z/",
+  "raw_identification_note": "large Metric/Log sources stat-only; no full raw content hash; no raw copies",
+  "resolved_config_sha256": "31738c74d0f87acaf6bfe1a9c60ec01cd79e8eea530035c82903dfb2fb462672",
+  "small_evidence_hash_budget_bytes": 8388608,
+  "source_snapshot_policy": "bounded config/metadata full SHA256 before and after scan; large Metric/Log stat-only",
+  "sources": [
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791970170854730644,
+      "path": "/home/kxz2002/Code/Repos/interface-health/configs/service/minimal_v1.yaml",
+      "sha256": "e0aaaec566c354640129529b1ea637c32d132f646818bc0514244952154ef555",
+      "size_bytes": 9368
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1787367114929522200,
+      "path": "/home/kxz2002/Code/Repos/interface-health/configs/data/new_merge.yaml",
+      "sha256": "e7eb2db9a87209c3e6cef0a8c143ad147373b231e515e093a1dfc2d6b67d1b62",
+      "size_bytes": 1802
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791960696043079049,
+      "path": "/home/kxz2002/Code/Repos/interface-health/configs/service/evidence_minimal_v1.json",
+      "sha256": "c94459dddd91c51fbb0f9fbeec8fbfd53bf7cdbe343770aaeff84a194fd6ef43",
+      "size_bytes": 15820
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1787373577639642382,
+      "path": "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Normal_20260728T161044Z/trace_data/case_metadata.json",
+      "sha256": "d8b35aa2bf31e9a9480065a68b9163ff0e4f6f514e3898bbbdd13d04ad316b03",
+      "size_bytes": 335
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1787374842332369609,
+      "path": "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Lv_P_CPU_preserve_20260728T164711Z_em/trace_data/case_metadata.json",
+      "sha256": "94a434bf9c4b09883e4959c941d6409e0dc8d1b0b1a8e0a66423627c32666012",
+      "size_bytes": 611
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1787375084803701559,
+      "path": "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Lv_S_KILLPOD_order_20260728T203705Z_em/trace_data/case_metadata.json",
+      "sha256": "dd26a7c6a0a8949adea4fa816f0520f78f51f806125ab6b07bd1ebee79a3afa8",
+      "size_bytes": 603
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1787373383720925531,
+      "path": "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Lv_S_KILLPOD_preserve_20260728T200124Z_em/trace_data/case_metadata.json",
+      "sha256": "1b61f27910e66fa6346c0c010c1e9a602f4553540c40d1ad3c60136ae75a407b",
+      "size_bytes": 615
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1782560436627929140,
+      "path": "/home/kxz2002/Code/Repos/AnoMod/TT_collection-scripts/chaos-experiments/Lv_P_CPU_preserve.yaml",
+      "sha256": "73fa5220ef378c2d576ed3ae287ff235637178eba07ce14584a524683345df55",
+      "size_bytes": 686
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1778491487215254845,
+      "path": "/home/kxz2002/Code/Repos/AnoMod/TT_collection-scripts/chaos-experiments/Lv_S_KILLPOD_order.yaml",
+      "sha256": "d4aabefe8d4ede6d01c8b648c50de32dfd640ea73a7968ee1a4bb03f17a20a33",
+      "size_bytes": 594
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1778491487215254845,
+      "path": "/home/kxz2002/Code/Repos/AnoMod/TT_collection-scripts/chaos-experiments/Lv_S_KILLPOD_preserve.yaml",
+      "sha256": "e3290010ee4e3e520f83ada446599c10f324394445b2d0a92f7db56f26f6fe1f",
+      "size_bytes": 611
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1787375137395562019,
+      "path": "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Lv_S_KILLPOD_order_20260728T203705Z_em/log_data/Lv_S_KILLPOD_order_20260728T203705Z_em/kubernetes_events_20260729_050724.json",
+      "sha256": "e9fc958216366934e5ca55ce7c2cc02ed912e531f35be736c137c1437bb5aabd",
+      "size_bytes": 4253372
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1787373404046906452,
+      "path": "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Lv_S_KILLPOD_preserve_20260728T200124Z_em/log_data/Lv_S_KILLPOD_preserve_20260728T200124Z_em/kubernetes_events_20260729_043145.json",
+      "sha256": "b87b68ee5081b59644a2c60087ff30e71bb17014ce95a91c9139efb5511d1ee2",
+      "size_bytes": 2133045
+    },
+    {
+      "identification": "stat-only; not a content lock",
+      "mtime_ns": 1787373563635402837,
+      "path": "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Normal_20260728T161044Z/metric_data/Normal_20260728T161044Z_metrics_20260729_004105.csv",
+      "size_bytes": 65126805
+    },
+    {
+      "identification": "stat-only; not a content lock",
+      "mtime_ns": 1787374830029234484,
+      "path": "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Lv_P_CPU_preserve_20260728T164711Z_em/metric_data/Lv_P_CPU_preserve_20260728T164711Z_em_metrics_20260729_011933.csv",
+      "size_bytes": 69440747
+    },
+    {
+      "identification": "stat-only; not a content lock",
+      "mtime_ns": 1787375066615413780,
+      "path": "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Lv_S_KILLPOD_order_20260728T203705Z_em/metric_data/Lv_S_KILLPOD_order_20260728T203705Z_em_metrics_20260729_050727.csv",
+      "size_bytes": 71893364
+    },
+    {
+      "identification": "stat-only; not a content lock",
+      "mtime_ns": 1787373383638925730,
+      "path": "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Lv_S_KILLPOD_preserve_20260728T200124Z_em/metric_data/Lv_S_KILLPOD_preserve_20260728T200124Z_em_metrics_20260729_043147.csv",
+      "size_bytes": 71723518
+    }
+  ],
+  "started_at_utc": "2026-10-14T10:06:51.312292+00:00"
+}
