@@ -40,6 +40,48 @@
 | 阈值参数 | min_fit_rows=30、min_calibration_rows=10、max_counter_gap_s=30、transition_ms=30000、event_min_coverage=.8、event_top_fraction=.2 |
 | 禁止项 | Fault 专属适配、超参数搜索、score-dependent 选择 |
 
+### 1.3 三个任务的边界定义（S1/S2/S3）
+
+本支线包含三个语义强度不同的任务，v1 只开发 S1 与受限版 S2，S3 明确 NO-GO。
+三者共用同一冻结协议（候选/case/信息预算），但允许声明的结论严格不同，
+禁止把弱任务的结果叙述成强任务。
+
+**S1 — 资源层单类异常检测（本版主任务，开发）**
+
+- 输入：仅 R3（CPU-only 臂仅 `cpu_cores`）+ 实体键与观测有效性；
+- 训练：只用 normal_fit/normal_calibration 段，故障 case 零训练窗；
+- 允许结论：某 service × 15s 窗的资源形态偏离了正常分布；
+  对 CPU case 可额外报告与受控暴露弱对照（proxy_label）的一致性；
+- 禁止结论：把"资源偏离"直接叙述为"服务不可用"或"该服务是根因"。
+
+**S2 — 事故级注入目标 Service 检索（受限开发，T4 固定事件检索）**
+
+- 任务设定：对每个事故 case（CPU preserve、KILL order、KILL preserve 三个事件），
+  在冻结的 25 个候选 Service 内做排序检索，排序依据是协议冻结的事件检索规则
+  （event_min_coverage=.8、event_top_fraction=.2），不允许逐 case 调参或按分数挑规则；
+- 指标：Hit@1、Hit@3、MRR，真值为该事故 CONTROLLED_EVENT 记录的实际干预对象
+  （ts-preserve-service / ts-order-service / ts-preserve-service）；
+- 允许结论：**在受控事件范围内**，系统能否把实际干预对象排在候选前列
+  （事故级 injection-target retrieval）；
+- 禁止结论：
+  1. 不得叙述为"完整根因定位"——干预目标是实验者外部施加的对象，
+     不等于自然事故中因果链上的责任服务；
+  2. 不得叙述为"全部实际异常 Service 集合"——下游受波及服务、共享资源受害者
+     （如 CPU contention 的邻居）不在该真值内，检索结果不提供集合覆盖语义；
+  3. 证据不足（KILL 两 case 的服务可用性当前为 UNKNOWN）时报告 Unknown，
+     不用排序结果反推状态金标。
+
+**S3 — 完整根因 Service 定位（本版 NO-GO，不开发）**
+
+- 显式声明：service_minimal_v1 不开发、不评估完整根因定位任务，
+  论文/报告中不出现 "root cause localization" 口径的 S3 数字；
+- NO-GO 理由：① 数据只有受控注入的干预标签，没有自然事故的因果链真值，
+  干预对象 ≠ 根因；② 资源指标无法区分"施害者"与"受害者"
+  （CPU stress 的目标与其资源受挤压的邻居在 R3 上可能同向异常）；
+  ③ 缺独立于模型输入的服务依赖/状态证据，无法闭合因果判断；
+- 硬约束：禁止以注入标签（target_service / inject 时段）替代根因真值来"造" S3 评估；
+  若未来重启 S3，必须先补独立因果证据与评估协议，走新协议版本，不得在 v1 上扩展。
+
 ## 2. 三个主事件的选入理由与证据定级
 
 证据全部落在 `configs/service/evidence_minimal_v1.json`（9 条），
