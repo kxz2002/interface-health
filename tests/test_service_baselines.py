@@ -165,12 +165,16 @@ def _prepared(inputs, tmp_path):
     data.mkdir()
     f.to_parquet(data / "features.parquet", index=False)
     i.to_parquet(data / "index.parquet", index=False)
+    from scripts.service_experiment import PREPARE_REQUIRED_ARTIFACTS
+
+    for name in PREPARE_REQUIRED_ARTIFACTS - {"features.parquet", "index.parquet"}:
+        (data / name).write_text("fixture-only provenance; no raw data\n")
     outputs = {
         name: {
             "sha256": hashlib.sha256((data / name).read_bytes()).hexdigest(),
             "size_bytes": (data / name).stat().st_size,
         }
-        for name in ["features.parquet", "index.parquet"]
+        for name in PREPARE_REQUIRED_ARTIFACTS
     }
     (data / "manifest.json").write_text(json.dumps({"config": p.config, "outputs": outputs}))
     (data / "_SUCCESS").touch()
@@ -244,3 +248,107 @@ def test_exact_reference_thresholds(inputs, fit_count, cal_count, expected):
     bundle = fit_baselines(f, i, p)
     assert bundle.references[(svc, "R3")]["status"] == expected
     assert bundle.references[(svc, "CPU-only")]["status"] == expected
+
+
+@pytest.mark.parametrize("mutation", ["missing_features", "missing_index", "empty_outputs"])
+def test_score_manifest_completeness_before_reads_or_fit(inputs, tmp_path, monkeypatch, mutation):
+    import json
+
+    import src.service.baselines as baselines
+    from scripts.service_experiment import score
+
+    data = _prepared(inputs, tmp_path)
+    manifest_path = data / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    if mutation == "empty_outputs":
+        manifest["outputs"] = {}
+    else:
+        del manifest["outputs"][
+            "features.parquet" if mutation == "missing_features" else "index.parquet"
+        ]
+    manifest_path.write_text(json.dumps(manifest))
+    monkeypatch.setattr(
+        pd, "read_parquet", lambda *args, **kwargs: pytest.fail("read reached incomplete manifest")
+    )
+    monkeypatch.setattr(
+        baselines, "fit_baselines", lambda *args: pytest.fail("fit reached incomplete manifest")
+    )
+    out = tmp_path / "run"
+    with pytest.raises(ValueError, match="manifest"):
+        score(
+            Path("configs/service/minimal_v1.yaml"), Path("configs/data/new_merge.yaml"), data, out
+        )
+    assert not out.exists()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing_config",
+        "outputs_list",
+        "root_list",
+        "entry_list",
+        "bad_hash",
+        "bad_size",
+        "unsafe_parent",
+        "unsafe_absolute",
+        "empty_name",
+        "duplicate_entry",
+        "duplicate_root",
+        "missing_resolved_config",
+        "symlink",
+    ],
+)
+def test_score_rejects_malformed_manifest_before_reads(inputs, tmp_path, monkeypatch, mutation):
+    import json
+
+    import src.service.baselines as baselines
+    from scripts.service_experiment import score
+
+    data = _prepared(inputs, tmp_path)
+    path = data / "manifest.json"
+    manifest = json.loads(path.read_text())
+    outputs = manifest["outputs"]
+    if mutation == "missing_config":
+        del manifest["config"]
+    elif mutation == "outputs_list":
+        manifest["outputs"] = []
+    elif mutation == "root_list":
+        manifest = []
+    elif mutation == "entry_list":
+        outputs["features.parquet"] = []
+    elif mutation == "bad_hash":
+        outputs["features.parquet"]["sha256"] = "invalid"
+    elif mutation == "bad_size":
+        outputs["features.parquet"]["size_bytes"] = True
+    elif mutation in {"unsafe_parent", "unsafe_absolute", "empty_name"}:
+        name = {"unsafe_parent": "../escape", "unsafe_absolute": "/tmp/escape", "empty_name": ""}[
+            mutation
+        ]
+        outputs[name] = outputs["features.parquet"]
+    elif mutation == "missing_resolved_config":
+        del outputs["resolved_config.yaml"]
+    elif mutation == "symlink":
+        original = data / "features.parquet"
+        external = tmp_path / "external.parquet"
+        original.rename(external)
+        original.symlink_to(external)
+    if mutation == "duplicate_entry":
+        text = json.dumps(manifest).replace('"features.parquet":', '"index.parquet":')
+    elif mutation == "duplicate_root":
+        text = json.dumps(manifest)[:-1] + ', "outputs": {}}'
+    else:
+        text = json.dumps(manifest)
+    path.write_text(text)
+    monkeypatch.setattr(
+        pd, "read_parquet", lambda *args, **kwargs: pytest.fail("read reached malformed manifest")
+    )
+    monkeypatch.setattr(
+        baselines, "fit_baselines", lambda *args: pytest.fail("fit reached malformed manifest")
+    )
+    out = tmp_path / "run"
+    with pytest.raises(ValueError, match="manifest"):
+        score(
+            Path("configs/service/minimal_v1.yaml"), Path("configs/data/new_merge.yaml"), data, out
+        )
+    assert not out.exists()

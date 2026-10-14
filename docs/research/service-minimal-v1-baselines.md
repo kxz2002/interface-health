@@ -14,5 +14,5 @@ conda run -n interface python scripts/service_experiment.py command=score \
   out=outputs/service/<new-run-id>/run
 ```
 
-输入必须带 `_SUCCESS`，所有 prepare 输出先与 manifest SHA256 核对。
+输入必须带 `_SUCCESS`，manifest 必须声明完整 prepare 数据资产（features、index、instance_quality、events、evidence、coverage、quality_report、resolved_config、schema、source_manifest），所有声明输出先与 SHA256 核对。缺项、空清单、重复 JSON 键、非法身份字段或路径、软链接资产都在读取训练表和创建输出目录前拒绝。
 输出目录必须不存在；失败写 `_FAILURE`，不写 `_SUCCESS`。产物包含模型与参数、统计、训练/校准/Normal 参考 ID、逐样本原始及校准分数、Normal 分布摘要、来源和输出清单。运行自动通过已保存模型重新评分，核对数值及稳定键。

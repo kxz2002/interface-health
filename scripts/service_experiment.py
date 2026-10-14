@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import platform
+import re
 import resource
 import subprocess
 import sys
@@ -340,6 +341,57 @@ def prepare(
         raise
 
 
+# Formal prepare data assets; .gitignore is operational rather than data schema.
+PREPARE_REQUIRED_ARTIFACTS = frozenset(
+    {
+        "features.parquet",
+        "index.parquet",
+        "instance_quality.parquet",
+        "events.parquet",
+        "evidence.parquet",
+        "coverage.csv",
+        "quality_report.json",
+        "resolved_config.yaml",
+        "schema.json",
+        "source_manifest.json",
+    }
+)
+
+
+def _load_score_manifest(data_dir: Path) -> dict:
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate manifest key: {key}")
+            result[key] = value
+        return result
+
+    manifest = json.loads((data_dir / "manifest.json").read_text(), object_pairs_hook=unique_object)
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("config"), dict):
+        raise ValueError("manifest and config must be objects")
+    outputs = manifest.get("outputs")
+    if not isinstance(outputs, dict) or not outputs:
+        raise ValueError("manifest outputs must be a nonempty object")
+    missing = PREPARE_REQUIRED_ARTIFACTS - outputs.keys()
+    if missing:
+        raise ValueError(f"manifest missing required prepare artifacts: {sorted(missing)}")
+    for name, expected in outputs.items():
+        if not name or name in {".", ".."} or Path(name).parts != (name,) or "\\" in name:
+            raise ValueError(f"unsafe manifest artifact name: {name!r}")
+        path = data_dir / name
+        if path.is_symlink() or not path.is_file():
+            raise ValueError(f"manifest artifact must be a regular local file: {name}")
+        if not isinstance(expected, dict):
+            raise ValueError(f"manifest identity must be an object: {name}")
+        digest, size = expected.get("sha256"), expected.get("size_bytes")
+        if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+            raise ValueError(f"manifest SHA256 is invalid: {name}")
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            raise ValueError(f"manifest size_bytes is invalid: {name}")
+    return manifest
+
+
 def score(
     config_path: Path,
     dataset_path: Path,
@@ -367,12 +419,10 @@ def score(
     data_dir = Path(data_dir).resolve()
     if not (data_dir / "_SUCCESS").is_file() or (data_dir / "_FAILURE").exists():
         raise ValueError("score input requires successful frozen prepare")
-    manifest = json.loads((data_dir / "manifest.json").read_text())
+    manifest = _load_score_manifest(data_dir)
     # Recheck every output hash, including config/provenance, before any fit.
     input_identities = []
     for name, expected in manifest["outputs"].items():
-        if Path(name).name != name:
-            raise ValueError("unsafe manifest artifact name")
         identity = _identify(data_dir / name, small=True)
         if (
             identity["sha256"] != expected["sha256"]
