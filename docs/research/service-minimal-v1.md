@@ -231,7 +231,7 @@ T1 fixture 验证涉及真实 dt、系列身份、容器隔离、重复/冲突�
 `ts-security-service-64996ff28d8-gwdfs`，且 Deployment 正则限定10位 hash，使实际9位
 Pod 未被识别。这是 T0 身份配置/解析缺陷；现已修正 registry，并允许严格9或10位
 ReplicaSet hash，同时仍要求完整服务白名单及5位 Pod 后缀。修复后限定 Normal/CPU
-覆盖复核记录在 `.superpowers/sdd/plan/task-0-fix-report.md`。
+覆盖复核记录在 `artifacts/service_minimal_v1_20261014T100628Z/provenance/t0-guard-report.md`。
 
 post-build 用元数据做诊断（不参与特征计算）：CPU preserve 的 baseline 中位数为
 cpu=.0084028、ratio=.21540039、process=1；inject_core 为 .53116107、.22043164、4。

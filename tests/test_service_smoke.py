@@ -360,11 +360,7 @@ def test_report_protects_consumed_admission(tmp_path, destination):
     for name in ["data", "run", "evaluation"]:
         shutil.copytree(original / name, tmp_path / name)
     admission = tmp_path / "admission"
-    admission.mkdir()
-    (admission / "method_admission.md").write_text("frozen admission")
-    (admission / "analysis_manifest.json").write_text(
-        json.dumps(dict(consumed_sha256={}, output_sha256={}))
-    )
+    shutil.copytree(original / "admission", admission)
     out = admission / destination
     with pytest.raises(ValueError, match="受保护|protected"):
         render_report(tmp_path / "data", tmp_path / "run", tmp_path / "evaluation", out)

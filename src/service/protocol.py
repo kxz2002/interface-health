@@ -982,3 +982,45 @@ def write_manifest(out: Path, inputs: list[Path], protocol: ServiceProtocol) -> 
     (out / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     )
+
+
+def validate_source_bindings(source: dict, upstreams: list[Path]) -> None:
+    """Bind frozen consumers to exact upstream content, allowing directory copies.
+
+    Call after validating each upstream inventory. Origin paths identify the
+    producer inventory; they need not still exist after a legitimate relocation.
+    """
+    entries = source.get("sources")
+    if not isinstance(entries, list) or any(not isinstance(x, dict) for x in entries):
+        raise ValueError("source binding requires a sources list")
+    manifests = [x for x in entries if Path(str(x.get("path", ""))).name == "manifest.json"]
+    if len(manifests) != len(upstreams):
+        raise ValueError("source binding missing or duplicate upstream manifest")
+    for directory in upstreams:
+        path = directory / "manifest.json"
+        if path.is_symlink() or not path.is_file():
+            raise ValueError("source binding manifest must be a regular local file")
+        content = path.read_bytes()
+        digest = hashlib.sha256(content).hexdigest()
+        matches = [x for x in manifests if x.get("sha256") == digest]
+        if len(matches) != 1:
+            raise ValueError("source binding upstream manifest SHA mismatch or duplicate")
+        entry = matches[0]
+        if entry.get("identification") != "sha256" or entry.get("size_bytes") != len(content):
+            raise ValueError("source binding requires full SHA256 and size identity")
+        origin = Path(str(entry.get("path", "")))
+        if not origin.is_absolute():
+            raise ValueError("source binding requires an absolute origin identity")
+        outputs = json.loads(content)["outputs"]
+        witnesses = [
+            x
+            for x in entries
+            if Path(str(x.get("path", ""))).parent == origin.parent
+            and Path(str(x.get("path", ""))).name in outputs
+        ]
+        if not witnesses:
+            raise ValueError("source binding has no producer inventory witness")
+        for witness in witnesses:
+            expected = outputs[Path(witness["path"]).name]
+            if any(witness.get(k) != expected[k] for k in ("sha256", "size_bytes")):
+                raise ValueError("source binding producer inventory identity mismatch")

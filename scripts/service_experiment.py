@@ -640,6 +640,9 @@ def evaluate(
                 and manifest["config"].get(key) != value
             ):
                 raise ValueError(f"evaluation protocol mismatch: {key}")
+    from src.service.protocol import validate_source_bindings
+
+    validate_source_bindings(json.loads((run_dir / "source_manifest.json").read_text()), [data_dir])
     scores = pd.read_parquet(run_dir / "scores.parquet")
     index = pd.read_parquet(data_dir / "index.parquet")
     evidence = pd.read_parquet(data_dir / "evidence.parquet")

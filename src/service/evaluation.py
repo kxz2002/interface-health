@@ -328,6 +328,14 @@ def render_report(data_dir: Path, run_dir: Path, evaluation_dir: Path, out: Path
     )
 
     def remember(path, digest=None):
+        if path.is_symlink() or not path.is_file():
+            raise ValueError(f"report input must be a regular local file: {path}")
+        if digest is not None and (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(c not in "0123456789abcdef" for c in digest)
+        ):
+            raise ValueError(f"report input SHA256 is invalid: {path}")
         actual = hashlib.sha256(path.read_bytes()).hexdigest()
         if digest is not None and actual != digest:
             raise ValueError(f"report input hash mismatch: {path}")
@@ -361,13 +369,43 @@ def render_report(data_dir: Path, run_dir: Path, evaluation_dir: Path, out: Path
         raise ValueError("report protocol mismatch")
     config = configs[0]
     data_dir, run_dir, evaluation_dir = directories
+    from src.service.protocol import validate_source_bindings
+
+    validate_source_bindings(json.loads((run_dir / "source_manifest.json").read_text()), [data_dir])
+    validate_source_bindings(
+        json.loads((evaluation_dir / "source_manifest.json").read_text()), [data_dir, run_dir]
+    )
     admission = evaluation_dir.parent / "admission"
     has_admission = (admission / "analysis_manifest.json").is_file()
     if has_admission:
         remember(admission / "analysis_manifest.json")
         analysis = json.loads((admission / "analysis_manifest.json").read_text())
-        for name, digest in analysis["consumed_sha256"].items():
-            remember(evaluation_dir.parent / name, digest)
+        consumed = analysis["consumed_sha256"]
+        required_consumed = {
+            "data": {
+                "events.parquet",
+                "features.parquet",
+                "index.parquet",
+                "evidence.parquet",
+                "quality_report.json",
+            },
+            "run": {"scores.parquet"},
+            "evaluation": {
+                "event_rankings.parquet",
+                "event_comparison.csv",
+                "s1_proxy_metrics.json",
+                "s1_independent_metrics.json",
+            },
+        }
+        current = dict(zip(["data", "run", "evaluation"], directories))
+        expected_names = {
+            f"{stage}/{name}" for stage, names in required_consumed.items() for name in names
+        }
+        if not isinstance(consumed, dict) or set(consumed) != expected_names:
+            raise ValueError("admission binding missing or unexpected consumed identity")
+        for name, digest in consumed.items():
+            stage, filename = name.split("/")
+            remember(current[stage] / filename, digest)
         for name, digest in analysis["output_sha256"].items():
             remember(admission / name, digest)
         remember(admission / "method_admission.md")
