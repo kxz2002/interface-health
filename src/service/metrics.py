@@ -194,6 +194,45 @@ def _series_observations(raw: pd.DataFrame, protocol: ServiceProtocol) -> pd.Dat
     return pd.DataFrame(result)
 
 
+def _mark_identity_episodes(observations: pd.DataFrame, transition_ms: int) -> pd.DataFrame:
+    """Keep each causal observation episode's first point fixed during overlap.
+
+    A known identity returns in a new episode only when it has left the recent
+    observation budget and a different identity was observed since its last point.
+    Missing records alone never create a switch. Simultaneous samples are processed
+    together, so metric/file ordering cannot alter episode starts.
+    """
+    marked = observations.copy()
+    marked["transition_start_ms"] = pd.Series(pd.NA, index=marked.index, dtype="Int64")
+    for _, service in marked.groupby("canonical_service_id", sort=False):
+        last_seen: dict[tuple[str, ...], int] = {}
+        starts: dict[tuple[str, ...], int | None] = {}
+        for time, snapshot in service.groupby("query_time_ms", sort=True):
+            time = int(time)
+            identities = {
+                tuple(row) for row in snapshot[IDENTITY].itertuples(index=False, name=None)
+            }
+            for ident in identities:
+                prior = last_seen.get(ident)
+                other_since = any(
+                    other != ident and (prior is None or seen >= prior)
+                    for other, seen in last_seen.items()
+                )
+                new_episode = prior is None or time - prior > transition_ms
+                if new_episode and other_since:
+                    starts[ident] = time
+                elif ident not in starts:
+                    starts[ident] = None
+                indices = snapshot.index[
+                    snapshot[IDENTITY].apply(tuple, axis=1).map(lambda value: value == ident)
+                ]
+                if starts[ident] is not None:
+                    marked.loc[indices, "transition_start_ms"] = starts[ident]
+            # Update only after all identities at this timestamp were considered.
+            last_seen.update({ident: time for ident in identities})
+    return marked
+
+
 def build_metric_windows(
     paths: list[Path], meta: dict[str, object], protocol: ServiceProtocol
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -212,6 +251,8 @@ def build_metric_windows(
             & raw.query_time_ms.lt(meta["window_end_ms"])
         ].copy()
     obs = _series_observations(raw, protocol) if not raw.empty else pd.DataFrame()
+    if not obs.empty:
+        obs = _mark_identity_episodes(obs, cfg["transition_ms"])
     records = []
     for _, key in grid.iterrows():
         record = key.to_dict()
@@ -250,22 +291,10 @@ def build_metric_windows(
             if recent_count > 1:
                 override = "IDENTITY_AMBIGUOUS"
             else:
-                ident = tuple(current.iloc[0][IDENTITY])
-                history = all_service[all_service.query_time_ms.lt(end)]
-                same_identity = pd.Series(True, index=history.index)
-                for column, value in zip(IDENTITY, ident):
-                    same_identity &= history[column].eq(value)
-                other = history[~same_identity]
-                if not other.empty:
-                    # Each return after another observed identity starts a new episode.
-                    # Include a same-time overlap: its first new observation starts
-                    # cooling even while the recent-identity rule takes precedence.
-                    last_other = int(other.query_time_ms.max())
-                    episode = history[same_identity & history.query_time_ms.ge(last_other)]
-                    if not episode.empty:
-                        switch_time = int(episode.query_time_ms.min())
-                        if start < switch_time + cfg["transition_ms"]:
-                            override = "TRANSITION"
+                latest = current.loc[current.query_time_ms.idxmax()]
+                switch_time = latest.transition_start_ms
+                if pd.notna(switch_time) and start < int(switch_time) + cfg["transition_ms"]:
+                    override = "TRANSITION"
             if override:
                 for name in FEATURE_VALUE_COLUMNS:
                     record[name + "__status"] = override

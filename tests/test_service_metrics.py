@@ -325,3 +325,24 @@ def test_counter_rate_overflow_is_unsupported(tmp_path, protocol):
     assert point.counter_dt_s == 0.001
     assert point.counter_delta == 1e308
     assert point.value == 1e308
+
+
+def test_interleaved_old_snapshots_do_not_restart_new_cooldown(tmp_path, protocol):
+    # Moving new's first observation from30 to60 wrongly excludes75s window.
+    rows = []
+    for identity, points in [("old", [0, 15, 45]), ("new", [30, 60, 75, 90])]:
+        for t in points:
+            for metric, value in [
+                (CPU, t),
+                ("container_memory_usage_bytes", 100),
+                ("container_spec_memory_limit_bytes", 200),
+                ("container_processes", 1),
+            ]:
+                r = row(t, value, metric)
+                r["id"] = identity
+                rows.append(r)
+    f, _ = build(tmp_path, protocol, rows)
+    assert f.loc[60000, "cpu_cores__status"] == "IDENTITY_AMBIGUOUS"
+    assert not f.loc[75000, "identity_ambiguity"]
+    assert f.loc[75000, "cpu_cores"] == 1.0
+    assert f.loc[75000, "resource_valid"]
