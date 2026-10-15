@@ -1,5 +1,4 @@
 defaults:
-  - data: anomod
   - model: deep_svdd
   - fusion: concat
   - training: default

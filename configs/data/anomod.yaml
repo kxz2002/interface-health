@@ -1,8 +1,0 @@
-# configs/data/anomod.yaml
-# 单数据源：仅 anomod_v1（service 级故障注入）。字段口径详见 dataset-guide.md
-name: anomod
-description: Train-Ticket service 级故障注入数据集（12 case, 含 Normal）
-roots:
-  - data/anomod_v1
-normal_source: data/anomod_v1
-fused_window: 15s
