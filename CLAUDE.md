@@ -13,9 +13,9 @@
 
 当前主数据集：`data/new_merge/`（Train-Ticket 微服务系统，27 case，2026-07-28/29 单一批次采集，不与历史批次混合——entry 017 已证实跨 run 合并会污染评估），由 `configs/data/new_merge.yaml` 声明（`roots`/`normal_source` 均为 `data/new_merge`，见 `configs/contract/v1_new_merge.yaml`）。原始采集 28 case，已剔除 `Lv_S_KILLPOD_gateway`（inject 阶段 trace 数据永久缺失导致 AUROC 无定义，见 history/entries/023）。
 
-历史数据源（**其中三个已永久丢失，见下**；余者判定待重采/不再深化，仅供复现旧实验参考，见 history/entries/021/022/023/025）：`data/anomod_v1/`（11 个 service 级故障注入 case，仍在磁盘上）。**`data/endpoint_raw2/`、`data/normal_v2/`、`data/new_ep1/` 三者已永久丢失**——磁盘、DVC cache、DVC remote 三处皆无（`endpoint_raw2` 由 `326b885` 物理删除，另两个的丢失于 entry 025 核实）。因此 `configs/data/merged_v2.yaml`（anomod_v1 + endpoint_raw2 + normal_v2）依赖的链路（根 `dvc.yaml` 的 build_contract/train_v0/eval_v0/build_contract_v1/train_v1/eval_v1，以及 `dvc_reliability_gate/`、`dvc_deviation_weighted/`、`dvc_new_ep1/`）**已无法从原始数据 `dvc repro` 重建，且无法通过重跑刷新其数字**——entry 014/016/018/022 的 AUROC/AUPRC/gate 权重只能标记作废（它们同时还建立在 entry 025 修掉的错误 service 级标签之上）。仅已提交的 `metrics.json` 可作为"当时如此"的历史记录查阅，不要在此基础上继续实验、不要与 entry 025 之后的数字并列比较。`configs/data/merged_v1.yaml` 同理保留不动仅供参考。**当前唯一口径正确且可重建的数据集是 `data/new_merge`**（entry 025 从异机备份恢复，字节数与 `data/new_merge.dvc` 一致；189 个 `_pipeline_out` 漂移文件已于 entry 032 `dvc commit` 承认现状——cache 已填充完整内容，`dvc checkout` 技术上安全，但数据仍 READ-ONLY、无理由执行）。
+历史数据源**已全部退出仓库**：`data/anomod/` 与 `data/anomod_v1/` 于 entry 034 物理删除（用户确认接受；anomod_v1 无 DVC 追踪，删除即永久丢失），`data/endpoint_raw2/`、`data/normal_v2/`、`data/new_ep1/` 更早即已永久丢失——磁盘、DVC cache、DVC remote 三处皆无（`endpoint_raw2` 由 `326b885` 物理删除，另两个的丢失于 entry 025 核实）。依赖它们的链路一并退役：`configs/data/anomod.yaml`/`merged_v1.yaml`/`merged_v2.yaml` 与根 `dvc.yaml` 的 v0/v1 stage（build_contract/train_v0/eval_v0/build_contract_v1/train_v1/eval_v1）已于 entry 034 删除；`dvc_reliability_gate/`、`dvc_deviation_weighted/`、`dvc_new_ep1/` 三个 pipeline 文件按惯例留树备查，但其数据与 dataset config 均已不存在，**无法从原始数据 `dvc repro` 重建，也无法通过重跑刷新其数字**——entry 014/016/018/022 的 AUROC/AUPRC/gate 权重只能标记作废（它们同时还建立在 entry 025 修掉的错误 service 级标签之上）。仅已提交的 `metrics.json` 可作为"当时如此"的历史记录查阅，不要在此基础上继续实验、不要与 entry 025 之后的数字并列比较。**当前唯一口径正确且可重建的数据集是 `data/new_merge`**（entry 025 从异机备份恢复，字节数与 `data/new_merge.dvc` 一致；189 个 `_pipeline_out` 漂移文件已于 entry 032 `dvc commit` 承认现状——cache 已填充完整内容，`dvc checkout` 技术上安全，但数据仍 READ-ONLY、无理由执行）。
 
-数据集字段口径、pipeline 逻辑与已知问题详见 `docs/agent-docs/dataset-guide.md`（**注意**：该文档写于项目最早期，仍描述已弃用的 `data/anomod/` 单批次格式与 `process_tt_traces.py`/`build_endpoint_health.py` 老 pipeline，未覆盖 endpoint_raw2/normal_v2/contract v1/new_ep1/new_merge 等后续所有数据集和现行 pipeline——这些以本文件和各 `configs/data/*.yaml`/`configs/contract/*.yaml` 注释为准），接触数据相关代码前必读。
+数据集字段口径、pipeline 逻辑与已知问题详见 `docs/agent-docs/dataset-guide.md`（**注意**：该文档写于项目最早期，仍描述已删除的 `data/anomod/` 单批次格式（entry 034）与 `process_tt_traces.py`/`build_endpoint_health.py` 老 pipeline，未覆盖 endpoint_raw2/normal_v2/contract v1/new_ep1/new_merge 等后续所有数据集和现行 pipeline——这些以本文件和各 `configs/data/*.yaml`/`configs/contract/*.yaml` 注释为准），接触数据相关代码前必读。
 
 ### 两个论文创新方向
 
@@ -38,24 +38,21 @@
 ## Directory Structure
 ```
 data/                  # 所有数据集根目录，每个数据集为独立原子单元
-                       # 以下清单已于 entry 025（2026-08-22）按磁盘实况校准
-├── new_merge/         # 【当前主数据集】27 case，2026-07-28/29 单一批次采集，READ-ONLY，见 history/entries/023、025
+                       # 以下清单已于 entry 034（2026-10-15）按磁盘实况校准
+├── new_merge/         # 【当前唯一数据集】27 case，2026-07-28/29 单一批次采集，READ-ONLY，见 history/entries/023、025
 │   └── Lv_D_*/ Lv_E_HTTP{ABORT,DELAY,PATCH,REPLACE}_{assurance,order,travel,travel2}/ Lv_P_*/ Lv_S_*/ Normal_*/
-├── anomod_v1/         # Train-Ticket service 级故障注入数据集（历史数据源，READ-ONLY，never modify）
-│   └── Lv_P_*/ Lv_S_*/ Lv_D_*/ Normal/   # 11 个故障注入 case + Normal
-│                      # 注意：CLAUDE.md 曾称原 Normal 已归档至 `_archive/`（因 cadvisor 断流导致
-│                      # metric 模态窗口内 0 覆盖），但**磁盘上并无 `_archive/` 目录，Normal 仍在原位**。
-│                      # 该 Normal 的 metric 覆盖缺陷仍然成立，用它之前需自行确认，见 entry 025 遗留 TODO
-├── anomod/            # 项目最早期的单批次数据（`docs/agent-docs/dataset-guide.md` 描述的即此格式），
-│                      # 不被任何现行 config 引用，仅历史遗留
 └── external/          # 外部数据占位
 #
-# 已永久丢失（磁盘 / DVC cache / DVC remote 三处皆无，不可重建）：
+# 已永久丢失/删除（不可重建）：
+#   anomod/            —— 项目最早期单批次数据，entry 034 删除（DVC 指针与 cache 已一并清除）
+#   anomod_v1/         —— 11 个 service 级故障注入 case + Normal（Normal 有 cadvisor 断流缺陷，
+#                        metric 模态窗口内 0 覆盖），无 DVC 追踪，entry 034 删除即永久丢失（用户确认）
 #   endpoint_raw2/  lo2-sample/   —— `326b885` 物理删除并清空 DVC 追踪，被 new_merge 取代
 #   normal_v2/                     —— 2 个重采 Normal case（30min+60min），entry 025 核实丢失
 #   new_ep1/                       —— 11 个 endpoint 级故障 case + 1 Normal，entry 025 核实丢失
 #   new_ep2/                       —— 曾存在于本清单，现已不在磁盘上
-# 后果：`merged_v2.yaml` / `new_ep1.yaml` 两条链路无法重建，entry 014/016/018/022 的数字
+# 后果：依赖上述数据的链路全部无法重建；`configs/data/anomod.yaml`/`merged_v1.yaml`/`merged_v2.yaml`
+# 与根 dvc.yaml v0/v1 stage 已于 entry 034 一并删除。entry 014/016/018/022 的数字
 # 只能作废、无法重跑刷新（详见 entry 025）。`ep2_0729` 的源数据在仓库外的 AnoMod/2026_0729。
 ```
 
@@ -97,72 +94,16 @@ mlflow ui --backend-store-uri outputs/mlruns
 # 安装项目包（可编辑模式，使 src.* 可 import）
 pip install -e ".[dev]"
 
-# === 当前主链路（Contract v0 + Deep SVDD baseline）===
-dvc repro                        # 一键跑通全链路（build_contract → train_v0 → eval_v0）
-dvc metrics show                 # 查看 artifacts/baseline_v0/metrics.json（AUROC/AUPRC）
-dvc repro build_contract         # 只重跑预处理（原始数据 → contract parquet）
-dvc repro train_v0               # 只重跑训练（contract parquet → scores）
-dvc repro eval_v0                # 只重跑评估（scores → metrics）
+# === 历史 v0/v1/RG/DWF/new_ep1 链路：已全部退役（见 history/entries/034）===
+# 根 dvc.yaml 的 v0/v1 stage 已删除，裸 dvc repro（无 target）现在只跑 toy 冒烟
+# train/eval，不再有误触发历史 build 的风险。configs/data/anomod|merged_v1|merged_v2.yaml
+# 已删；dvc_reliability_gate/、dvc_deviation_weighted/、dvc_new_ep1/ 三个 pipeline 文件
+# 留树备查，但其数据与 dataset config 均已不存在，无法 repro。历史命令见 git 历史
+# （entry 034 之前的 CLAUDE.md）。RG gate 权重分析脚本 scripts/analyze_gate_weights.py、
+# 模态观测覆盖诊断 scripts/analyze_modality_observability.py 仍在树中，均为一次性
+# 分析脚本（--contract-dir 参数自取），不挂任何活 pipeline。
 
-# 单独运行（不走 DVC 缓存）
-python scripts/build_contract.py --config configs/contract/v0.yaml --dataset configs/data/merged_v2.yaml --out-dir artifacts/contract_v0 --seed 42
-python scripts/train_baseline_v0.py contract_dir=artifacts/contract_v0 out=artifacts/baseline_v0/scores.parquet seed=42 training.epochs=50 fusion=concat model=deep_svdd
-python scripts/eval_baseline_v0.py --scores artifacts/baseline_v0/scores.parquet --out artifacts/baseline_v0/metrics.json
-
-# === Contract v1（时序切分，修复 train/eval 行重叠）===
-dvc repro build_contract_v1 train_v1 eval_v1   # 只重跑 v1 链路
-dvc metrics show                               # 同时展示 baseline_v0/v1 的 metrics.json
-
-# 单独运行（不走 DVC 缓存）
-python scripts/build_contract.py --config configs/contract/v1.yaml --dataset configs/data/merged_v2.yaml --out-dir artifacts/contract_v1 --seed 42
-python scripts/train_baseline_v0.py contract_dir=artifacts/contract_v1 out=artifacts/baseline_v1/scores.parquet seed=42 training.epochs=50 fusion=concat model=deep_svdd
-python scripts/eval_baseline_v0.py --scores artifacts/baseline_v1/scores.parquet --out artifacts/baseline_v1/metrics.json
-
-# === Contract v1 训练池扩容开关（expand_train_pool，RG 专属）===
-# v1.yaml 默认 expand_train_pool=false（train=train_fit 纯 Normal，eval_all=全部故障阶段+holdout，
-# 与 entry 012 既有实验数字可比）。v1_expanded_pool.yaml 显式打开 expand_train_pool=true，
-# train 按三个独立 fraction 吸收故障 case 的三类行：baseline 阶段行
-# （fault_baseline_train_fraction，默认 0.2）、inject 阶段非目标 endpoint 行
-# （fault_inject_nontarget_train_fraction）、recover 阶段非目标 endpoint 行
-# （fault_recover_nontarget_train_fraction），被吸收的窗口同步从 eval_all 摘除防泄漏。
-# 具体行数随数据集而变，不在此写死（旧数字已因 entry 021 的 MAX_CONTENT_CHARS drift 失效）。
-# 两者产物目录互相隔离（contract_v1 / contract_v1_expanded），
-# L0/L1/L2 对比基线只走前者，ReliabilityGatedFusion（RG）专属实验走后者，见 history/entries/014。
-# RG 专属 pipeline 已隔离到 dvc_reliability_gate/dvc.yaml（见 history/entries/015），
-# 裸 dvc repro（无 target）不再触发这 3 个 stage。
-dvc repro dvc_reliability_gate/dvc.yaml
-
-# 单独运行（不走 DVC 缓存）
-python scripts/build_contract.py --config configs/contract/v1_expanded_pool.yaml --dataset configs/data/merged_v2.yaml --out-dir artifacts/contract_v1_expanded --seed 42
-python scripts/train_baseline_v0.py contract_dir=artifacts/contract_v1_expanded out=artifacts/baseline_v1_reliability_gate/scores.parquet seed=42 training.epochs=50 fusion=reliability_gate model=deep_svdd
-python scripts/eval_baseline_v0.py --scores artifacts/baseline_v1_reliability_gate/scores.parquet --out artifacts/baseline_v1_reliability_gate/metrics.json
-
-# 查看 RG gate 权重分布（实验后分析用；--checkpoint 可选，若训练时用 fusion_checkpoint= 落盘则传入）
-python scripts/analyze_gate_weights.py --contract-dir artifacts/contract_v1_expanded --checkpoint <path-to-fusion.pt>
-
-# === DeviationWeightedFusion（DWF，零参数逐特征偏离量加权，见 history/entries/018）===
-# 复用 dvc_reliability_gate/dvc.yaml 已产出的 artifacts/contract_v1_expanded/*（同 contract 才能
-# 与 RG 直接对比），本 pipeline 只跑训练+评估两个 stage，不重新 build contract。
-dvc repro dvc_deviation_weighted/dvc.yaml
-
-# 单独运行（不走 DVC 缓存）
-python scripts/train_baseline_v0.py contract_dir=artifacts/contract_v1_expanded out=artifacts/baseline_v1_deviation_weighted/scores.parquet seed=42 training.epochs=50 fusion=deviation_weighted model=deep_svdd
-python scripts/eval_baseline_v0.py --scores artifacts/baseline_v1_deviation_weighted/scores.parquet --out artifacts/baseline_v1_deviation_weighted/metrics.json
-
-# 模态观测覆盖诊断（一次性分析脚本，见 history/entries/017/020，不在 dvc pipeline 里）
-python scripts/analyze_modality_observability.py --contract-dir artifacts/contract_v1 --out artifacts/modality_observability/report.md
-
-# === new_ep1（独立 endpoint 级故障注入数据集，不与历史批次混合，见 history/entries/019）===
-# 复用 configs/data/new_ep1.yaml / configs/contract/v1_new_ep1.yaml，contract 与
-# L0/DWF 训练评估均隔离到 dvc_new_ep1/dvc.yaml，裸 dvc repro 不触发。
-dvc repro dvc_new_ep1/dvc.yaml
-
-# 单独运行（不走 DVC 缓存）
-python scripts/build_contract.py --config configs/contract/v1_new_ep1.yaml --dataset configs/data/new_ep1.yaml --out-dir artifacts/contract_new_ep1_expanded --seed 42
-python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_ep1_expanded out=artifacts/baseline_new_ep1_concat/scores.parquet seed=42 training.epochs=50 fusion=concat model=deep_svdd
-python scripts/train_baseline_v0.py contract_dir=artifacts/contract_new_ep1_expanded out=artifacts/baseline_new_ep1_deviation_weighted/scores.parquet seed=42 training.epochs=50 fusion=deviation_weighted model=deep_svdd
-
-# === new_merge（【当前主数据集】27 case，单一批次，不与历史批次混合，见 history/entries/023）===
+# === new_merge（【当前唯一数据集】27 case，单一批次，不与历史批次混合，见 history/entries/023）===
 # v1 链路：configs/data/new_merge.yaml / configs/contract/v1_new_merge.yaml，contract 与
 # concat(L0)/independent_concat(L1)/gated(L2)/deviation_weighted(DWF) 四种融合方式 +
 # 三条平凡基线（rel_pos/zscore_l2/zscore_max，entry 029 起常驻）的训练评估均隔离到
@@ -210,11 +151,11 @@ pytest tests/
 - 切换配置组: `python scripts/train.py model=vae`
 - 模型通过 `hydra.utils.instantiate(cfg.model)` 实例化，融合机制同理通过 `hydra.utils.instantiate(cfg.fusion)` 实例化，`_target_` 指向具体类
 - `train_baseline_v0.py` 是 `@hydra.main` 入口：`contract_dir`/`out` 是 `configs/base.yaml` 里的必填 Hydra 字段（`???`），不是 argparse flag，调用改用 `contract_dir=... out=...` override 语法
-- `configs/data/*.yaml` 声明数据集组成：`roots`（合并哪些数据源目录）+ `normal_source`（Normal 只取自哪个 root）。如 `merged_v1.yaml` = anomod_v1 + endpoint_raw2；`build_contract.py --dataset <该文件>` 消费
+- `configs/data/*.yaml` 声明数据集组成：`roots`（合并哪些数据源目录）+ `normal_source`（Normal 只取自哪个 root）。现行唯一活配置是 `new_merge.yaml`（单数据源，roots/normal_source 均指向 `data/new_merge`）；`build_contract.py --dataset <该文件>` 消费。`new_ep1.yaml`（数据已丢失）与 `ep2_0729.yaml`（源数据在仓库外）留树备查
 - `configs/contract/v1.yaml` 的 `expand_train_pool: bool` 字段（v1/v2 契约消费，v0 不识别）：`false`（默认）=train 仅纯 Normal `train_fit`；`true`=train 按三个独立 fraction 额外吸收故障 case 的 baseline 阶段行、inject 阶段非目标 endpoint 行、recover 阶段非目标 endpoint 行，被吸收窗口同步从 eval_all 摘除防泄漏。三个 fraction 默认分别是 0.2 / 0.0 / 0.0，`v1_expanded_pool.yaml` 与 `v1_new_ep1.yaml` 把后两个显式设为 1.0；`v1_new_merge.yaml` 的 `fault_baseline_train_fraction` 同样是 0.2，但这是针对 new_merge 单独实测校准得出的（不是借用 endpoint_raw2 的数值），换数据集时不要假设可以直接复用别的数据集已校准的 fraction，必须重新跑 `build_contract.py` 核实 eval_all 类别比例，见 history/entries/023
 
 ## Data Rules
-- `data/anomod_v1/` 等数据集目录是 READ-ONLY，绝不修改原始数据
+- `data/` 下各数据集目录（当前仅 `data/new_merge/`）是 READ-ONLY，绝不修改原始数据
 - 所有数据变换必须代码化（`src/data/`），不可手动处理
 - 每个数据集为独立原子单元，原始数据与 pipeline 产物均在同一目录下
 - 数据集版本记录在对应的 config 文件中
@@ -278,7 +219,7 @@ pytest tests/
 - **Normalizer 退化 group（全 NaN 或零方差）不做归一化，保留原值**：某 group（或 global scope）在 fit 集合（仅 Normal）里全 NaN，或只出现过单一取值（`hi-lo=0`）时，`transform()` 必须跳过该 group 的归一化运算——全 NaN 会把 `[nan, nan]` 统计量通过减法/除法扩散污染其他数据完好的 case；零方差若不跳过、只是把除数下限到 `1e-9`，会把 eval 侧任何非零差值放大 1e9 倍，产出 1e9~1e13 量级的离谱数值（`endpoint_red__client_latency_p95`/`latency_divergence` 曾实际命中，2026-07-16 修复，见 history 013）。跳过后保留原始量纲；若某列同时受 `RATE_COLUMNS` 的 `clip(0,1)` 约束，需确认原始量纲天然落在 `[0,1]`，否则 clip 会把正常值误判为异常。**以上是 min_max（v0/v1）行为；v2 的 z_score 路径不同**：退化统计量走"一级 shrinkage（组 → 跨 case 汇总，w=n/(n+10)）+ 两级退化回退（汇总 → 全局 → 1.0 哨兵）"的回退链，不存在"跳过/透传原始量纲"的组（per-case 下原始值跨 case 不可比），`skipped_groups()` 恒不含 z_score 列（见 history/entries/031）
 - **per-endpoint 标签精度（三档，entry 025 起）**：contract pipeline 按 `case_metadata.json` 里**哪些 target 字段存在**产出 `label_granularity`，共三档：有 `target_endpoint` → `"endpoint"`（正样本 = `is_target_endpoint & is_anomaly`）；无 `target_endpoint` 但有 `target_service` → `"service"`（正样本 = `is_anomaly & (service_name == target_service)`）；两者皆无 → `"case"`（正样本 = `is_anomaly`，实际只有 Normal 这类无注入目标的 case 走这档）。**`target_endpoint` 优先于 `target_service`**，两者同时存在时（真实 `Lv_E_*` 数据即如此）必须走 endpoint 档。判定依据是 target 字段本身，**不是** `anomaly_level`（那是故障类型描述，语义不等价，未来数据源变化会失配）。`is_anomaly`/`y_true` 语义不变（仍是 `phase == "inject"`）；`eval_baseline_v0.py` 的四层分层（overall/by_anomaly_type/by_anomaly_level/by_endpoint）统一用 `is_endpoint_anomaly`。**`is_endpoint_anomaly` 恒为 `is_anomaly` 的子集**，该不变量已在 `contract_v0.py` 显式校验（未来某档判据若被改成不带 `is_anomaly` 的形式，会把 baseline/recover 行标成正样本，评估协议直接失真且不报错）；`label_granularity` 也已加枚举校验（拼错成 `"svc"` 之类不会抛异常，只会让那批 case 悄悄走进 `else` 分支）。entry 025 前只有二档（缺 `"service"`），case 级 fallback 丢弃已存在的 `target_service`、把整个 case 内所有 service 一视同仁标正——这会把纯 service 级特征（`service_metric`/`service_log`）的判别力稀释到接近随机（`Lv_P_CPU_preserve` 的 `cpu_usage_rate` 表观 AUROC 0.534、修正后 0.9993；6 个资源型故障 case 里 5 个原本落在 0.5~0.55 区间），且**不报错、不 NaN、不越界**，只是让人得出"资源指标对资源型故障没有判别力"这个荒谬却看似有数据支撑的结论。**引用 entry 025 之前的任何 AUROC/AUPRC 数字前先确认其标签口径**
 - **`label_target_observable`：把"评估不可观测"与"训练不安全"分开表达的闸门列**（per-case 常量 bool，entry 025 新增，属 `REQUIRED_LABEL_COLUMNS`）：某 case 声明了注入目标（`target_endpoint`/`target_service` 之一）但 inject 阶段内没有任何行匹配上该目标时置 `False`。典型触发者是 `target_service` 为 `tsdb-mysql`/`ts-gateway-service` 这类基础设施组件——`configs/contract/endpoint_to_service.yaml` 只覆盖 8 个客户端入口 service，这些组件不对应任何客户端 endpoint（**已定案不扩展映射表**：扩表等于编造假 endpoint 行，污染特征侧比 null AUROC 更坏，见 entry 024/025）。该列有两个彼此独立的作用：① 评估侧照常产出 `n_pos=0` → 分层 AUROC 为 `null`（与 entry 016/023 对 `Lv_S_KILLPOD_gateway` 的处理惯例一致）；② **训练侧作为 `_write_v1` inject 吸收的第二道闸门**——若缺这道闸，正样本恒为 0 会让 `~is_endpoint_anomaly` 在这些 case 的整个 inject 阶段恒为 True，在 `fault_inject_nontarget_train_fraction=1.0` 下把"数据库挂掉时 8 个 service 全受影响"的故障行整段吸进 One-Class 训练池当正常数据；训练照跑、指标照出，只是模型学到的"正常边界"被污染。**Normal case 必须是 `True`**（既无 target 也无 inject 行，不属于"不可观测"），否则会被吸收闸门莫名排除。加这道闸同时要求 `_write_v1` 的 eval_all 从六段扩到七段——被闸门挡下的 inject 行既不进训练池、又不是正样本、也不落在原有任何分段条件里，会**静默消失**（`new_merge` 上是 2105 行）；捕获它靠的是既有行守恒断言，不是任何显式测试。**任何未来给吸收侧加新判据的改动，都要同步检查"被挡下的行有没有归宿"并扩容守恒检查**
-- **`expand_train_pool` 开关会改变 eval_all 行数，不同取值的 AUROC 不可直接横向比较**：`false`（`contract_v1`）与 `true`（`contract_v1_expanded`）的 eval_all 行数不同——后者摘除了被吸收进训练池的故障行。具体数字不在此写死：13632/12683/8221 是 entry 016 的时点数字（当时两个 nontarget fraction 尚未引入，实际默认为 0.0），entry 022 起两个新 fraction（`fault_inject_nontarget_train_fraction`/`fault_recover_nontarget_train_fraction`）设为 1.0 后 `contract_v1_expanded` 的 eval_all 进一步降低，具体数字未重新核算（不 dvc repro，理由见 entry 021/022）。L0/L1/L2 与 RG 分别固定用其中一种取值（见上方 Commands 小节），不要把两者的 AUROC 直接摆在一张表里比大小，除非明确注明各自的 eval 样本数和口径差异。`EndpointBaselineStats`/`Normalizer` 的 fit 范围不受该开关影响，始终锁定纯 Normal 的 `train_fit`（仅 v1；v2 的 Normalizer fit = `train_fit` ∪ 各故障 case baseline 前 20%，且不产 EBS sidecar，见 history/entries/031）
+- **`expand_train_pool` 开关会改变 eval_all 行数，不同取值的 AUROC 不可直接横向比较**：`false`（`contract_v1`）与 `true`（`contract_v1_expanded`）的 eval_all 行数不同——后者摘除了被吸收进训练池的故障行。具体数字不在此写死：13632/12683/8221 是 entry 016 的时点数字（当时两个 nontarget fraction 尚未引入，实际默认为 0.0），entry 022 起两个新 fraction（`fault_inject_nontarget_train_fraction`/`fault_recover_nontarget_train_fraction`）设为 1.0 后 `contract_v1_expanded` 的 eval_all 进一步降低，具体数字未重新核算（不 dvc repro，理由见 entry 021/022）。历史上 L0/L1/L2 固定走 `false`、RG 固定走 `true`（见 history/entries/014；RG 已于 entry 031 退役），不要把两种取值的 AUROC 直接摆在一张表里比大小，除非明确注明各自的 eval 样本数和口径差异。`EndpointBaselineStats`/`Normalizer` 的 fit 范围不受该开关影响，始终锁定纯 Normal 的 `train_fit`（仅 v1；v2 的 Normalizer fit = `train_fit` ∪ 各故障 case baseline 前 20%，且不产 EBS sidecar，见 history/entries/031）
 - **`expand_train_pool=true` 后 eval_all 类别比例由三个 fraction 共同控制**：`fault_baseline_train_fraction`（issue #16 修复，默认 0.2，切 baseline 阶段行）、`fault_inject_nontarget_train_fraction` 与 `fault_recover_nontarget_train_fraction`（entry 022 新增，默认 0.0，`v1_expanded_pool.yaml`/`v1_new_ep1.yaml` 设 1.0）。三者都走同一个整窗时序切分函数 `src/contracts/split_fault_phase.py`，最早该比例的窗口进训练池、其余留 eval_all，`train.sample_id ∩ eval_all.sample_id == ∅` 由整窗切分保证。**两路"非目标"判据不同、不可互换**：inject 侧用 `is_endpoint_anomaly == False` **且** `label_target_observable == True`（后者是 entry 025 新增的第二道闸，见上方该列的 gotcha）；recover 侧必须用 `is_target_endpoint == False` 且只对 `label_granularity == "endpoint"` 的 case 生效（`is_anomaly` 定义为 `phase == "inject"`，recover 阶段恒 False，导致 `is_endpoint_anomaly` 对 recover 所有 endpoint 含目标恒为 False——该判据在 recover 阶段对所有 endpoint（含目标 endpoint 自身）都成立，等于筛不掉任何行，不是"选不出行"而是"全部选中"，拿它筛"非目标"会把目标 endpoint 自身的 recover 行也一起误判为非目标吸收进训练池；而 `"service"`/`"case"` 档的 case `is_target_endpoint` 全为 0.0 或 NaN（NaN 经 `fillna(True)` 视为目标）、无法区分目标/非目标，其 recover 行整段留 eval_all——**entry 025 明确决定不给 service 档开口子**，理由是 recover 阶段分布本身未经验证）。目标 endpoint 自身的 recover 行始终不吸收。**注意 entry 022 写下的"case 级标签在 inject 侧自动选不出行"这一不变量已于 entry 025 失效**：那句话成立的前提正是被修掉的 bug（case 级 fallback 令 `is_endpoint_anomaly` 在 inject 阶段恒 True）；三档化之后 `"service"` 档 case 的非目标 service inject 行会真的被吸收（`new_merge` 实测 5380 行，此前为 0），训练池构成发生实质变化。**即使三路全推 1.0 也未必到 1:1**——负样本地板还剩 recover 未吸收部分 + Normal holdout，后两者各有独立保护理由（分布未验证 / Normalizer 防泄漏），具体可达比例需按实际数据集核算。另注意**正样本率低不等于失衡 bug**：`new_merge` 修复后正样本率 6.5%，低于 entry 016 判定失衡时的 16%，但成因相反（016 是负样本被掏空，025 是正样本收窄回真实身份、负样本绝对数反而增加），且没有任何 fraction 配置能把它"调回"旧值。见 history/entries/016、019、022、025
 - **`is_target_endpoint` 在真实 contract 数据中是 float64（含 NaN），直接取反会抛 TypeError**：该列不是干净的 bool，取值集合是 `{0.0, 1.0, NaN}`（`label_granularity == "case"` 的 case 该列全 NaN 或全 0.0，具体取决于上游赋值路径）；对 float64 NaN 列直接 `~is_target_endpoint` 会抛 `TypeError: ufunc 'invert' not supported`，必须先显式转成干净 bool（`.fillna(...).astype(bool)`）再取反或比较。`fillna` 的方向也不是随便选：第一次实现选了 `fillna(False)`（未知值默认"不是目标"），这会让未知目标状态的行被误判为非目标、可能被 recover 侧的非目标吸收逻辑吞进训练池——恰好违反 entry 014/022 "目标 endpoint 自身的 recover 行始终不吸收"的保守设计意图。正确方向是 `fillna(True)`（未知值默认"是目标"，即更保守、更容易被排除在训练池吸收范围之外），实现过程中先错后改，见 history/entries/022
 - **"target service 同时是 chaos 目标又是 trace/log 上报通道"的 case 会导致 inject 阶段该模态数据永久缺失、AUROC 数学上无定义**：已在两个独立数据集上复现同一模式——`endpoint_raw2` 上的 `Lv_S_KILLPOD_gateway`（entry 016）与 `new_merge` 上的同名 case（entry 023，已剔除）。根因都是 `ts-gateway-service` 被 PodChaos 杀掉后，它自己既是 SkyWalking trace 上报通道又是被杀目标，pod 死后没有任何组件能继续上报该 case 的 trace，导致 inject 阶段 0 行、`eval_all` 里该 case 100% 落在 baseline phase（单一类别），`by_anomaly_type` 分层 AUROC 为 `null`。接入任何新数据集时，若含 `KILLPOD`/`PodChaos` 类故障且目标服务本身承担可观测性上报职责，需要提前排查该 case 是否有这个缺陷，而不是等 metrics.json 里出现 `null` 才发现
@@ -286,7 +227,7 @@ pytest tests/
 - **组合模型 optimizer 必须覆盖全部子模块**：`instantiate(optimizer_cfg, params=svdd.parameters())` 只传 SVDD 参数时，fusion encoder 层永远停在随机初始化——L1/L2 在 entry 012 实际命中此 bug（消融结果与 L0 无差异直到修复）。任何新增 fusion+model 组合上线前须验证 optimizer 参数集覆盖所有 `nn.Module`
 - **RG coupling 已收束（见 history/entries/015）**：① fusion 构造改为 `FusionModule.from_contract` 钩子，RG 覆写自行加载 `EndpointBaselineStats`+派生 `id_to_endpoint_key`，`train_baseline_v0.py` 不再按 `_target_` 字符串分支；② `EndpointBaselineStats` fit/save 与 `endpoint_id` 列派生改由 `ContractConfig.fit_endpoint_baseline_stats` 开关门控（v1.yaml=false / v1_expanded_pool.yaml=true），不再无条件 fit；③ 3 个 RG 专属 stage 隔离到 `dvc_reliability_gate/dvc.yaml`，裸 `dvc repro` 不再触发。`scripts/analyze_gate_weights.py`（一次性分析脚本）维持直接构造 RG 的用法，不在收束范围内。
 - **DeviationWeightedFusion（DWF）零参数逐特征加权，判定不达标不做后续深化（见 history/entries/018）**（v2 另有自参照新类 `SelfReferentialDeviationFusion`：公式不变、直读特征当偏离量、无 sidecar，是 v2 四臂之一，见 history/entries/031）：ABORT/REPLACE 宏平均 AUROC 0.632/0.538，与 RG 基本无差异（REPLACE 更差）。构造时用 `EndpointBaselineStats.red_cols`/`svc_cols` 属性按值校验传入的 `red_cols`/`svc_cols` 顺序与内部 fit 顺序一致（不只是长度），因为 `schema.json` 的列顺序与 `EndpointBaselineStats` 的 fit 顺序是独立派生的两条链路，理论上可能同长度但顺序不同，此时 `branch_stats()` 的 mean/std 会被错位应用到错误的特征位置，计算不报错但结果是错的。
-- **`MAX_CONTENT_CHARS=2000` 截断对 log 特征有实测可量化的损耗，不是"行为不变"（见 history/entries/019、020）**：截断只对占比 88%+ 的短行不改变 Drain3 template 归类，但超长行（占比约 12%，真实数据里可达近百万字符）本身的 template 归类会变，落到 `service_log__template_diversity` 特征上，约 60% 的 15s 窗口取值会变化（平均绝对偏差 ~0.017，最大 ~0.16；`event_rate`/`error_ratio` 不受影响）。阈值 2000→3000 CPU 几乎零代价但损耗改善有限（~14%），继续加大阈值到 20000 才有中等改善但 CPU 涨到 2.3 倍，逼近数据集真实离群值（几十万字符）时 CPU 暴涨到 80 倍。调整该阈值前先读 entry 020 的实测曲线，不要凭直觉猜测。该常量只在 `feature/deviation-weighted-fusion` 分支存在，`master` 无此逻辑——`v0`/`v1`/`v1_expanded`（RG）三条既有 contract 管线因此 `dvc status` 显示 deps 过期，已提交的 `metrics.json` 是旧代码（无截断）产物；决定不重跑（见 entry 021），因为这批数据集已知需要重采（PATCH 类故障对现有 endpoint RED 特征全隐形，entry 017），重跑旧数据集无法产出会被后续引用的新结论。
+- **`MAX_CONTENT_CHARS=2000` 截断对 log 特征有实测可量化的损耗，不是"行为不变"（见 history/entries/019、020）**：截断只对占比 88%+ 的短行不改变 Drain3 template 归类，但超长行（占比约 12%，真实数据里可达近百万字符）本身的 template 归类会变，落到 `service_log__template_diversity` 特征上，约 60% 的 15s 窗口取值会变化（平均绝对偏差 ~0.017，最大 ~0.16；`event_rate`/`error_ratio` 不受影响）。阈值 2000→3000 CPU 几乎零代价但损耗改善有限（~14%），继续加大阈值到 20000 才有中等改善但 CPU 涨到 2.3 倍，逼近数据集真实离群值（几十万字符）时 CPU 暴涨到 80 倍。调整该阈值前先读 entry 020 的实测曲线，不要凭直觉猜测。该常量只在 `feature/deviation-weighted-fusion` 分支存在，`master` 无此逻辑——`v0`/`v1`/`v1_expanded`（RG）三条既有 contract 管线曾因此 `dvc status` 显示 deps 过期（v0/v1 管线已于 entry 034 从根 dvc.yaml 下葬，RG/DWF pipeline 文件留树备查但同样无法重建），已提交的 `metrics.json` 是旧代码（无截断）产物；决定不重跑（见 entry 021），因为这批数据集已知需要重采（PATCH 类故障对现有 endpoint RED 特征全隐形，entry 017），重跑旧数据集无法产出会被后续引用的新结论。
 - **v2 退役 rate `[0,1]` 校验与两段 clip，改为全特征列量级 sanity（见 history/entries/031）**：per-case z-score 下 rate 列不再落在 `[0,1]`（z 值天然有负有正、可大于 1），v1 的 rate `clip(0,1)` 与 `content_length_mean` ±5 clip（都是治 min-max 跨批次参照系错位的症状）在 v2 全部退役，替换为对**全部特征列**的 `|x| ≤ 1e6` 量级 sanity（`V2_ZSCORE_MAGNITUDE_BOUND`，只兜 entry 013 式 1e9 数值爆炸；最大真实信号 HTTPDELAY z≈2000，余量 500×）。v1/v0 的校验与 clip 行为不变。
 - **`data/new_merge` 漂移已于 entry 032 处置完毕**（本 gotcha 的历史形态见 029/031）：2026-08-24 起 189 个 `_pipeline_out/tt_fused_*.csv`/report.md（上游派生产物，非 contract 输入，但 build stage 的 dep 是整个目录，任何漂移都让它失效）内容漂移未 commit，曾导致裸 `dvc repro` 误触发 build 删 contract 产物、三次恢复成本，期间只能靠 `--single-item` 跑单 stage。entry 032 以 `dvc commit` 承认现状（用户确认 AnoMod 论文统计基于漂移后状态）+ 同步 11 个 v1 时代 stage 的 lock dep 哈希，四道验证：哈希级枚举漂移恰为 27 case×7 派生文件且 contract 输入零漂移、`dvc status` 全绿、裸 repro `--dry` 零触发、commit 前后 2268 文件 md5 快照逐字节一致。**结构教训保留**：build stage 用整目录做 dep，目录内任何非输入文件的漂移都会作废整条链——未来新数据集接入时，`_pipeline_out` 这类派生物应拆成独立 DVC 输出或排除在 dep 之外。
 

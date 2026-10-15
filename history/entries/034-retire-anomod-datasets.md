@@ -30,6 +30,6 @@
 
 - `dvc_reliability_gate/`、`dvc_deviation_weighted/`、`dvc_new_ep1/` 三个独立 pipeline 仍是死链（entry 015/018/019），本次按 031 惯例保留备查；其中 dvc_reliability_gate 引用的 `configs/data/merged_v2.yaml` 已删，若未来彻底下葬需同步处理 `test_dvc_pipeline_v1.py` 的 RG 断言与 `configs/contract/v1_expanded_pool.yaml`、`configs/contract/v1_new_ep1.yaml` 等。
 - `data/new_ep1.dvc`、`data/normal_v2.dvc` 两个丢失数据集的 .dvc 指针仍在仓库（cache 本来就空，本次 gc 的两道 warning 即它们）；正式从 git 摘掉属另一次清理。
-- CLAUDE.md 的 Commands 小节仍以根 dvc.yaml v0/v1 链路为主线（`dvc repro build_contract/train_v0/eval_v0`、`configs/data/merged_v2.yaml` 用法、RG/DWF/new_ep1 各 pipeline 命令），Directory Structure 也还列着 anomod/anomod_v1——需同步改写，本 PR 内完成。
+- ~~CLAUDE.md 同步~~（**本 PR 已完成**：项目定位段、data/ 目录清单、Commands 死命令块、Config System 示例、Data Rules、两条 gotcha 失配表述全部改写；claude-md-improver skill 当时在当前环境不可用，改为直接编辑 + 用户事先确认范围）。
 - `scripts/build_contract.py` 的 Layout B 注释、`src/preprocessors/` 两处 anomod 相关注释、`tests/fixtures/nontarget_split_mini/_generate.py` 注释等描述性文字未清理，无功能影响。
 - `docs/agent-docs/dataset-guide.md` 仍通篇描述 `data/anomod` 格式（CLAUDE.md 早已声明其过时），数据删除后它彻底成为纯历史文档，可考虑加醒目归档标注，非本次范畴。
