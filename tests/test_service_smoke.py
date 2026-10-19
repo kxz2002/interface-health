@@ -8,51 +8,7 @@ import pytest
 import yaml
 
 from src.service.protocol import load_protocol
-
-
-def fixture_inputs(tmp_path):
-    config = Path("configs/service/minimal_v1.yaml")
-    raw = yaml.safe_load(config.read_text())
-    root = tmp_path / "raw"
-    dataset = tmp_path / "dataset.yaml"
-    dataset.write_text(
-        yaml.safe_dump(dict(name="fixture", roots=[str(root)], normal_source=str(root)))
-    )
-    for case in raw["cases"]:
-        folder = root / case["case_id"]
-        (folder / "trace_data").mkdir(parents=True)
-        meta = {k: v for k, v in case.items() if k != "role"}
-        (folder / "trace_data" / "case_metadata.json").write_text(json.dumps(meta))
-        (folder / "metric_data").mkdir()
-        rows = []
-        for service in ["ts-order-service", "ts-preserve-service"]:
-            for i in range(4):
-                for metric, value in [
-                    ("container_cpu_usage_seconds_total", i * 3),
-                    ("container_memory_usage_bytes", 50),
-                    ("container_spec_memory_limit_bytes", 100),
-                    ("container_processes", 3),
-                ]:
-                    rows.append(
-                        dict(
-                            metric_name=metric,
-                            timestamp=case["window_start_ms"] / 1000 + i * 15,
-                            value=value,
-                            namespace="default",
-                            pod=service,
-                            container=service,
-                            id="abc",
-                            instance="host",
-                            job="kubelet-cadvisor",
-                            cpu="total" if "cpu" in metric else "",
-                        )
-                    )
-        pd.DataFrame(rows).to_csv(
-            folder / "metric_data" / f"{case['case_id']}_metrics.csv", index=False
-        )
-    sentinel = root / "sentinel.txt"
-    sentinel.write_text("unchanged")
-    return config, dataset, root, sentinel
+from tests.service_fixtures import fixture_inputs
 
 
 def test_prepare_small_fixture(tmp_path, monkeypatch):
@@ -301,13 +257,15 @@ def test_report_is_score_readonly(tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     "mutation", ["schema", "missing_arm", "identity", "candidate", "event_link"]
 )
-def test_report_rejects_validly_hashed_invalid_saved_tables(tmp_path, mutation):
+def test_report_rejects_validly_hashed_invalid_saved_tables(
+    tmp_path, mutation, frozen_service_chain
+):
     import hashlib
     import shutil
 
     from src.service.evaluation import render_report
 
-    original = Path("artifacts/service_minimal_v1_20261014T100628Z")
+    original = frozen_service_chain
     for name in ["data", "run", "evaluation"]:
         shutil.copytree(original / name, tmp_path / name)
     folder, filename = tmp_path / "run", "scores.parquet"
@@ -351,12 +309,12 @@ def test_report_rejects_validly_hashed_invalid_saved_tables(tmp_path, mutation):
 
 
 @pytest.mark.parametrize("destination", ["new-report", "nested/new-report"])
-def test_report_protects_consumed_admission(tmp_path, destination):
+def test_report_protects_consumed_admission(tmp_path, destination, frozen_service_chain):
     import shutil
 
     from src.service.evaluation import render_report
 
-    original = Path("artifacts/service_minimal_v1_20261014T100628Z")
+    original = frozen_service_chain
     for name in ["data", "run", "evaluation"]:
         shutil.copytree(original / name, tmp_path / name)
     admission = tmp_path / "admission"

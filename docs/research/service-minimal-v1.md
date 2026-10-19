@@ -344,4 +344,4 @@ CPU弱对照时间辨识较强（CPU-only L2/max/OCSVM AUROC=.988868；R3为1）
 
 `command=report`验证data/run/evaluation保存SHA，生成独立report目录，不拟合、重评分或解析raw。覆盖表保留25候选，事件表保留3事件×8臂；图使用已保存的闭窗分数与质量掩码。
 
-[报告](../../artifacts/service_minimal_v1_20261014T100628Z/report_v2/report.md)与[逐页中期提纲](service-midterm-outline.md)。2026-10-14仅早期候选，10月26日冻结尚未发生。方法准入FAIL保持；本轮不宣称完成两个新方法。
+[报告](../../artifacts/service_minimal_v1_20261014T100628Z/report_v3/report.md)与[逐页中期提纲](service-midterm-outline.md)。2026-10-14仅早期候选，10月26日冻结尚未发生。方法准入FAIL保持；本轮不宣称完成两个新方法。

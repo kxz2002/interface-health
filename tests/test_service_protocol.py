@@ -130,22 +130,22 @@ def test_grid_and_shared_normal_split(protocol: sp.ServiceProtocol) -> None:
     assert cal.isdisjoint(tail)
     assert fit.isdisjoint(cal)
 
-    # 真实 Normal 元数据：120 个完整窗，60/20/20 按全窗切 = 72/24/24 窗
-    case_dir = REPO / "data/new_merge" / NORMAL_CASE
-    real_meta = sp.load_case_meta(case_dir)
-    real_grid = sp.make_grid(real_meta, services)
-    assert sorted(real_grid["window_start_ms"].unique().tolist())[0] == 1785255060000
-    assert real_grid["window_start_ms"].nunique() == 120
-    real_index = sp.make_indices(real_grid, protocol)
-    counts = real_index.groupby("partition")["window_start_ms"].nunique().to_dict()
+    # 已提交协议中的 Normal 边界：120 个完整窗，60/20/20 = 72/24/24 窗。
+    # 原始 case metadata 不随 Git checkout 分发；读取行为由独立临时文件测试覆盖。
+    frozen_meta = next(c for c in protocol.config["cases"] if c["case_id"] == NORMAL_CASE)
+    frozen_grid = sp.make_grid(frozen_meta, services)
+    assert sorted(frozen_grid["window_start_ms"].unique().tolist())[0] == 1785255060000
+    assert frozen_grid["window_start_ms"].nunique() == 120
+    frozen_index = sp.make_indices(frozen_grid, protocol)
+    counts = frozen_index.groupby("partition")["window_start_ms"].nunique().to_dict()
     assert counts == {
         "normal_fit": 72,
         "normal_calibration": 24,
         "normal_tail": 24,
     }
     # Normal 全部 phase=normal，且 phase 只存在于 index，不进 features
-    assert set(real_index["phase"]) == {"normal"}
-    assert "phase" not in real_grid.columns
+    assert set(frozen_index["phase"]) == {"normal"}
+    assert "phase" not in frozen_grid.columns
 
     # CPU case：proxy_exposure_label 只在目标服务的 baseline=0/inject_core=1，其余 null
     cpu_meta = next(
