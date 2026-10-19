@@ -112,8 +112,8 @@ stages:
       size: 593200
     - path: configs/base.yaml
       hash: md5
-      md5: 3a9e113ef5cad881cbd753e96d1b1842
-      size: 573
+      md5: 79936f40d7a6d95be16a6e99caf59434
+      size: 556
     - path: configs/fusion/concat.yaml
       hash: md5
       md5: 8257cfffe8c05af594839237258eaf13
@@ -171,8 +171,8 @@ stages:
       size: 593200
     - path: configs/base.yaml
       hash: md5
-      md5: 3a9e113ef5cad881cbd753e96d1b1842
-      size: 573
+      md5: 79936f40d7a6d95be16a6e99caf59434
+      size: 556
     - path: configs/fusion/gated.yaml
       hash: md5
       md5: a79cd96b6eee10a70f926385d161e876
@@ -230,8 +230,8 @@ stages:
       size: 593200
     - path: configs/base.yaml
       hash: md5
-      md5: 3a9e113ef5cad881cbd753e96d1b1842
-      size: 573
+      md5: 79936f40d7a6d95be16a6e99caf59434
+      size: 556
     - path: configs/fusion/independent_concat.yaml
       hash: md5
       md5: d3693a6c4a70c7b8de439304ddbac006
@@ -362,8 +362,8 @@ stages:
       size: 593200
     - path: configs/base.yaml
       hash: md5
-      md5: 3a9e113ef5cad881cbd753e96d1b1842
-      size: 573
+      md5: 79936f40d7a6d95be16a6e99caf59434
+      size: 556
     - path: configs/contract/endpoint_to_service.yaml
       hash: md5
       md5: 502bc873b80464ad8366925be54f460e
@@ -606,8 +606,8 @@ stages:
       size: 757751
     - path: configs/base.yaml
       hash: md5
-      md5: 3a9e113ef5cad881cbd753e96d1b1842
-      size: 573
+      md5: 79936f40d7a6d95be16a6e99caf59434
+      size: 556
     - path: configs/fusion/concat.yaml
       hash: md5
       md5: 8257cfffe8c05af594839237258eaf13
@@ -665,8 +665,8 @@ stages:
       size: 757751
     - path: configs/base.yaml
       hash: md5
-      md5: 3a9e113ef5cad881cbd753e96d1b1842
-      size: 573
+      md5: 79936f40d7a6d95be16a6e99caf59434
+      size: 556
     - path: configs/fusion/independent_concat.yaml
       hash: md5
       md5: d3693a6c4a70c7b8de439304ddbac006
@@ -724,8 +724,8 @@ stages:
       size: 757751
     - path: configs/base.yaml
       hash: md5
-      md5: 3a9e113ef5cad881cbd753e96d1b1842
-      size: 573
+      md5: 79936f40d7a6d95be16a6e99caf59434
+      size: 556
     - path: configs/fusion/gated.yaml
       hash: md5
       md5: a79cd96b6eee10a70f926385d161e876
@@ -784,8 +784,8 @@ stages:
       size: 757751
     - path: configs/base.yaml
       hash: md5
-      md5: 3a9e113ef5cad881cbd753e96d1b1842
-      size: 573
+      md5: 79936f40d7a6d95be16a6e99caf59434
+      size: 556
     - path: configs/fusion/deviation_weighted_selfref.yaml
       hash: md5
       md5: b417b76c264761c9b5d1cef15ed31a87
