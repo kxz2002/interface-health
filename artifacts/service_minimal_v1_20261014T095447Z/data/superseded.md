@@ -1,0 +1,6 @@
+# 被T2产物冻结修复替代
+
+本目录保留原始prepare产物，不作为后续score主输入。
+T2独立审查发现manifest缺少输出SHA，五份小Chaos/Kubernetes证据来源只有stat。
+修复后主数据重新prepare到artifacts/service_minimal_v1_20261014T100628Z/data。
+既有parquet与配置、质量表、来源表、manifest均保持原内容。

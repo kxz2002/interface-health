@@ -1,0 +1,160 @@
+{
+  "protocol_id": "service_minimal_v1",
+  "schema": {
+    "evidence_grade_enum": [
+      "INDEPENDENT_STATE",
+      "CONTROLLED_EVENT",
+      "OBSERVATION_DERIVED",
+      "UNKNOWN"
+    ],
+    "evidence_unit_enum": [
+      "EVENT",
+      "WINDOW",
+      "INSTANCE"
+    ],
+    "feature_status_enum": [
+      "OBSERVED",
+      "UNOBSERVED",
+      "NO_DENOMINATOR",
+      "COUNTER_RESET",
+      "GAP",
+      "IDENTITY_AMBIGUOUS",
+      "TRANSITION",
+      "UNSUPPORTED",
+      "CONFLICTING_SAMPLE"
+    ],
+    "feature_value_columns": [
+      "cpu_cores",
+      "memory_usage_ratio",
+      "process_count",
+      "memory_usage_bytes",
+      "memory_working_set_bytes",
+      "memory_limit_bytes"
+    ],
+    "review_status_enum": [
+      "pending_human_review",
+      "confirmed",
+      "rejected"
+    ],
+    "score_status_enum": [
+      "Scored",
+      "Unknown",
+      "Untrained"
+    ],
+    "state_class_enum": [
+      "RESOURCE_CHANGE",
+      "EXECUTION_FAILURE",
+      "SERVICE_UNAVAILABLE",
+      "INSTANCE_TERMINATION",
+      "NO_OBSERVED_CHANGE",
+      "UNKNOWN"
+    ],
+    "termination_fact_types": [
+      "INSTANCE_TERMINATION",
+      "KILLING",
+      "POD_KILL"
+    ],
+    "version": "service_minimal_v1"
+  },
+  "tables": {
+    "events": {
+      "candidate_set_id": "object",
+      "case_id": "object",
+      "causal_ambiguity": "object",
+      "configured_end_ms": "int64",
+      "configured_start_ms": "int64",
+      "configured_target_service": "object",
+      "effect_evidence_ids": "object",
+      "effect_grade": "object",
+      "evaluation_end_ms": "int64",
+      "evaluation_start_ms": "int64",
+      "event_id": "object",
+      "fault_type": "object",
+      "first_effect_evidence_ms": "Int64",
+      "review_status": "object"
+    },
+    "evidence": {
+      "canonical_service_id": "object",
+      "case_id": "object",
+      "depends_on_input_sources": "object",
+      "end_ms": "int64",
+      "evidence_grade": "object",
+      "evidence_id": "object",
+      "fact_type": "object",
+      "heldout_from_model": "bool",
+      "independent_label": "Int8",
+      "proxy_label": "Int8",
+      "review_note": "object",
+      "review_status": "object",
+      "source_locator": "object",
+      "source_path": "object",
+      "source_sha256": "object",
+      "start_ms": "int64",
+      "state_class": "object",
+      "unit": "object"
+    },
+    "features": {
+      "canonical_service_id": "object",
+      "case_id": "object",
+      "cpu_cores": "float64",
+      "cpu_cores__status": "object",
+      "identity_ambiguity": "bool",
+      "memory_limit_bytes": "float64",
+      "memory_limit_bytes__status": "object",
+      "memory_usage_bytes": "float64",
+      "memory_usage_bytes__status": "object",
+      "memory_usage_ratio": "float64",
+      "memory_usage_ratio__status": "object",
+      "memory_working_set_bytes": "float64",
+      "memory_working_set_bytes__status": "object",
+      "metric_last_query_time_ms": "Int64",
+      "metric_receipt_time_ms": "Int64",
+      "observed_instance_count": "Int64",
+      "process_count": "float64",
+      "process_count__status": "object",
+      "quality_reasons": "object",
+      "resource_valid": "bool",
+      "sample_id": "object",
+      "schema_version": "object",
+      "score_time_lower_bound_ms": "int64",
+      "window_end_ms": "int64",
+      "window_start_ms": "int64"
+    },
+    "index": {
+      "canonical_service_id": "object",
+      "case_id": "object",
+      "evidence_ids": "object",
+      "exclusion_reasons": "object",
+      "paired_resource_eligible": "bool",
+      "partition": "object",
+      "phase": "object",
+      "proxy_exposure_label": "Int8",
+      "sample_id": "object",
+      "window_end_ms": "int64",
+      "window_start_ms": "int64"
+    },
+    "instance_quality": {
+      "canonical_service_id": "object",
+      "case_id": "object",
+      "container": "object",
+      "container_id": "object",
+      "counter_delta": "float64",
+      "counter_dt_s": "float64",
+      "counter_previous_time_ms": "Int64",
+      "counter_previous_value": "float64",
+      "cpu": "object",
+      "dedup_count": "Int64",
+      "exporter_instance": "object",
+      "job": "object",
+      "metric_name": "object",
+      "namespace": "object",
+      "pod": "object",
+      "query_time_ms": "Int64",
+      "series_status": "object",
+      "source_path": "object",
+      "source_row_number": "Int64",
+      "value": "float64",
+      "window_start_ms": "Int64"
+    }
+  }
+}

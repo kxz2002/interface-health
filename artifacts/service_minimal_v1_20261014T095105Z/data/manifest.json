@@ -1,0 +1,322 @@
+{
+  "config": {
+    "cases": [
+      {
+        "case_id": "Normal_20260728T161044Z",
+        "inject_end_ms": null,
+        "inject_start_ms": null,
+        "is_anomaly_case": false,
+        "recoverable": null,
+        "role": "normal",
+        "target_service": null,
+        "window_end_ms": 1785256860279,
+        "window_start_ms": 1785255051635
+      },
+      {
+        "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+        "chaos_kind": "StressChaos",
+        "chaos_yaml": "Lv_P_CPU_preserve.yaml",
+        "inject_end_ms": 1785259047896,
+        "inject_start_ms": 1785258442613,
+        "is_anomaly_case": true,
+        "recoverable": true,
+        "role": "cpu",
+        "target_service": "ts-preserve-service",
+        "window_end_ms": 1785259168099,
+        "window_start_ms": 1785257238975
+      },
+      {
+        "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+        "chaos_kind": "Schedule",
+        "chaos_yaml": "Lv_S_KILLPOD_order.yaml",
+        "inject_end_ms": 1785272840971,
+        "inject_start_ms": 1785272235656,
+        "is_anomaly_case": true,
+        "recoverable": false,
+        "role": "kill",
+        "target_service": "ts-order-service",
+        "window_end_ms": 1785272840881,
+        "window_start_ms": 1785271032082
+      },
+      {
+        "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+        "chaos_kind": "Schedule",
+        "chaos_yaml": "Lv_S_KILLPOD_preserve.yaml",
+        "inject_end_ms": 1785270701381,
+        "inject_start_ms": 1785270096005,
+        "is_anomaly_case": true,
+        "recoverable": false,
+        "role": "kill",
+        "target_service": "ts-preserve-service",
+        "window_end_ms": 1785270701274,
+        "window_start_ms": 1785268892419
+      }
+    ],
+    "command": "prepare",
+    "data_dir": null,
+    "dataset": "configs/data/new_merge.yaml",
+    "dataset_resolved": {
+      "fused_window": "15s",
+      "name": "new_merge",
+      "normal_source": "data/new_merge",
+      "path": "configs/data/new_merge.yaml",
+      "roots": [
+        "data/new_merge"
+      ]
+    },
+    "evaluation_dir": null,
+    "event_min_coverage": 0.8,
+    "event_top_fraction": 0.2,
+    "feature_groups": {
+      "CPU-only": [
+        "cpu_cores"
+      ],
+      "R3": [
+        "cpu_cores",
+        "memory_usage_ratio",
+        "process_count"
+      ]
+    },
+    "freeze": {
+      "fault_specific_adaptation": false,
+      "hyperparameter_search": false,
+      "score_dependent_selection": false
+    },
+    "guard_ms": 30000,
+    "identity": {
+      "allowed_jobs": [
+        "kubelet-cadvisor"
+      ],
+      "allowed_namespaces": [
+        "default"
+      ],
+      "application_container_mapping": {
+        "ts-assurance-service": "ts-assurance-service",
+        "ts-auth-service": "ts-auth-service",
+        "ts-basic-service": "ts-basic-service",
+        "ts-cancel-service": "ts-cancel-service",
+        "ts-config-service": "ts-config-service",
+        "ts-contacts-service": "ts-contacts-service",
+        "ts-execute-service": "ts-execute-service",
+        "ts-gateway-service": "ts-gateway-service",
+        "ts-inside-payment-service": "ts-inside-payment-service",
+        "ts-notification-service": "ts-notification-service",
+        "ts-order-other-service": "ts-order-other-service",
+        "ts-order-service": "ts-order-service",
+        "ts-payment-service": "ts-payment-service",
+        "ts-preserve-other-service": "ts-preserve-other-service",
+        "ts-preserve-service": "ts-preserve-service",
+        "ts-price-service": "ts-price-service",
+        "ts-rebook-service": "ts-rebook-service",
+        "ts-route-service": "ts-route-service",
+        "ts-seat-service": "ts-seat-service",
+        "ts-security-service": "ts-security-service",
+        "ts-station-service": "ts-station-service",
+        "ts-train-service": "ts-train-service",
+        "ts-travel-service": "ts-travel-service",
+        "ts-travel2-service": "ts-travel2-service",
+        "ts-user-service": "ts-user-service"
+      },
+      "container_policy": "service_name_equals_container",
+      "cpu_label_preference": [
+        "total",
+        ""
+      ],
+      "default_job": "kubelet-cadvisor",
+      "default_namespace": "default",
+      "extra_container_aliases": {},
+      "raw_series_keys": [
+        "case_id",
+        "namespace",
+        "pod",
+        "container",
+        "id",
+        "instance",
+        "job",
+        "metric_name",
+        "cpu"
+      ],
+      "registry": {
+        "ts-assurance-service-77cc6cd6fd-h2kp7": "ts-assurance-service",
+        "ts-auth-service-859b7fb6f8-cpmb5": "ts-auth-service",
+        "ts-basic-service-6dcc67d7d9-fmzdh": "ts-basic-service",
+        "ts-cancel-service-7c866df469-wmsj8": "ts-cancel-service",
+        "ts-config-service-5b8955b566-lzx42": "ts-config-service",
+        "ts-contacts-service-7955bf6f9d-bqf45": "ts-contacts-service",
+        "ts-execute-service-947f78cd8-79nr5": "ts-execute-service",
+        "ts-gateway-service-74b958d5f7-sqcw5": "ts-gateway-service",
+        "ts-inside-payment-service-5b8ddbf69d-jk6l9": "ts-inside-payment-service",
+        "ts-notification-service-787c49cdb8-nm6sw": "ts-notification-service",
+        "ts-order-other-service-7cb7bfc447-5spm4": "ts-order-other-service",
+        "ts-order-service-6c44d949d9-kmd96": "ts-order-service",
+        "ts-payment-service-59997499d8-vf4qk": "ts-payment-service",
+        "ts-preserve-other-service-699678b998-ll8jn": "ts-preserve-other-service",
+        "ts-preserve-service-5b54899475-hbpqd": "ts-preserve-service",
+        "ts-price-service-5568d4f9b6-xlxkk": "ts-price-service",
+        "ts-rebook-service-6b9b7fbb8b-9lh2n": "ts-rebook-service",
+        "ts-route-service-6f96d6c98-fmgwv": "ts-route-service",
+        "ts-seat-service-5d55754f88-xkxwj": "ts-seat-service",
+        "ts-security-service-64996ff68-gwdfs": "ts-security-service",
+        "ts-station-service-7fdcb4d5df-xjkm4": "ts-station-service",
+        "ts-train-service-6798ffd58d-9mwlc": "ts-train-service",
+        "ts-travel-service-8fb54c6bb-s69w2": "ts-travel-service",
+        "ts-travel2-service-6846dd5cb-dr6mc": "ts-travel2-service",
+        "ts-user-service-88b78bcf9-fd2h9": "ts-user-service"
+      },
+      "statefulset_aliases": {
+        "nacos-0": "nacos",
+        "tsdb-mysql-0": "tsdb-mysql"
+      }
+    },
+    "max_counter_gap_s": 30,
+    "methods": [
+      "L2",
+      "max",
+      "OCSVM",
+      "IF"
+    ],
+    "min_calibration_rows": 10,
+    "min_fit_rows": 30,
+    "out": "artifacts/service_minimal_v1_20261014T095105Z/data",
+    "protocol_id": "service_minimal_v1",
+    "registry": {
+      "nacos-0": "nacos",
+      "ts-assurance-service-77cc6cd6fd-h2kp7": "ts-assurance-service",
+      "ts-auth-service-859b7fb6f8-cpmb5": "ts-auth-service",
+      "ts-basic-service-6dcc67d7d9-fmzdh": "ts-basic-service",
+      "ts-cancel-service-7c866df469-wmsj8": "ts-cancel-service",
+      "ts-config-service-5b8955b566-lzx42": "ts-config-service",
+      "ts-contacts-service-7955bf6f9d-bqf45": "ts-contacts-service",
+      "ts-execute-service-947f78cd8-79nr5": "ts-execute-service",
+      "ts-gateway-service-74b958d5f7-sqcw5": "ts-gateway-service",
+      "ts-inside-payment-service-5b8ddbf69d-jk6l9": "ts-inside-payment-service",
+      "ts-notification-service-787c49cdb8-nm6sw": "ts-notification-service",
+      "ts-order-other-service-7cb7bfc447-5spm4": "ts-order-other-service",
+      "ts-order-service-6c44d949d9-kmd96": "ts-order-service",
+      "ts-payment-service-59997499d8-vf4qk": "ts-payment-service",
+      "ts-preserve-other-service-699678b998-ll8jn": "ts-preserve-other-service",
+      "ts-preserve-service-5b54899475-hbpqd": "ts-preserve-service",
+      "ts-price-service-5568d4f9b6-xlxkk": "ts-price-service",
+      "ts-rebook-service-6b9b7fbb8b-9lh2n": "ts-rebook-service",
+      "ts-route-service-6f96d6c98-fmgwv": "ts-route-service",
+      "ts-seat-service-5d55754f88-xkxwj": "ts-seat-service",
+      "ts-security-service-64996ff68-gwdfs": "ts-security-service",
+      "ts-station-service-7fdcb4d5df-xjkm4": "ts-station-service",
+      "ts-train-service-6798ffd58d-9mwlc": "ts-train-service",
+      "ts-travel-service-8fb54c6bb-s69w2": "ts-travel-service",
+      "ts-travel2-service-6846dd5cb-dr6mc": "ts-travel2-service",
+      "ts-user-service-88b78bcf9-fd2h9": "ts-user-service",
+      "tsdb-mysql-0": "tsdb-mysql"
+    },
+    "run_dir": null,
+    "schema": {
+      "evidence_grade_enum": [
+        "INDEPENDENT_STATE",
+        "CONTROLLED_EVENT",
+        "OBSERVATION_DERIVED",
+        "UNKNOWN"
+      ],
+      "evidence_unit_enum": [
+        "EVENT",
+        "WINDOW",
+        "INSTANCE"
+      ],
+      "feature_status_enum": [
+        "OBSERVED",
+        "UNOBSERVED",
+        "NO_DENOMINATOR",
+        "COUNTER_RESET",
+        "GAP",
+        "IDENTITY_AMBIGUOUS",
+        "TRANSITION",
+        "UNSUPPORTED",
+        "CONFLICTING_SAMPLE"
+      ],
+      "feature_value_columns": [
+        "cpu_cores",
+        "memory_usage_ratio",
+        "process_count",
+        "memory_usage_bytes",
+        "memory_working_set_bytes",
+        "memory_limit_bytes"
+      ],
+      "review_status_enum": [
+        "pending_human_review",
+        "confirmed",
+        "rejected"
+      ],
+      "score_status_enum": [
+        "Scored",
+        "Unknown",
+        "Untrained"
+      ],
+      "state_class_enum": [
+        "RESOURCE_CHANGE",
+        "EXECUTION_FAILURE",
+        "SERVICE_UNAVAILABLE",
+        "INSTANCE_TERMINATION",
+        "NO_OBSERVED_CHANGE",
+        "UNKNOWN"
+      ],
+      "termination_fact_types": [
+        "INSTANCE_TERMINATION",
+        "KILLING",
+        "POD_KILL"
+      ],
+      "version": "service_minimal_v1"
+    },
+    "seed": 42,
+    "services": [
+      "ts-assurance-service",
+      "ts-auth-service",
+      "ts-basic-service",
+      "ts-cancel-service",
+      "ts-config-service",
+      "ts-contacts-service",
+      "ts-execute-service",
+      "ts-gateway-service",
+      "ts-inside-payment-service",
+      "ts-notification-service",
+      "ts-order-other-service",
+      "ts-order-service",
+      "ts-payment-service",
+      "ts-preserve-other-service",
+      "ts-preserve-service",
+      "ts-price-service",
+      "ts-rebook-service",
+      "ts-route-service",
+      "ts-seat-service",
+      "ts-security-service",
+      "ts-station-service",
+      "ts-train-service",
+      "ts-travel-service",
+      "ts-travel2-service",
+      "ts-user-service"
+    ],
+    "split": {
+      "fit_frac": 0.6,
+      "val_frac": 0.2
+    },
+    "transition_ms": 30000,
+    "window_ms": 15000
+  },
+  "inputs": [
+    "/home/kxz2002/Code/Repos/interface-health/configs/service/minimal_v1.yaml",
+    "configs/data/new_merge.yaml",
+    "/home/kxz2002/Code/Repos/interface-health/configs/service/evidence_minimal_v1.json",
+    "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Normal_20260728T161044Z/trace_data/case_metadata.json",
+    "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Lv_P_CPU_preserve_20260728T164711Z_em/trace_data/case_metadata.json",
+    "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Lv_S_KILLPOD_order_20260728T203705Z_em/trace_data/case_metadata.json",
+    "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Lv_S_KILLPOD_preserve_20260728T200124Z_em/trace_data/case_metadata.json",
+    "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Normal_20260728T161044Z/metric_data/Normal_20260728T161044Z_metrics_20260729_004105.csv",
+    "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Lv_P_CPU_preserve_20260728T164711Z_em/metric_data/Lv_P_CPU_preserve_20260728T164711Z_em_metrics_20260729_011933.csv",
+    "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Lv_S_KILLPOD_order_20260728T203705Z_em/metric_data/Lv_S_KILLPOD_order_20260728T203705Z_em_metrics_20260729_050727.csv",
+    "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Lv_S_KILLPOD_preserve_20260728T200124Z_em/metric_data/Lv_S_KILLPOD_preserve_20260728T200124Z_em_metrics_20260729_043147.csv",
+    "/home/kxz2002/Code/Repos/AnoMod/TT_collection-scripts/chaos-experiments/Lv_P_CPU_preserve.yaml",
+    "/home/kxz2002/Code/Repos/AnoMod/TT_collection-scripts/chaos-experiments/Lv_S_KILLPOD_order.yaml",
+    "/home/kxz2002/Code/Repos/AnoMod/TT_collection-scripts/chaos-experiments/Lv_S_KILLPOD_preserve.yaml",
+    "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Lv_S_KILLPOD_order_20260728T203705Z_em/log_data/Lv_S_KILLPOD_order_20260728T203705Z_em/kubernetes_events_20260729_050724.json",
+    "/home/kxz2002/Code/Repos/interface-health/data/new_merge/Lv_S_KILLPOD_preserve_20260728T200124Z_em/log_data/Lv_S_KILLPOD_preserve_20260728T200124Z_em/kubernetes_events_20260729_043145.json"
+  ],
+  "protocol_id": "service_minimal_v1"
+}

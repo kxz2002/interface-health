@@ -1,0 +1,13 @@
+{
+  "expected_score_rows": 97200,
+  "model_fit_count": 100,
+  "reference_note": "Simple baselines are research foundations; no independent Service state gold or method innovation claim",
+  "roundtrip_score_match": true,
+  "score_rows": 97200,
+  "shared_resource_ids_verified": true,
+  "status_counts": {
+    "Scored": 96576,
+    "Unknown": 624
+  },
+  "trained_service_groups": 50
+}

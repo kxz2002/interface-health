@@ -1,0 +1,110 @@
+{
+  "arms": [
+    {
+      "denominator": 3,
+      "feature_group": "CPU-only",
+      "hit_at_1": 0.0,
+      "hit_at_1_numerator": 0,
+      "hit_at_3": 0.0,
+      "hit_at_3_numerator": 0,
+      "method": "IF",
+      "mrr": 0.041666666666666664,
+      "rr_sum": 0.125,
+      "scorable_events": 1,
+      "scorable_subset_mrr": 0.125
+    },
+    {
+      "denominator": 3,
+      "feature_group": "CPU-only",
+      "hit_at_1": 0.0,
+      "hit_at_1_numerator": 0,
+      "hit_at_3": 0.3333333333333333,
+      "hit_at_3_numerator": 1,
+      "method": "L2",
+      "mrr": 0.1111111111111111,
+      "rr_sum": 0.3333333333333333,
+      "scorable_events": 1,
+      "scorable_subset_mrr": 0.3333333333333333
+    },
+    {
+      "denominator": 3,
+      "feature_group": "CPU-only",
+      "hit_at_1": 0.0,
+      "hit_at_1_numerator": 0,
+      "hit_at_3": 0.3333333333333333,
+      "hit_at_3_numerator": 1,
+      "method": "OCSVM",
+      "mrr": 0.16666666666666666,
+      "rr_sum": 0.5,
+      "scorable_events": 1,
+      "scorable_subset_mrr": 0.5
+    },
+    {
+      "denominator": 3,
+      "feature_group": "CPU-only",
+      "hit_at_1": 0.0,
+      "hit_at_1_numerator": 0,
+      "hit_at_3": 0.3333333333333333,
+      "hit_at_3_numerator": 1,
+      "method": "max",
+      "mrr": 0.1111111111111111,
+      "rr_sum": 0.3333333333333333,
+      "scorable_events": 1,
+      "scorable_subset_mrr": 0.3333333333333333
+    },
+    {
+      "denominator": 3,
+      "feature_group": "R3",
+      "hit_at_1": 0.0,
+      "hit_at_1_numerator": 0,
+      "hit_at_3": 0.0,
+      "hit_at_3_numerator": 0,
+      "method": "IF",
+      "mrr": 0.027777777777777776,
+      "rr_sum": 0.08333333333333333,
+      "scorable_events": 1,
+      "scorable_subset_mrr": 0.08333333333333333
+    },
+    {
+      "denominator": 3,
+      "feature_group": "R3",
+      "hit_at_1": 0.0,
+      "hit_at_1_numerator": 0,
+      "hit_at_3": 0.0,
+      "hit_at_3_numerator": 0,
+      "method": "L2",
+      "mrr": 0.017543859649122806,
+      "rr_sum": 0.05263157894736842,
+      "scorable_events": 1,
+      "scorable_subset_mrr": 0.05263157894736842
+    },
+    {
+      "denominator": 3,
+      "feature_group": "R3",
+      "hit_at_1": 0.0,
+      "hit_at_1_numerator": 0,
+      "hit_at_3": 0.0,
+      "hit_at_3_numerator": 0,
+      "method": "OCSVM",
+      "mrr": 0.0196078431372549,
+      "rr_sum": 0.058823529411764705,
+      "scorable_events": 1,
+      "scorable_subset_mrr": 0.058823529411764705
+    },
+    {
+      "denominator": 3,
+      "feature_group": "R3",
+      "hit_at_1": 0.0,
+      "hit_at_1_numerator": 0,
+      "hit_at_3": 0.0,
+      "hit_at_3_numerator": 0,
+      "method": "max",
+      "mrr": 0.018518518518518517,
+      "rr_sum": 0.05555555555555555,
+      "scorable_events": 1,
+      "scorable_subset_mrr": 0.05555555555555555
+    }
+  ],
+  "note": "All events retained; ties and unknown competitors conservative; not full RCA",
+  "task": "S2 controlled injection target retrieval"
+}

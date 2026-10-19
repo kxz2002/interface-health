@@ -1,0 +1,22 @@
+{
+  "consumed_sha256": {
+    "data/events.parquet": "330d050cdc654eb4de7649c8d2eec22bc65cdece9d83b543c1472fe8c61ea0d9",
+    "data/features.parquet": "3b29e4c2df254c499aaa3ae2095d0f9a97e47d1080b92eff1f79bf771fc412c3",
+    "data/index.parquet": "5275223244c734473f5941c26c18a28ba8d47a8c18d5a3b3fbc5e871252ca4d4",
+    "data/evidence.parquet": "b39a79897bdd0fd7f8bc09b7bedbba23301d777390b4241c0cfb7b955e568307",
+    "run/scores.parquet": "abf84d4583fc419c3010a24712c0c6d0c772ed77c8e8000771c642ef5dfcf378",
+    "evaluation/event_rankings.parquet": "7afddaa222d9e91ae606892e93895d71b49abca82fafb80c2e632d77bd0b7de2",
+    "evaluation/event_comparison.csv": "5ffeeae6b5685cf32287f51e7044b773fc29925a5732fd0b9fdb68483b46670e",
+    "evaluation/s1_proxy_metrics.json": "2fc2f31d405c5529bc5b3b284ac0e8853f1a25975dc4b8bc0a08cdc8d13c936e",
+    "evaluation/s1_independent_metrics.json": "ec2e67a23b9db47c86f23a661f54e4bd6de74ed30c4443bd33e04b83a50a6dfc",
+    "data/quality_report.json": "03286e6bf69a1099d75648b9079a121a1165d287fa24cab2958d3011925b886c"
+  },
+  "output_sha256": {
+    "failure_modes.csv": "3e1f6b6afc5a531a51d17a919d799eddc182899b7e1aab32fd2b38de5fb3eb64",
+    "calibration_ties.csv": "d545160f8fb36698d46984dd52bf5d85450c6aaa0f6fa3dd32f8d794f178bf93",
+    "analyze.py": "b42c34dd4731f9a92f757cbead225bd211caf41bf0c27740d26ccc5bb2808540"
+  },
+  "command": "conda run -n interface python artifacts/service_minimal_v1_20261014T100628Z/admission/analyze.py",
+  "scope": "Existing artifact analysis only; no raw parse, fit, new scores, model tests or evaluation overwrite",
+  "assertions": "24 arm/event rows; both KILL target35/35 ambiguity; CPU tie counts; consumed hashes unchanged"
+}

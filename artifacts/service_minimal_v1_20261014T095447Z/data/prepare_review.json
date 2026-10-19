@@ -1,0 +1,1001 @@
+{
+  "assertions": "PASS",
+  "source_code_sha_match": true,
+  "complete_grid_rows": 12150,
+  "resource_valid": 12072,
+  "unknown": 78,
+  "selected_service_phase_summary": [
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-auth-service",
+      "phase": "baseline",
+      "n_expected": 77,
+      "n_resource_valid": 77,
+      "cpu_min": 0.0,
+      "cpu_max": 0.0293427333,
+      "cpu_median": 0.0038930667,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-auth-service",
+      "phase": "boundary",
+      "n_expected": 10,
+      "n_resource_valid": 10,
+      "cpu_min": 0.0,
+      "cpu_max": 0.0198533333,
+      "cpu_median": 0.0039921333,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-auth-service",
+      "phase": "inject_core",
+      "n_expected": 35,
+      "n_resource_valid": 35,
+      "cpu_min": 0.0,
+      "cpu_max": 0.0302980667,
+      "cpu_median": 0.0038594,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-auth-service",
+      "phase": "recover",
+      "n_expected": 5,
+      "n_resource_valid": 5,
+      "cpu_min": 0.0,
+      "cpu_max": 0.0095907333,
+      "cpu_median": 0.0047053333,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-gateway-service",
+      "phase": "baseline",
+      "n_expected": 77,
+      "n_resource_valid": 77,
+      "cpu_min": 0.0,
+      "cpu_max": 0.1551563333,
+      "cpu_median": 0.0561919333,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-gateway-service",
+      "phase": "boundary",
+      "n_expected": 10,
+      "n_resource_valid": 10,
+      "cpu_min": 0.0,
+      "cpu_max": 0.1055514667,
+      "cpu_median": 0.0574658,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-gateway-service",
+      "phase": "inject_core",
+      "n_expected": 35,
+      "n_resource_valid": 35,
+      "cpu_min": 0.0,
+      "cpu_max": 0.1086749333,
+      "cpu_median": 0.0566058667,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-gateway-service",
+      "phase": "recover",
+      "n_expected": 5,
+      "n_resource_valid": 5,
+      "cpu_min": 0.0,
+      "cpu_max": 0.1186312667,
+      "cpu_median": 0.0389407333,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-order-service",
+      "phase": "baseline",
+      "n_expected": 77,
+      "n_resource_valid": 77,
+      "cpu_min": 0.0,
+      "cpu_max": 1.3641810667,
+      "cpu_median": 0.5203641333,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-order-service",
+      "phase": "boundary",
+      "n_expected": 10,
+      "n_resource_valid": 10,
+      "cpu_min": 0.0,
+      "cpu_max": 0.9789358667,
+      "cpu_median": 0.554696,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-order-service",
+      "phase": "inject_core",
+      "n_expected": 35,
+      "n_resource_valid": 35,
+      "cpu_min": 0.0,
+      "cpu_max": 1.0658896667,
+      "cpu_median": 0.5099389333,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-order-service",
+      "phase": "recover",
+      "n_expected": 5,
+      "n_resource_valid": 5,
+      "cpu_min": 0.0,
+      "cpu_max": 0.609663,
+      "cpu_median": 0.5590042,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-preserve-service",
+      "phase": "baseline",
+      "n_expected": 77,
+      "n_resource_valid": 77,
+      "cpu_min": 0.0,
+      "cpu_max": 0.0596710667,
+      "cpu_median": 0.0084028,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-preserve-service",
+      "phase": "boundary",
+      "n_expected": 10,
+      "n_resource_valid": 10,
+      "cpu_min": 0.0,
+      "cpu_max": 0.9956798,
+      "cpu_median": 0.2362482667,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-preserve-service",
+      "phase": "inject_core",
+      "n_expected": 35,
+      "n_resource_valid": 35,
+      "cpu_min": 0.0,
+      "cpu_max": 0.9844083333,
+      "cpu_median": 0.5311610667,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-preserve-service",
+      "phase": "recover",
+      "n_expected": 5,
+      "n_resource_valid": 5,
+      "cpu_min": 0.0056096667,
+      "cpu_max": 0.0194596,
+      "cpu_median": 0.0082800667,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-auth-service",
+      "phase": "baseline",
+      "n_expected": 78,
+      "n_resource_valid": 78,
+      "cpu_min": 0.0,
+      "cpu_max": 0.023605,
+      "cpu_median": 0.0032745667,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-auth-service",
+      "phase": "boundary",
+      "n_expected": 7,
+      "n_resource_valid": 7,
+      "cpu_min": 0.0,
+      "cpu_max": 0.0090270667,
+      "cpu_median": 0.0028792,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-auth-service",
+      "phase": "inject_core",
+      "n_expected": 35,
+      "n_resource_valid": 35,
+      "cpu_min": 0.0,
+      "cpu_max": 0.0244842667,
+      "cpu_median": 0.0037425333,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-gateway-service",
+      "phase": "baseline",
+      "n_expected": 78,
+      "n_resource_valid": 78,
+      "cpu_min": 0.0,
+      "cpu_max": 0.0861768667,
+      "cpu_median": 0.0365507,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-gateway-service",
+      "phase": "boundary",
+      "n_expected": 7,
+      "n_resource_valid": 7,
+      "cpu_min": 0.0,
+      "cpu_max": 0.0787322667,
+      "cpu_median": 0.0327207333,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-gateway-service",
+      "phase": "inject_core",
+      "n_expected": 35,
+      "n_resource_valid": 35,
+      "cpu_min": 0.0,
+      "cpu_max": 0.1416508,
+      "cpu_median": 0.0661760667,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-order-service",
+      "phase": "baseline",
+      "n_expected": 78,
+      "n_resource_valid": 78,
+      "cpu_min": 0.0,
+      "cpu_max": 1.0196696,
+      "cpu_median": 0.5386706667,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-order-service",
+      "phase": "boundary",
+      "n_expected": 7,
+      "n_resource_valid": 2,
+      "cpu_min": 0.5999854,
+      "cpu_max": 0.6066060667,
+      "cpu_median": 0.6032957333,
+      "ambiguous": 5
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-order-service",
+      "phase": "inject_core",
+      "n_expected": 35,
+      "n_resource_valid": 0,
+      "cpu_min": null,
+      "cpu_max": null,
+      "cpu_median": null,
+      "ambiguous": 35
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-preserve-service",
+      "phase": "baseline",
+      "n_expected": 78,
+      "n_resource_valid": 78,
+      "cpu_min": 0.0,
+      "cpu_max": 0.2253956667,
+      "cpu_median": 0.0143642667,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-preserve-service",
+      "phase": "boundary",
+      "n_expected": 7,
+      "n_resource_valid": 7,
+      "cpu_min": 0.0,
+      "cpu_max": 0.0226542,
+      "cpu_median": 0.0056584,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-preserve-service",
+      "phase": "inject_core",
+      "n_expected": 35,
+      "n_resource_valid": 35,
+      "cpu_min": 0.0,
+      "cpu_max": 0.0175860667,
+      "cpu_median": 0.0056899333,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-auth-service",
+      "phase": "baseline",
+      "n_expected": 77,
+      "n_resource_valid": 77,
+      "cpu_min": 0.0,
+      "cpu_max": 0.0271273333,
+      "cpu_median": 0.0030719333,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-auth-service",
+      "phase": "boundary",
+      "n_expected": 7,
+      "n_resource_valid": 7,
+      "cpu_min": 0.0,
+      "cpu_max": 0.0266829333,
+      "cpu_median": 0.0064196,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-auth-service",
+      "phase": "inject_core",
+      "n_expected": 35,
+      "n_resource_valid": 35,
+      "cpu_min": 0.0,
+      "cpu_max": 0.026964,
+      "cpu_median": 0.0040253333,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-gateway-service",
+      "phase": "baseline",
+      "n_expected": 77,
+      "n_resource_valid": 77,
+      "cpu_min": 0.0,
+      "cpu_max": 0.0821356,
+      "cpu_median": 0.0428035333,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-gateway-service",
+      "phase": "boundary",
+      "n_expected": 7,
+      "n_resource_valid": 7,
+      "cpu_min": 0.0,
+      "cpu_max": 0.1033478667,
+      "cpu_median": 0.0482336,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-gateway-service",
+      "phase": "inject_core",
+      "n_expected": 35,
+      "n_resource_valid": 35,
+      "cpu_min": 0.0,
+      "cpu_max": 0.2316675333,
+      "cpu_median": 0.0846396,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-order-service",
+      "phase": "baseline",
+      "n_expected": 77,
+      "n_resource_valid": 77,
+      "cpu_min": 0.0,
+      "cpu_max": 1.4020554,
+      "cpu_median": 0.5052745333,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-order-service",
+      "phase": "boundary",
+      "n_expected": 7,
+      "n_resource_valid": 7,
+      "cpu_min": 0.0,
+      "cpu_max": 0.9203584667,
+      "cpu_median": 0.5470808,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-order-service",
+      "phase": "inject_core",
+      "n_expected": 35,
+      "n_resource_valid": 35,
+      "cpu_min": 0.0,
+      "cpu_max": 1.2197014667,
+      "cpu_median": 0.5132363333,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-preserve-service",
+      "phase": "baseline",
+      "n_expected": 77,
+      "n_resource_valid": 77,
+      "cpu_min": 0.0,
+      "cpu_max": 0.0520524667,
+      "cpu_median": 0.0062745333,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-preserve-service",
+      "phase": "boundary",
+      "n_expected": 7,
+      "n_resource_valid": 4,
+      "cpu_min": 0.0,
+      "cpu_max": 0.0138168,
+      "cpu_median": 0.0077532333,
+      "ambiguous": 3
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-preserve-service",
+      "phase": "inject_core",
+      "n_expected": 35,
+      "n_resource_valid": 0,
+      "cpu_min": null,
+      "cpu_max": null,
+      "cpu_median": null,
+      "ambiguous": 35
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-auth-service",
+      "phase": "normal",
+      "n_expected": 120,
+      "n_resource_valid": 120,
+      "cpu_min": 0.0,
+      "cpu_max": 0.1922032667,
+      "cpu_median": 0.0045379,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-gateway-service",
+      "phase": "normal",
+      "n_expected": 120,
+      "n_resource_valid": 120,
+      "cpu_min": 0.0,
+      "cpu_max": 0.2795085333,
+      "cpu_median": 0.0654438,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-order-service",
+      "phase": "normal",
+      "n_expected": 120,
+      "n_resource_valid": 120,
+      "cpu_min": 0.0,
+      "cpu_max": 1.3688430667,
+      "cpu_median": 0.5321861,
+      "ambiguous": 0
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-preserve-service",
+      "phase": "normal",
+      "n_expected": 120,
+      "n_resource_valid": 120,
+      "cpu_min": 0.0,
+      "cpu_max": 0.4661702,
+      "cpu_median": 0.0147944667,
+      "ambiguous": 0
+    }
+  ],
+  "observed_id_counts": [
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-assurance-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-auth-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-basic-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-cancel-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-config-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-contacts-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-execute-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-gateway-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-inside-payment-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-notification-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-order-other-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-order-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-payment-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-preserve-other-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-preserve-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-price-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-rebook-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-route-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-seat-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-security-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-station-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-train-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-travel-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-travel2-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_P_CPU_preserve_20260728T164711Z_em",
+      "canonical_service_id": "ts-user-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-assurance-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-auth-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-basic-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-cancel-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-config-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-contacts-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-execute-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-gateway-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-inside-payment-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-notification-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-order-other-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-order-service",
+      "container_ids": 47
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-payment-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-preserve-other-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-preserve-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-price-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-rebook-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-route-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-seat-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-security-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-station-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-train-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-travel-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-travel2-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_order_20260728T203705Z_em",
+      "canonical_service_id": "ts-user-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-assurance-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-auth-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-basic-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-cancel-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-config-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-contacts-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-execute-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-gateway-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-inside-payment-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-notification-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-order-other-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-order-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-payment-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-preserve-other-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-preserve-service",
+      "container_ids": 45
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-price-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-rebook-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-route-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-seat-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-security-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-station-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-train-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-travel-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-travel2-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Lv_S_KILLPOD_preserve_20260728T200124Z_em",
+      "canonical_service_id": "ts-user-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-assurance-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-auth-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-basic-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-cancel-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-config-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-contacts-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-execute-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-gateway-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-inside-payment-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-notification-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-order-other-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-order-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-payment-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-preserve-other-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-preserve-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-price-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-rebook-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-route-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-seat-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-security-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-station-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-train-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-travel-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-travel2-service",
+      "container_ids": 1
+    },
+    {
+      "case_id": "Normal_20260728T161044Z",
+      "canonical_service_id": "ts-user-service",
+      "container_ids": 1
+    }
+  ],
+  "normal_shared_partition_counts": {
+    "normal_calibration": 24,
+    "normal_fit": 72,
+    "normal_tail": 24
+  },
+  "evidence_note": "Killing is instance termination only; CPU weak proxy is input-dependent; no availability gold or fitted model"
+}

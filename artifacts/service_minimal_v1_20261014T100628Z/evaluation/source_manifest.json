@@ -1,0 +1,252 @@
+{
+  "command": [
+    "scripts/service_experiment.py",
+    "command=evaluate",
+    "data_dir=artifacts/service_minimal_v1_20261014T100628Z/data",
+    "run_dir=artifacts/service_minimal_v1_20261014T100628Z/run",
+    "out=artifacts/service_minimal_v1_20261014T100628Z/evaluation"
+  ],
+  "config_sources": [
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791970170854730644,
+      "path": "/home/kxz2002/Code/Repos/interface-health/configs/service/minimal_v1.yaml",
+      "sha256": "e0aaaec566c354640129529b1ea637c32d132f646818bc0514244952154ef555",
+      "size_bytes": 9368
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1787367114929522200,
+      "path": "/home/kxz2002/Code/Repos/interface-health/configs/data/new_merge.yaml",
+      "sha256": "e7eb2db9a87209c3e6cef0a8c143ad147373b231e515e093a1dfc2d6b67d1b62",
+      "size_bytes": 1802
+    }
+  ],
+  "environment": {
+    "numpy": "2.1.2",
+    "pandas": "2.2.3",
+    "platform": "Linux-7.0.0-31-generic-x86_64-with-glibc2.39",
+    "pyarrow": "17.0.0",
+    "python": "3.12.13 | packaged by Anaconda, Inc. | (main, Mar 19 2026, 20:20:58) [GCC 14.3.0]",
+    "sklearn": "1.5.2"
+  },
+  "executed_code": [
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791985054190343721,
+      "path": "/home/kxz2002/Code/Repos/interface-health/scripts/service_experiment.py",
+      "sha256": "efb3ff9bffbcdebfbe5900b8bd7baedfbc039cdf98d396097782b17f9e54cc38",
+      "size_bytes": 35613
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791984974263197064,
+      "path": "/home/kxz2002/Code/Repos/interface-health/src/service/evaluation.py",
+      "sha256": "1930b908b3b15ccda9b0433276c2f627743b76e05eff11c7b9b5590488cd73ac",
+      "size_bytes": 12060
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791972364275012160,
+      "path": "/home/kxz2002/Code/Repos/interface-health/src/service/protocol.py",
+      "sha256": "208e801e74303c73a4a85c888d4b0717694fcc988140585f298b315d7e0c0069",
+      "size_bytes": 37304
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1789748439475519295,
+      "path": "/home/kxz2002/Code/Repos/interface-health/scripts/benchmark_downstream.py",
+      "sha256": "3cfebab0e36efbe0089366f812b4cd6da8f8be5426196637d1649919070e2397",
+      "size_bytes": 26307
+    }
+  ],
+  "finished_at_utc": "2026-10-14T13:37:48.982473+00:00",
+  "git_commit": "f28ae965d56b9b76fdc5000edd4270a80a73d263",
+  "git_status": "M scripts/service_experiment.py\n?? AGENTS.md\n?? artifacts/service_minimal_v1_20261014T100628Z/evaluation/\n?? src/service/evaluation.py\n?? tests/test_service_evaluation.py",
+  "note": "Frozen artifacts only; no fitting or raw scan; S1 independent resource labels may be absent",
+  "sources": [
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791972411332548671,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/data/.gitignore",
+      "sha256": "dbee9249b18be22a3cb9ae9abc6c447d7b5d5d9261eea460ce207c1505eec0a7",
+      "size_bytes": 21
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791972537028922606,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/data/coverage.csv",
+      "sha256": "eef8c7be98328092a009c557ec6ff2821bc427bf743d1b8eeaa3e30e32489d87",
+      "size_bytes": 29400
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791972537019820451,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/data/events.parquet",
+      "sha256": "330d050cdc654eb4de7649c8d2eec22bc65cdece9d83b543c1472fe8c61ea0d9",
+      "size_bytes": 12523
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791972537021826832,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/data/evidence.parquet",
+      "sha256": "b39a79897bdd0fd7f8bc09b7bedbba23301d777390b4241c0cfb7b955e568307",
+      "size_bytes": 23713
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791972536923919267,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/data/features.parquet",
+      "sha256": "3b29e4c2df254c499aaa3ae2095d0f9a97e47d1080b92eff1f79bf771fc412c3",
+      "size_bytes": 430289
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791972537016922224,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/data/index.parquet",
+      "sha256": "5275223244c734473f5941c26c18a28ba8d47a8c18d5a3b3fbc5e871252ca4d4",
+      "size_bytes": 141902
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791972537004921843,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/data/instance_quality.parquet",
+      "sha256": "9edab17a7969fcf185113930ea42c952a4b17545963bc1ee9837603184aaa8c9",
+      "size_bytes": 871038
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791972537366205968,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/data/quality_report.json",
+      "sha256": "03286e6bf69a1099d75648b9079a121a1165d287fa24cab2958d3011925b886c",
+      "size_bytes": 2388
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791972537358222820,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/data/resolved_config.yaml",
+      "sha256": "31738c74d0f87acaf6bfe1a9c60ec01cd79e8eea530035c82903dfb2fb462672",
+      "size_bytes": 8058
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791972537365760662,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/data/schema.json",
+      "sha256": "88db7c919b201115d858dd9d51e9fb815da2c525b693fc3d85cac59810d5d911",
+      "size_bytes": 4428
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791972537364912886,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/data/source_manifest.json",
+      "sha256": "c5f9fe658438fbfb0707c77fd9b46513a4a1847a6d8f5d9c156db4c67311d08d",
+      "size_bytes": 7395
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791972537368053074,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/data/manifest.json",
+      "sha256": "31eef22654ec63b07e9dd2b5fdc344ae6839c21d62653fb38c0e16271cf5ce4d",
+      "size_bytes": 14581
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791973079764177290,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/run/run_manifest.json",
+      "sha256": "784fc6b65ce20df40890f66c47366fa24d2c66d58070ec988e46f822804a7fa3",
+      "size_bytes": 14171
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791973070370921758,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/run/.gitignore",
+      "sha256": "dbee9249b18be22a3cb9ae9abc6c447d7b5d5d9261eea460ce207c1505eec0a7",
+      "size_bytes": 21
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791973076933308875,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/run/calibration_scores.parquet",
+      "sha256": "a6960b18f2b06fdf9bdf4d7aca8691c62da6ddd644b652ac128a7189f2620211",
+      "size_bytes": 50930
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791973076910308635,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/run/models.joblib",
+      "sha256": "bcf4ea137e29570a7604af7f1918b544a7119067b22dcb60726f24aa57578236",
+      "size_bytes": 29556947
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791973079680337330,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/run/normal_reference_ids.parquet",
+      "sha256": "407d1b4a0d616048ca51cadf138c458ec0b53411cac86eb0033890933c8cad13",
+      "size_bytes": 37082
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791973079671337237,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/run/normal_reference_scores.parquet",
+      "sha256": "4ff9bab873814fd9e04d0c48318ddaebeb8cd8bb6487971afcb9a54550170be3",
+      "size_bytes": 255113
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791973079695337485,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/run/normal_reference_summary.csv",
+      "sha256": "67a71af9f0d2fb8444f6291e15c75492fac16fb08e5ee0c40324ffa119fed590",
+      "size_bytes": 76675
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791973076919822577,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/run/preprocessing.json",
+      "sha256": "0f79ebe9a8bf96455bef08466a977a1523395ab1f7e363bdc91e832463504817",
+      "size_bytes": 47311
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791973079726082180,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/run/quality_report.json",
+      "sha256": "227435455cb05685c33bab25d7e939345f86ada0eadf8eeeb470f3493eed182c",
+      "size_bytes": 382
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791973079731550271,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/run/resolved_config.yaml",
+      "sha256": "7c1f15de7870428f02532043b8f4067948d0095bbcc85a24706bf56049d55afe",
+      "size_bytes": 8101
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791973079646336979,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/run/scores.parquet",
+      "sha256": "abf84d4583fc419c3010a24712c0c6d0c772ed77c8e8000771c642ef5dfcf378",
+      "size_bytes": 920943
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791973079740003102,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/run/source_manifest.json",
+      "sha256": "f772a49665e220b6d3dc7fec9e6da7f34946956755c308311d9c7c75f9bed959",
+      "size_bytes": 6664
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791973076927308812,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/run/training_ids.parquet",
+      "sha256": "3af3883372170bf95a72c5b49bf6a875f61302ba4b53f2d2bff341849f30d193",
+      "size_bytes": 22567
+    },
+    {
+      "identification": "sha256",
+      "mtime_ns": 1791973079763899607,
+      "path": "/home/kxz2002/Code/Repos/interface-health/artifacts/service_minimal_v1_20261014T100628Z/run/manifest.json",
+      "sha256": "784fc6b65ce20df40890f66c47366fa24d2c66d58070ec988e46f822804a7fa3",
+      "size_bytes": 14171
+    }
+  ],
+  "started_at_utc": "2026-10-14T13:37:38.069612+00:00"
+}

@@ -1,0 +1,8 @@
+{
+  "executed_cli_archive": "artifacts/service_minimal_v1_20261014T100628Z/provenance/service_experiment_t3_executed.py.txt",
+  "executed_cli_sha256": "fc28bba72a434daf7161c49718a818b8b7138a3867707742f5431e0be555b50b",
+  "committed_cli_sha256": "449df8e9af024bad328b04d2304450cacdb9ddeb77e9dc17408b7187e285cdeb",
+  "change_after_run": "pre-commit isort reformatted only local from src.service.baselines import statement from multi-line to single-line; no behavior change or refit",
+  "run_manifest_immutable": true,
+  "git_base_commit": "d85c5b86dd9460e01b91a2a2ac51bb4ce8ee2cbb"
+}
