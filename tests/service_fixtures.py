@@ -48,6 +48,22 @@ def fixture_inputs(tmp_path):
         pd.DataFrame(rows).to_csv(
             folder / "metric_data" / f"{case['case_id']}_metrics.csv", index=False
         )
+    # Retain the schema/grade combinations, but cite only explicit synthetic facts.
+    # Historical evidence paths and hashes must never become test dependencies.
+    evidence = json.loads(Path("configs/service/evidence_minimal_v1.json").read_text())
+    evidence["description"] = "Synthetic evidence for tests; not research evidence."
+    source = tmp_path / "synthetic-evidence-source.json"
+    source.write_text(
+        json.dumps(
+            {"synthetic": True, "facts": [row["evidence_id"] for row in evidence["evidence"]]}
+        )
+    )
+    for row in evidence["evidence"]:
+        row["source_path"] = str(source)
+        row["source_locator"] = json.dumps({"synthetic_fact": row["evidence_id"]})
+        row["source_sha256"] = hashlib.sha256(source.read_bytes()).hexdigest()
+        row["review_note"] = "Synthetic schema fixture, not a verified research fact."
+    (tmp_path / "evidence.json").write_text(json.dumps(evidence))
     sentinel = root / "sentinel.txt"
     sentinel.write_text("unchanged")
     return config, dataset, root, sentinel
@@ -69,7 +85,7 @@ def build_frozen_service_chain(root: Path) -> Path:
         chunk.loc[chunk.metric_name == "container_cpu_usage_seconds_total", "value"] = i * 3
         expanded.append(chunk)
     pd.concat(expanded, ignore_index=True).to_csv(metric_path, index=False)
-    prepare(config, dataset, root / "data", Path("configs/service/evidence_minimal_v1.json"))
+    prepare(config, dataset, root / "data", root / "evidence.json")
     score(config, dataset, root / "data", root / "run")
     evaluate(config, dataset, root / "data", root / "run", root / "evaluation")
 

@@ -11,6 +11,21 @@ from src.service.protocol import load_protocol
 from tests.service_fixtures import fixture_inputs
 
 
+def test_synthetic_evidence_sources_are_local(tmp_path):
+    import hashlib
+
+    fixture_inputs(tmp_path)
+    document = json.loads((tmp_path / "evidence.json").read_text())
+    assert document["evidence"]
+    for row in document["evidence"]:
+        source = Path(row["source_path"])
+        assert source.is_relative_to(tmp_path)
+        assert source.is_file()
+        assert row["source_sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
+        assert "synthetic" in row["review_note"].lower()
+        assert "/home/" not in row["source_locator"]
+
+
 def test_prepare_small_fixture(tmp_path, monkeypatch):
     from sklearn.ensemble import IsolationForest
     from sklearn.svm import OneClassSVM
@@ -26,7 +41,7 @@ def test_prepare_small_fixture(tmp_path, monkeypatch):
     legacy = tmp_path / "legacy_endpoint_contract.txt"
     legacy.write_text("old labels")
     out = tmp_path / "result" / "data"
-    prepare(config, dataset, out, Path("configs/service/evidence_minimal_v1.json"))
+    prepare(config, dataset, out, tmp_path / "evidence.json")
     features = pd.read_parquet(out / "features.parquet")
     index = pd.read_parquet(out / "index.parquet")
     assert not features.sample_id.duplicated().any()
@@ -60,23 +75,23 @@ def test_prepare_refuses_existing_output_and_bad_case(tmp_path):
     out = tmp_path / "existing"
     out.mkdir()
     with pytest.raises(ValueError, match="exists"):
-        prepare(config, dataset, out)
+        prepare(config, dataset, out, tmp_path / "evidence.json")
     with pytest.raises(ValueError, match="protected|受保护"):
-        prepare(config, dataset, root / "new")
+        prepare(config, dataset, root / "new", tmp_path / "evidence.json")
     meta_path = next(root.glob("*/trace_data/case_metadata.json"))
     meta = json.loads(meta_path.read_text())
     meta["case_id"] = "unconfigured"
     meta_path.write_text(json.dumps(meta))
     failed = tmp_path / "failed"
     with pytest.raises(ValueError, match="case_id"):
-        prepare(config, dataset, failed)
+        prepare(config, dataset, failed, tmp_path / "evidence.json")
     assert not (failed / "_SUCCESS").exists()
     assert (failed / "_FAILURE").is_file()
     meta["case_id"] = meta_path.parents[1].name
     meta_path.write_text(json.dumps(meta))
     next(root.glob("*/metric_data/*.csv")).unlink()
     with pytest.raises(FileNotFoundError):
-        prepare(config, dataset, tmp_path / "missing")
+        prepare(config, dataset, tmp_path / "missing", tmp_path / "evidence.json")
 
 
 @pytest.mark.parametrize(
@@ -98,7 +113,7 @@ def test_prepare_rejects_metadata_drift(tmp_path, field, value):
     path.write_text(json.dumps(meta))
     out = tmp_path / "drift"
     with pytest.raises(ValueError, match=field):
-        prepare(config, dataset, out)
+        prepare(config, dataset, out, tmp_path / "evidence.json")
     assert not (out / "features.parquet").exists()
     assert (out / "_FAILURE").exists()
 
@@ -111,7 +126,7 @@ def test_prepare_manifest_output_hashes_and_small_sources(tmp_path):
 
     config, dataset, _, _ = fixture_inputs(tmp_path)
     out = tmp_path / "hashed"
-    prepare(config, dataset, out)
+    prepare(config, dataset, out, tmp_path / "evidence.json")
     manifest = json.loads((out / "manifest.json").read_text())
     expected = {
         "features.parquet",
@@ -182,7 +197,7 @@ def test_prepare_detects_same_stat_small_source_mutation(tmp_path, monkeypatch):
     monkeypatch.setattr(experiment, "build_metric_windows", mutate_after_snapshot)
     out = tmp_path / "changed"
     with pytest.raises(RuntimeError, match="input changed"):
-        experiment.prepare(config, dataset, out)
+        experiment.prepare(config, dataset, out, tmp_path / "evidence.json")
     assert (out / "_FAILURE").exists()
     assert not (out / "_SUCCESS").exists()
 
@@ -213,7 +228,7 @@ def test_report_is_score_readonly(tmp_path, monkeypatch):
         chunk.loc[chunk.metric_name == "container_cpu_usage_seconds_total", "value"] = i * 3
         expanded.append(chunk)
     pd.concat(expanded, ignore_index=True).to_csv(metric_path, index=False)
-    experiment.prepare(config, dataset, data)
+    experiment.prepare(config, dataset, data, tmp_path / "evidence.json")
     experiment.score(config, dataset, data, run)
     experiment.evaluate(config, dataset, data, run, evaluation)
     import joblib

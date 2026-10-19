@@ -47,3 +47,8 @@ T6初次实现先于RED；已撤回新增报告代码，保留测试观察NotImp
 完整干净 checkout 回归另发现切分测试仍读取未提交的原始 case metadata；现改用已提交协议中的 Normal 边界，保留首窗、120 窗及 72/24/24 的字面断言。真实原始数据与配置一致性属于数据验收，不混作自包含单元测试。报告直接使用的 matplotlib/tabulate 同时声明为项目依赖，避免依赖本地或传递安装；本次未安装或升级环境。
 
 本轮在隔离干净 checkout 完成全套回归：528 passed、5 skipped；black 与 isort 全项目检查通过，Git diff 空白检查通过。未重跑历史研究实验或重建原始数据。
+
+
+PR #33 轻量独立审查与远程 CI 补充：本机回归仍因主机保有历史资产而漏掉一项外部依赖；远程 CI 的 4 个失败与 22 个 fixture 错误共同指向历史 evidence 的绝对 source_path。现仅在测试中生成临时合成证据、来源文件与匹配哈希，所有 prepare 调用显式传入临时 evidence；生产严格来源校验和真实历史证据保持不变。新增路径/哈希/合成标识回归先失败后通过，受影响 smoke/provenance 共 32 项通过，black/isort 通过。独立增量审查未发现其他阻塞项。
+
+未来新批 S1 标签评价须另查 evaluate_s1 的 state_class 分组：RESOURCE_CHANGE 正类与 NO_OBSERVED_CHANGE 负类可能被拆成单类统计；旧四 Case 无独立窗口标签，当前 null 结果不受影响，不将此处视为已验证的新批二分类评价器。
