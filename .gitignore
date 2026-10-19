@@ -61,3 +61,6 @@ data/external/
 # Claude Code local config
 .aris/
 .claude/
+
+# Immutable selected17 service snapshot; migration manifest is inside.
+/data/tt_service_20261017_004546/

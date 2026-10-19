@@ -1,23 +1,23 @@
 # Interface-Health：Codex 工作指南
 
-适用于本仓库。根据现有 CLAUDE.md 整理，补充截至 2026-10-14 的用户研究决策。具体任务以用户最新指令为准；旧实验协议、研究设想和目录中的计划文件不构成自动训练或重建授权。
+适用于本仓库。根据现有 CLAUDE.md 整理，补充截至 2026-10-19 的用户研究决策。具体任务以用户最新指令为准；旧实验协议、研究设想和目录中的计划文件不构成自动训练或重建授权。
 
 ## 1. 当前研究目标与工作状态
 
-硕士论文暂定方向：**面向微服务系统的 Service–Endpoint 双层异常感知与业务 API 异常识别**。
+研究总体目标是 **Service–Endpoint 双层异常感知**。Service 主任务是从 Metrics、Logs、Traces 等运行时观测，对 **Service×固定时间窗**输出正常/异常二分类及可选异常分数；Endpoint 模型独立输出 Endpoint×时间窗结果，后续按真实依赖关联。Service 报警不是 Endpoint 检测的前置条件。Operation、缺失处理、漂移和服务排序仅为可选模块或辅助任务。
 
-- Service 层研究内部资源、执行与可用性状态；Endpoint 层研究客户端 RED、Response 与接口表现。
-- 当前优先两层独立输出，后续按真实 Service/Operation 依赖关联。Service 报警不是 Endpoint 检测的前置条件。
-- 数据集与既有小论文是研究基础，不计为两个新方法创新。两套不同输入的检测器不自动构成两个创新点。
-- 当前先建立可信 Service 数据和简单强基线；新方法必须由真实基线失败模式与可验证能力支持。CPU 单列或固定错误指标已足够时，不为论文叙事强行开发复杂网络。
-- 中期日期曾计划为 2026-11-04，预算与最新日期需依当前任务核实；不能把历史 40–60 小时当已确认预算。
+目标为可信、可复现的硕士论文，允许在成熟 ML、LSTM/GRU、Transformer、GNN、日志表示等方法上作有动机的适度改进，以公平实验和必要消融说明价值。不以顶会级原创或跨系统验证完成作为启动轻量原型的前提。旧报告的 No-Go/强新颖性评级是当时意见，不构成当前开发禁令；不预先承诺增益或把模型组合写成有效贡献。
 
-**截至本指南创建时**：Service 代码调研、Brainstorming、Spec、Plan 已完成；Service 实施已在 feature/service-minimal-v1 分支推进中。下一轮用户要求开发时，先核对代码现状与设计文件，再按授权任务执行。不要把“文档已完成”写成“Service 模型已完成”。
+二分类是输出任务，**不自动改变 Normal-only 训练协议**。用户明确变更前，仅用独立 Normal Case 拟合，用独立 Normal 校准阈值；异常 Case 仅测试，不用于调阈值或选超参数。按整 Case 隔离训练/校准/测试，时序上下文不跨划分边界。模型与统计规则、IF、OCSVM等尽可能同输入、同样本、同划分；保留强规则对照，不因其检出部分故障而禁止轻量模型实验。
+
+注入对象和时段仅是受控暴露证据，不是完整 Service×Window 状态真值。主评价标签须记录 label、label_source、适用范围和证据；不把所有注入窗当异常、非目标或恢复窗当健康。Unknown 从相应训练/评价中排除，不填正常，也不新增第三个预测类别。同源指标弱标签不能冒充独立真值。注入时间、phase、故障类型、Case 名、target、probe结果只供索引/评价，不进入预测特征。Endpoint 历史注入关联评价规则不直接套用于 Service。
+
+当前Service研究数据为17项新批，入口和迁移清单见 [当前研究索引](docs/research/service-20261019/README.md)。旧new_merge仅继续服务历史Endpoint/旧Service实验。src/service已有最小资源实验实现，不等于本轮时序模型已实现；本收尾未运行新的训练或重建。2026-11-04中期可展示已实现原型和仍待验证设计，不把计划写成成果。
 
 ### 新会话阅读入口
 
-1. 本文件、history/index.md；按影响域阅读相关 history/entries/。
-2. 用户要实施 Service 方案时，优先读取：
+1. 本文件、[当前研究索引](docs/research/service-20261019/README.md)、history/index.md；按影响域阅读相关 history/entries/。
+2. 新批Service先读当前索引的next-agent.md；以下2026-10-13材料为历史设计，不覆盖2026-10-19目标与新批协议：
    - /tmp/service-model-design-20261013/decision_summary.md
    - /tmp/service-model-design-20261013/code_research.md
    - /tmp/service-model-design-20261013/spec.md
@@ -30,7 +30,15 @@
 
 ## 2. 数据与外部依赖
 
-### 主数据
+### 当前 Service 数据
+
+- `data/tt_service_20261017_004546/`：独立、精确Git忽略的复制快照；以 `_handoff/migration_summary.json` 和 `batch_control/final_acceptance/selected_cases.json` 为准，仅加载selected17（6 Normal、11故障）。
+- 不用目录glob，不混入failed27、`data/new_merge`或旧四Case；所有复制/证据引用情况以 `_handoff/` 下manifest和path map为准。
+- 实际Service特征来自raw_scrape_supplement：保留补充CSV、source manifest、质量绑定、代码快照；不改写历史绝对路径和hash，先实现有校验的路径adapter。
+- 当前完整网格50,575行、25应用候选、15秒；R3有效41,501行（82.06%）。最低行数具备不等于完整健康真值、深度模型充分数据或创新增益成立。
+- 27失败attempt留证位于research-backups独立目录，不放在模型Case层；删除原始数据或证据需另行授权。
+
+### 历史 Endpoint 主数据
 
 - data/new_merge/：Train-Ticket 单批次采集，27 case（1 Normal、26 故障），2026-07-28/29；由 configs/data/new_merge.yaml 声明。原始数据及 _pipeline_out 都保持只读。
 - 当前 8 个业务入口分别对应 8 个不同 Service；约 23,868 条 Endpoint×15s 行。不能以此验证同一 Service 下多个外部入口的差异。
@@ -51,11 +59,11 @@
 
 CLAUDE.md/history 记录 endpoint_raw2、lo2-sample、normal_v2、new_ep1、new_ep2 已丢失；merged_v1/merged_v2/new_ep1 等旧链路不能重建。旧指标只保留为历史记录，不与现行结果拼成统一消融表。
 
-data/anomod_v1 与 data/anomod 为历史批次，不能未经任务授权与 new_merge 混合。docs/agent-docs/dataset-guide.md 部分正文描述旧 pipeline；现行含义须核对实际源码、配置与历史记录。
+`data/anomod_v1` 与 `data/anomod` 已于 entry 034 退役并删除；其数据配置和根 v0/v1 stage 也已删除，不得按旧文档假定仍在磁盘或尝试恢复运行。docs/agent-docs/dataset-guide.md 部分正文描述旧 pipeline；现行含义须核对实际源码、配置与历史记录。
 
-## 3. Service 最小实验的默认设计
+## 3. 历史 Service-minimal-v1 实验设计（旧数据）
 
-以下是已讨论的设计边界，完整细节以可访问的 Spec/Plan 为依据；实现或运行以当前用户授权为准。
+以下只描述new_merge旧四Case实现和当时设计，不是新批默认协议。`configs/service/minimal_v1.yaml` 不能只换根路径后用于新批；历史S2排序只是辅助代理任务，不取代Service×时间窗二分类。新批开发顺序为adapter/标签评价表→同输入ML基线→单一轻量时序模型→有动机改进及消融，参见当前研究索引。
 
 - 独立包 src/service/、配置 configs/service/、入口 scripts/service_experiment.py；已在 feature/service-minimal-v1 分支落地，现状以代码为准。
 - 默认不修改既有 Endpoint Contract、Preprocessor、训练/融合管线，不覆盖历史 scores/metrics。
@@ -68,12 +76,12 @@ data/anomod_v1 与 data/anomod 为历史批次，不能未经任务授权与 new
 - 默认资源观测采用保守稳定单实例语义。Counter 实际 dt、最大间隔30s；实例切换30s过渡；首点/reset/gap/身份歧义保留 Unknown，不补健康0。
 - S2 按预定注入区间、30s边界保护聚合；有效覆盖至少80%，取最高20%校准分数均值；候选并列和缺评分作保守评价。目标不可评分保留该事件并报告检索失败、覆盖和原因。
 - 生命周期事件默认留作评价/诊断，不输入资源模型。不能利用 Killing 清理实例后，又用同一 Killing 证明独立可用性检测。
-- 先完成资源基线，再按失败模式决定资源—执行分离（方案B）或观测可靠性机制（方案C）。没有独立验证条件时，只能作诊断，不能宣称新方法成立。
+- 旧B/C方向是可选探索，不约束当前模型架构。不以旧No-Go禁止轻量原型；仍按证据范围报告，不宣称未经验证的真实状态性能或方法增益。
 
 ### 任务与标签必须分开
 
-- **S1：Service 运行状态检测。** 完整独立 Service×Window 金标尚不存在；Unknown 不当负类；独立 AUROC/AP 无足够正负证据时输出 null。
-- **S2：注入目标 Service 检索。** 可以评价受控干预对象排序；不是全部异常服务集合，也不是完整根因定位。
+- **S1：Service×时间窗正常/异常二分类主任务。** 完整独立 Service×Window 金标尚不存在；Unknown 不当负类；独立 AUROC/AP 无足够正负证据时输出 null。
+- **S2：注入目标 Service 检索（辅助代理任务）。** 可以评价受控干预对象排序；不是全部异常服务集合，也不是完整根因定位。
 - **S3：完整根因定位。** 当前不作为开发目标。
 
 注入目标、实际运行异常 Service、传播 Service、实际受影响 Endpoint 是不同集合。HTTPChaos 的 Path 干预不自动成为整个 Service 内部异常正类。CPU/Log/Trace 输入同时派生的标签只能作观测规则/弱评价；人工读取同一来源也不自动产生独立真值。
@@ -138,14 +146,14 @@ conda run -n interface python scripts/train_baseline_v0.py --cfg job
 ```
 
 - make setup/sync、pip安装、torch安装只在任务确有环境需求时使用；不要为文档/只读任务改变环境。
-- **禁止在根目录运行无target的dvc repro。** 根dvc.yaml及历史dvc_reliability_gate/dvc_deviation_weighted/dvc_new_ep1是死链，可能先删不可恢复outs再失败；全项目DVC状态也有历史噪音。
+- **禁止在根目录运行无target的dvc repro。** 根dvc.yaml的历史 v0/v1 stage 已于 entry 034 删除，仅留 toy train/eval；历史dvc_reliability_gate/dvc_deviation_weighted/dvc_new_ep1仍是不可重建的死链，误运行可能先删不可恢复outs再失败；全项目DVC状态也有历史噪音。
 - dvc_new_merge/dvc.yaml是旧Endpoint主链。历史确认它可复现不表示本轮有重训授权；Service开发不应触发它。
 - v2 Contract没有注册build stage，改上游源码不自动触发重建；不能靠DVC“全绿”证明新语义已体现在旧产物。
 - DVC整目录dep容易被_pipeline_out漂移作废；发现new_merge变化先定位来源，不自动repro/checkout/restore。
 - 新Service输出拟用outputs/service/<run_id>，独立data/run/evaluation/report子目录；已存在拒绝覆盖。不要把新数据写入raw目录或旧baseline目录。
-- 读取Metric/Trace/Log要选case/列/服务、流式处理；不复制原始大文件，不为最小任务全解析约96GB日志。
+- 读取Metric/Trace/Log按case/列/服务流式处理，不为最小任务全扫大日志。已授权的新批复制按迁移manifest执行；平时不擅自复制、改写或重建原始数据。
 - 每次实验保存resolved config、git commit/dirty状态、环境、data标识、seed、特征序、稳定train/cal/eval ID、模型参数、逐样本分数、事件排序和质量报告。单靠汇总指标不足以复现。
-- Hydra旧入口用key=value；学习率为training.optimizer.lr。Service薄入口拟用argparse，不修改configs/base.yaml改变旧行为。
+- Hydra入口用key=value；学习率为training.optimizer.lr。现有scripts/service_experiment.py也是Hydra入口，后续adapter先核对其实际接口，不修改configs/base.yaml改变旧行为。
 
 ## 8. 按需读取的项目规则
 
@@ -175,7 +183,11 @@ conda run -n interface python scripts/train_baseline_v0.py --cfg job
 - GitHub任务流程需要时阅读docs/agents/issue-tracker.md、triage-labels.md、domain.md及CONTEXT.md/docs/adr。不要无授权对外发送消息或发布结果。
 - 应用当前会话实际提供的技能和工具；不要为了匹配Claude流程自动安装技能、修改配置或启动多代理。ARIS链接是外部skill源，不修改其symlink目标。
 
-## 10. 已有审计与设计产物索引
+## 10. 当前与历史研究资料索引
+
+2026-10-19当前目标、真实完成基线、原件归档、数据版本与后续入口见 [service-20261019](docs/research/service-20261019/README.md)。原/tmp报告已按逐文件清单归档，旧No-Go/新颖性门槛由当前目标覆盖，原始实验结果不变。论文PDF、Parquet、分数和图表留在研究备份/精确忽略目录，不随源码提交。
+
+以下为历史来源，适用范围以当前索引为先：
 
 |目录|用途|
 |---|---|
