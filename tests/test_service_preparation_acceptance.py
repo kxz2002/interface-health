@@ -138,6 +138,20 @@ def test_acceptance_requires_source_linked_manual_evidence(tmp_path):
         write_acceptance(tmp_path, manual_evidence=bad)
 
 
+@pytest.mark.parametrize("label", [0, 1])
+def test_acceptance_rejects_known_labels_in_current_preparation_profile(tmp_path, label):
+    import pandas as pd
+
+    from src.service.preparation_acceptance import inspect_dataset
+
+    grid = write_fixture(tmp_path)
+    labels = pd.read_parquet(tmp_path / "labels.parquet")
+    labels["label"] = pd.Series([label, pd.NA], dtype="Int64")
+    labels.to_parquet(tmp_path / "labels.parquet")
+    with pytest.raises(ValueError, match="Current preparation profile requires all labels Unknown"):
+        inspect_dataset(tmp_path, expected_grid=grid)
+
+
 def write_fixture(directory, *, role="fit", reference=True, training=True, calibration=False):
     import pandas as pd
 

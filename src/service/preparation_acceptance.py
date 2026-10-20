@@ -57,6 +57,8 @@ def inspect_dataset(
     labels, splits = tables["labels"], tables["splits"]
     if not labels.label.dropna().isin([0, 1]).all():
         raise ValueError("Nonbinary label")
+    if labels.label.notna().any():
+        raise ValueError("Current preparation profile requires all labels Unknown")
     if splits.groupby("run_id").run_role.nunique().gt(1).any():
         raise ValueError("Cross-role run")
     if (

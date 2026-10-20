@@ -1,7 +1,7 @@
 # 036 · TT与SN训练前数据准备及探索协议
 
 - 日期：2026-10-20
-- PR：待创建；分支：feature/service-training-preparation
+- PR：#34；分支：feature/service-training-preparation
 - 类型：Feature / Data / Docs / Test
 - 影响域：src/service/、scripts/prepare_service_data.py、configs/service/、tests/test_service_*、docs/research/service-20261019/
 
@@ -21,6 +21,7 @@
 
 - 旧Entry明细按start裁剪且缺完整去重键，不能作为结束时间归窗的完整输入；本轮从绑定总包流式读取。
 - 验收器须从inventory和冻结profile独立推导角色/许可，不能只信任待验splits自证；六表schema必须存在。审查发现后已修复。
+- PR #34后台审查发现二元标签校验仍可放行误填0/1；当前profile增加全Unknown门槛，0/1污染fixture先红后绿，25项相关检查及现有数据新目录只读复验通过。未来独立状态标签需另行显式扩展协议，不能静默填充。
 - 数据与历史缓存不随Git提交。CLI需要固定hash的SN inventory、原始SN包及TT迁移清单/实现快照；历史绝对路径必须在本地可解析。当前不是clean clone即能重跑生产的自包含数据发布。
 - 本地outputs、.superpowers和/tmp是执行证据位置，不是Git内交付；使用指南记录结论和入口，不把这些路径当远端审查者已可访问的附件。
 

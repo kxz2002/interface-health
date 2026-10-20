@@ -15,6 +15,8 @@
 
 最新只读复验：`outputs/service/preparation-exploratory-20261020-task4-acceptance-final/`。
 
+PR #34审查追加：当前准备profile的验收器明确拒绝任何非空0/1标签，避免误把参考资格写成状态金标。污染fixture先复现后修复，25项相关测试通过；最新只读复验为 `outputs/service/preparation-exploratory-20261020-pr-review-acceptance/`，TT/SN仍全Unknown，原产物未覆盖。新validator SHA256为 `f03c8f76b3de1bdee7ce34bb0b972cfcaefe3d9fbc4ab39419df0503c1d19e56`；此前final目录保留为历史验收。
+
 这些是本机被忽略的数据与证据，不是PR附件。完整字段/命令/限制见[实施记录](preparation-implementation.md)、[Spec](training-preparation-spec.md)、[Plan](training-preparation-plan.md)、[来源核验](preparation-source-verification.md)和history entry 036。
 
 复跑需要本地TT快照及历史path_map/实现快照、固定MD5的SN包和经SHA256绑定的历史SN inventory；当前未交付clean-clone自包含生产数据。机器迁移时先核对路径可解析性，不猜偏移或自动重采。
