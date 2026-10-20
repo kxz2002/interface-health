@@ -116,6 +116,23 @@ def intervention_boundary(fault: dict, signal: dict, events: list[dict]) -> dict
             event.get("utc_ms")
         ):
             reasons.append("missing_intervention_request")
+    # load_evidence binds these signal anchors to the metadata Case range.
+    # Validate every request, even when another earlier request would win min().
+    requests = [request] + [
+        event.get("utc_ms")
+        for event in events
+        if event.get("event_type") == "single_delete_requested"
+    ]
+    for timestamp in requests:
+        if not _integer(timestamp):
+            continue  # Missing/noninteger requests already make qualification Unknown.
+        case_start, case_end = signal.get("start_ms"), signal.get("end_ms")
+        if (_integer(case_start) and timestamp < case_start) or (
+            _integer(case_end) and timestamp > case_end
+        ):
+            raise ValueError("Intervention request outside case range")
+        if _integer(fault.get("effective_ms")) and timestamp > fault["effective_ms"]:
+            raise ValueError("Intervention request after execution start")
     pauses = [
         e.get("payload", {}).get("pause_at_mono_ns")
         for e in events
@@ -351,12 +368,12 @@ def load_evidence(tt_root: Path, preparation: Path, protocol: dict) -> EvidenceI
             fault, sid = read(f"{base}/control/fault_control.json")
             evidence_ids.append(sid)
             _identity(fault, run["collection_identity"])
-            boundary = intervention_boundary(fault, signal, events)
             actual_start, actual_end = fault.get("effective_ms"), fault.get("removed_ms")
             for field, value in (("inject_start_ms", actual_start), ("inject_end_ms", actual_end)):
                 if meta.get(field) != value:
                     raise ValueError("Fault/metadata interval mismatch")
             validate_execution_interval(actual_start, actual_end, start, end)
+            boundary = intervention_boundary(fault, signal, events)
 
         requests = checked_path(tt_root, f"{base}/load/api_attempts.jsonl")
         request_sid = source(requests, migrated=True)

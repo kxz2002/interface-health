@@ -197,3 +197,40 @@ def test_execution_range_integrity(start, end):
 def test_missing_and_instantaneous_execution_is_not_invented():
     assert evidence.validate_execution_interval(None, None, 100, 200) is None
     assert evidence.validate_execution_interval(150, 150, 100, 200) == (150, 150)
+
+
+@pytest.mark.parametrize("source", ["apply", "delete"])
+@pytest.mark.parametrize("request_ms", [99000, 300000])
+def test_intervention_request_outside_case_raises(source, request_ms):
+    signal = {"start_ms": 100000, "end_ms": 200000, "probe_write_policy": "disabled"}
+    fault = {"effective_ms": 150000, "apply_requested_ms": 140000}
+    events = []
+    if source == "apply":
+        fault["apply_requested_ms"] = request_ms
+    else:
+        events = [{"event_type": "single_delete_requested", "utc_ms": request_ms}]
+    with pytest.raises(ValueError, match="request.*case range"):
+        evidence.intervention_boundary(fault, signal, events)
+
+
+@pytest.mark.parametrize("source", ["apply", "delete"])
+def test_intervention_request_after_execution_start_raises(source):
+    signal = {"start_ms": 100000, "end_ms": 200000, "probe_write_policy": "disabled"}
+    fault = {"effective_ms": 150000, "apply_requested_ms": 140000}
+    events = []
+    if source == "apply":
+        fault["apply_requested_ms"] = 160000
+    else:
+        events = [{"event_type": "single_delete_requested", "utc_ms": 160000}]
+    with pytest.raises(ValueError, match="request.*execution start"):
+        evidence.intervention_boundary(fault, signal, events)
+
+
+def test_valid_delete_request_can_precede_apply_and_equal_execution_start():
+    signal = {"start_ms": 100000, "end_ms": 200000, "probe_write_policy": "disabled"}
+    fault = {"effective_ms": 150000, "apply_requested_ms": 150000}
+    events = [{"event_type": "single_delete_requested", "utc_ms": 130000}]
+    assert (
+        evidence.intervention_boundary(fault, signal, events)["first_intervention_requested_ms"]
+        == 130000
+    )
