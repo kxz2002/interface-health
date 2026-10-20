@@ -20,3 +20,5 @@
 - [实施与验收记录](preparation-implementation.md)：五表、质量mask和来源清单已生成；全部评价标签Unknown，尚未训练。
 - [来源核验](preparation-source-verification.md)：版本、时间与物理语义证据边界。
 - [本次收尾与下次session入口](preparation-session-handoff.md)：数据准备到此结束，模型与训练配置留下一session。
+
+- [TT注入关联标签 Spec](labeling-infrastructure-spec.md)、[Plan](labeling-infrastructure-plan.md) 与 [实现及生产验收](labeling-infrastructure-implementation.md)：版本化标签/划分、真实来源复验及覆盖限制。
