@@ -1,0 +1,697 @@
+{
+  "runs": {
+    "SN.2022-04-21T105249D2022-04-21T111651": {
+      "metadata": [
+        1650480769.933718,
+        1650482211.166176
+      ],
+      "resource_services": 12,
+      "resource_start_delta_range_s": [
+        -0.9337179660797119,
+        -0.9337179660797119
+      ],
+      "resource_last_delta_from_end_range_s": [
+        -1.1661760807037354,
+        -1.1661760807037354
+      ],
+      "log_naive_as_utc_boundary_samples": [
+        {
+          "service": "social-graph-service",
+          "first_minus_metadata_start_s": 28800.27161192894,
+          "last_minus_metadata_end_s": 28799.979563951492
+        },
+        {
+          "service": "compose-post-service",
+          "first_minus_metadata_start_s": 28800.29603600502,
+          "last_minus_metadata_end_s": 28799.980089902878
+        },
+        {
+          "service": "post-storage-service"
+        },
+        {
+          "service": "user-timeline-service"
+        },
+        {
+          "service": "url-shorten-service"
+        },
+        {
+          "service": "user-service",
+          "first_minus_metadata_start_s": 28800.25781393051,
+          "last_minus_metadata_end_s": 28799.94739484787
+        },
+        {
+          "service": "media-service"
+        },
+        {
+          "service": "text-service"
+        },
+        {
+          "service": "unique-id-service"
+        },
+        {
+          "service": "user-mention-service"
+        },
+        {
+          "service": "home-timeline-service",
+          "first_minus_metadata_start_s": 28800.295727968216,
+          "last_minus_metadata_end_s": 28799.979720830917
+        },
+        {
+          "service": "nginx-web-server"
+        }
+      ],
+      "trace_scenarios": {
+        "0": {
+          "spans": 0,
+          "services": {},
+          "min_relative_s": null,
+          "max_relative_s": null,
+          "trace_count": 0,
+          "occupied_15s_bins_including_partial": 0,
+          "fraction_of_archive_spans": 0.0
+        },
+        "-28800": {
+          "spans": 277024,
+          "services": {
+            "user-service": 23484,
+            "unique-id-service": 6704,
+            "text-service": 20112,
+            "compose-post-service": 53632,
+            "home-timeline-service": 16668,
+            "user-mention-service": 6704,
+            "user-timeline-service": 20112,
+            "media-service": 6704,
+            "url-shorten-service": 6704,
+            "post-storage-service": 15038,
+            "nginx-web-server": 50153,
+            "social-graph-service": 51009
+          },
+          "min_relative_s": 0.017481088638305664,
+          "max_relative_s": 1440.2017390727997,
+          "trace_count": 4834,
+          "occupied_15s_bins_including_partial": 97,
+          "fraction_of_archive_spans": 0.9588193353223361
+        }
+      },
+      "archive_spans": 288922
+    },
+    "SN.2022-04-21T153302D2022-04-21T155703": {
+      "metadata": [
+        1650497582.034263,
+        1650499023.334172
+      ],
+      "resource_services": 12,
+      "resource_start_delta_range_s": [
+        -0.034262895584106445,
+        -0.034262895584106445
+      ],
+      "resource_last_delta_from_end_range_s": [
+        -1.334172010421753,
+        -1.334172010421753
+      ],
+      "log_naive_as_utc_boundary_samples": [
+        {
+          "service": "social-graph-service",
+          "first_minus_metadata_start_s": 28808.2100481987,
+          "last_minus_metadata_end_s": 28799.74465894699
+        },
+        {
+          "service": "compose-post-service",
+          "first_minus_metadata_start_s": 28808.234476089478,
+          "last_minus_metadata_end_s": 28799.745167970657
+        },
+        {
+          "service": "post-storage-service"
+        },
+        {
+          "service": "user-timeline-service"
+        },
+        {
+          "service": "url-shorten-service"
+        },
+        {
+          "service": "user-service",
+          "first_minus_metadata_start_s": 28808.196528196335,
+          "last_minus_metadata_end_s": 28799.712357997894
+        },
+        {
+          "service": "media-service"
+        },
+        {
+          "service": "text-service"
+        },
+        {
+          "service": "unique-id-service"
+        },
+        {
+          "service": "user-mention-service"
+        },
+        {
+          "service": "home-timeline-service",
+          "first_minus_metadata_start_s": 28808.234144210815,
+          "last_minus_metadata_end_s": 28799.744863033295
+        },
+        {
+          "service": "nginx-web-server"
+        }
+      ],
+      "trace_scenarios": {
+        "0": {
+          "spans": 0,
+          "services": {},
+          "min_relative_s": null,
+          "max_relative_s": null,
+          "trace_count": 0,
+          "occupied_15s_bins_including_partial": 0,
+          "fraction_of_archive_spans": 0.0
+        },
+        "-28800": {
+          "spans": 250147,
+          "services": {
+            "user-service": 22402,
+            "unique-id-service": 5871,
+            "text-service": 17613,
+            "compose-post-service": 46968,
+            "home-timeline-service": 14684,
+            "user-mention-service": 5871,
+            "user-timeline-service": 17613,
+            "media-service": 5871,
+            "url-shorten-service": 5871,
+            "post-storage-service": 13213,
+            "nginx-web-server": 46892,
+            "social-graph-service": 47278
+          },
+          "min_relative_s": 0.758843183517456,
+          "max_relative_s": 1440.481430053711,
+          "trace_count": 4647,
+          "occupied_15s_bins_including_partial": 97,
+          "fraction_of_archive_spans": 0.9839707027715934
+        }
+      },
+      "archive_spans": 254222
+    },
+    "SN.2022-04-20T182405D2022-04-20T184806": {
+      "metadata": [
+        1650421445.66543,
+        1650422886.9702
+      ],
+      "resource_services": 12,
+      "resource_start_delta_range_s": [
+        -0.6654300689697266,
+        -0.6654300689697266
+      ],
+      "resource_last_delta_from_end_range_s": [
+        -1.9702000617980957,
+        -1.9702000617980957
+      ],
+      "log_naive_as_utc_boundary_samples": [
+        {
+          "service": "social-graph-service",
+          "first_minus_metadata_start_s": 28804.934350013733,
+          "last_minus_metadata_end_s": 28799.403251886368
+        },
+        {
+          "service": "compose-post-service",
+          "first_minus_metadata_start_s": 28804.958546876907,
+          "last_minus_metadata_end_s": 28799.40374803543
+        },
+        {
+          "service": "post-storage-service"
+        },
+        {
+          "service": "user-timeline-service"
+        },
+        {
+          "service": "url-shorten-service"
+        },
+        {
+          "service": "user-service",
+          "first_minus_metadata_start_s": 28804.9211230278,
+          "last_minus_metadata_end_s": 28799.370332956314
+        },
+        {
+          "service": "media-service"
+        },
+        {
+          "service": "text-service"
+        },
+        {
+          "service": "unique-id-service"
+        },
+        {
+          "service": "user-mention-service"
+        },
+        {
+          "service": "home-timeline-service",
+          "first_minus_metadata_start_s": 28804.958231925964,
+          "last_minus_metadata_end_s": 28799.403431892395
+        },
+        {
+          "service": "nginx-web-server"
+        }
+      ],
+      "trace_scenarios": {
+        "0": {
+          "spans": 0,
+          "services": {},
+          "min_relative_s": null,
+          "max_relative_s": null,
+          "trace_count": 0,
+          "occupied_15s_bins_including_partial": 0,
+          "fraction_of_archive_spans": 0.0
+        },
+        "-28800": {
+          "spans": 272582,
+          "services": {
+            "user-service": 23451,
+            "nginx-web-server": 48768,
+            "social-graph-service": 50588,
+            "unique-id-service": 6618,
+            "text-service": 19854,
+            "compose-post-service": 52944,
+            "home-timeline-service": 16022,
+            "user-timeline-service": 19854,
+            "user-mention-service": 6618,
+            "media-service": 6618,
+            "url-shorten-service": 6618,
+            "post-storage-service": 14629
+          },
+          "min_relative_s": 0.6298208236694336,
+          "max_relative_s": 1440.2056758403778,
+          "trace_count": 4519,
+          "occupied_15s_bins_including_partial": 97,
+          "fraction_of_archive_spans": 0.9995819520638366
+        }
+      },
+      "archive_spans": 272696
+    },
+    "SN.2022-04-17T190213D2022-04-17T192544": {
+      "metadata": [
+        1650164533.807505,
+        1650165944.874139
+      ],
+      "resource_services": 12,
+      "resource_start_delta_range_s": [
+        -0.8075048923492432,
+        -0.8075048923492432
+      ],
+      "resource_last_delta_from_end_range_s": [
+        -1.8741390705108643,
+        -1.8741390705108643
+      ],
+      "log_naive_as_utc_boundary_samples": [
+        {
+          "service": "social-graph-service",
+          "first_minus_metadata_start_s": 28806.210111141205,
+          "last_minus_metadata_end_s": 28799.441819906235
+        },
+        {
+          "service": "compose-post-service",
+          "first_minus_metadata_start_s": 28806.237915039062,
+          "last_minus_metadata_end_s": 28799.44233894348
+        },
+        {
+          "service": "post-storage-service"
+        },
+        {
+          "service": "user-timeline-service"
+        },
+        {
+          "service": "url-shorten-service"
+        },
+        {
+          "service": "user-service",
+          "first_minus_metadata_start_s": 28806.193531036377,
+          "last_minus_metadata_end_s": 28799.997262954712
+        },
+        {
+          "service": "media-service"
+        },
+        {
+          "service": "text-service"
+        },
+        {
+          "service": "unique-id-service"
+        },
+        {
+          "service": "user-mention-service"
+        },
+        {
+          "service": "home-timeline-service",
+          "first_minus_metadata_start_s": 28806.237492084503,
+          "last_minus_metadata_end_s": 28799.44202899933
+        },
+        {
+          "service": "nginx-web-server"
+        }
+      ],
+      "trace_scenarios": {
+        "0": {
+          "spans": 0,
+          "services": {},
+          "min_relative_s": null,
+          "max_relative_s": null,
+          "trace_count": 0,
+          "occupied_15s_bins_including_partial": 0,
+          "fraction_of_archive_spans": 0.0
+        },
+        "-28800": {
+          "spans": 126976,
+          "services": {
+            "user-service": 11332,
+            "nginx-web-server": 23486,
+            "social-graph-service": 24088,
+            "compose-post-service": 23928,
+            "home-timeline-service": 7598,
+            "user-timeline-service": 8973,
+            "user-mention-service": 2991,
+            "media-service": 2991,
+            "url-shorten-service": 2991,
+            "post-storage-service": 6790,
+            "text-service": 8973,
+            "unique-id-service": 2835
+          },
+          "min_relative_s": 0.17809319496154785,
+          "max_relative_s": 1410.1859180927277,
+          "trace_count": 2390,
+          "occupied_15s_bins_including_partial": 92,
+          "fraction_of_archive_spans": 0.8913160979650285
+        }
+      },
+      "archive_spans": 142459
+    },
+    "SN.2022-04-17T183729D2022-04-17T190100": {
+      "metadata": [
+        1650163049.89344,
+        1650164460.159563
+      ],
+      "resource_services": 12,
+      "resource_start_delta_range_s": [
+        -0.8934400081634521,
+        -0.8934400081634521
+      ],
+      "resource_last_delta_from_end_range_s": [
+        -1.1595630645751953,
+        -1.1595630645751953
+      ],
+      "log_naive_as_utc_boundary_samples": [
+        {
+          "service": "social-graph-service",
+          "first_minus_metadata_start_s": 28800.286127090454,
+          "last_minus_metadata_end_s": 28799.868599891663
+        },
+        {
+          "service": "compose-post-service",
+          "first_minus_metadata_start_s": 28800.315612077713,
+          "last_minus_metadata_end_s": 28799.869149923325
+        },
+        {
+          "service": "post-storage-service"
+        },
+        {
+          "service": "user-timeline-service"
+        },
+        {
+          "service": "url-shorten-service"
+        },
+        {
+          "service": "user-service",
+          "first_minus_metadata_start_s": 28800.272520065308,
+          "last_minus_metadata_end_s": 28799.834764957428
+        },
+        {
+          "service": "media-service"
+        },
+        {
+          "service": "text-service"
+        },
+        {
+          "service": "unique-id-service"
+        },
+        {
+          "service": "user-mention-service"
+        },
+        {
+          "service": "home-timeline-service",
+          "first_minus_metadata_start_s": 28800.315201044083,
+          "last_minus_metadata_end_s": 28799.868820905685
+        },
+        {
+          "service": "nginx-web-server"
+        }
+      ],
+      "trace_scenarios": {
+        "0": {
+          "spans": 0,
+          "services": {},
+          "min_relative_s": null,
+          "max_relative_s": null,
+          "trace_count": 0,
+          "occupied_15s_bins_including_partial": 0,
+          "fraction_of_archive_spans": 0.0
+        },
+        "-28800": {
+          "spans": 137242,
+          "services": {
+            "user-service": 12863,
+            "text-service": 9424,
+            "unique-id-service": 3146,
+            "compose-post-service": 25133,
+            "home-timeline-service": 7934,
+            "user-timeline-service": 9417,
+            "user-mention-service": 3146,
+            "media-service": 3146,
+            "post-storage-service": 6913,
+            "nginx-web-server": 26792,
+            "social-graph-service": 26432,
+            "url-shorten-service": 2896
+          },
+          "min_relative_s": 0.28554296493530273,
+          "max_relative_s": 1410.1050689220428,
+          "trace_count": 2763,
+          "occupied_15s_bins_including_partial": 95,
+          "fraction_of_archive_spans": 0.9129685681024448
+        }
+      },
+      "archive_spans": 150325
+    },
+    "SN.2022-04-17T192658D2022-04-17T195031": {
+      "metadata": [
+        1650166018.384214,
+        1650167431.382238
+      ],
+      "resource_services": 12,
+      "resource_start_delta_range_s": [
+        -0.384213924407959,
+        -0.384213924407959
+      ],
+      "resource_last_delta_from_end_range_s": [
+        -1.3822379112243652,
+        -1.3822379112243652
+      ],
+      "log_naive_as_utc_boundary_samples": [
+        {
+          "service": "social-graph-service",
+          "first_minus_metadata_start_s": 28801.678873062134,
+          "last_minus_metadata_end_s": 28799.785826206207
+        },
+        {
+          "service": "compose-post-service",
+          "first_minus_metadata_start_s": 28801.723371982574,
+          "last_minus_metadata_end_s": 28799.786379098892
+        },
+        {
+          "service": "post-storage-service"
+        },
+        {
+          "service": "user-timeline-service",
+          "first_minus_metadata_start_s": 29617.531927108765,
+          "last_minus_metadata_end_s": 28340.820109128952
+        },
+        {
+          "service": "url-shorten-service"
+        },
+        {
+          "service": "user-service",
+          "first_minus_metadata_start_s": 28801.665569067,
+          "last_minus_metadata_end_s": 28799.752950191498
+        },
+        {
+          "service": "media-service"
+        },
+        {
+          "service": "text-service"
+        },
+        {
+          "service": "unique-id-service"
+        },
+        {
+          "service": "user-mention-service"
+        },
+        {
+          "service": "home-timeline-service",
+          "first_minus_metadata_start_s": 28801.72283911705,
+          "last_minus_metadata_end_s": 28799.786040067673
+        },
+        {
+          "service": "nginx-web-server"
+        }
+      ],
+      "trace_scenarios": {
+        "0": {
+          "spans": 0,
+          "services": {},
+          "min_relative_s": null,
+          "max_relative_s": null,
+          "trace_count": 0,
+          "occupied_15s_bins_including_partial": 0,
+          "fraction_of_archive_spans": 0.0
+        },
+        "-28800": {
+          "spans": 155143,
+          "services": {
+            "nginx-web-server": 28870,
+            "social-graph-service": 29232,
+            "user-service": 13568,
+            "text-service": 11217,
+            "unique-id-service": 3739,
+            "compose-post-service": 29020,
+            "home-timeline-service": 9318,
+            "user-timeline-service": 10653,
+            "user-mention-service": 3650,
+            "media-service": 3739,
+            "url-shorten-service": 3739,
+            "post-storage-service": 8398
+          },
+          "min_relative_s": 0.7147200107574463,
+          "max_relative_s": 1412.2632830142975,
+          "trace_count": 2835,
+          "occupied_15s_bins_including_partial": 95,
+          "fraction_of_archive_spans": 0.8825875231821233
+        }
+      },
+      "archive_spans": 175782
+    },
+    "SN.2022-04-17T181245D2022-04-17T183616": {
+      "metadata": [
+        1650161565.787468,
+        1650162976.077176
+      ],
+      "resource_services": 12,
+      "resource_start_delta_range_s": [
+        -0.7874679565429688,
+        -0.7874679565429688
+      ],
+      "resource_last_delta_from_end_range_s": [
+        -1.0771760940551758,
+        -1.0771760940551758
+      ],
+      "log_naive_as_utc_boundary_samples": [
+        {
+          "service": "social-graph-service",
+          "first_minus_metadata_start_s": 28804.70332813263,
+          "last_minus_metadata_end_s": 28799.30965280533
+        },
+        {
+          "service": "compose-post-service",
+          "first_minus_metadata_start_s": 28804.740942955017,
+          "last_minus_metadata_end_s": 28799.31016087532
+        },
+        {
+          "service": "post-storage-service"
+        },
+        {
+          "service": "user-timeline-service"
+        },
+        {
+          "service": "url-shorten-service"
+        },
+        {
+          "service": "user-service",
+          "first_minus_metadata_start_s": 28804.689940929413,
+          "last_minus_metadata_end_s": 28799.277928829193
+        },
+        {
+          "service": "media-service"
+        },
+        {
+          "service": "text-service"
+        },
+        {
+          "service": "unique-id-service"
+        },
+        {
+          "service": "user-mention-service"
+        },
+        {
+          "service": "home-timeline-service",
+          "first_minus_metadata_start_s": 28804.740646123886,
+          "last_minus_metadata_end_s": 28799.309859991074
+        },
+        {
+          "service": "nginx-web-server"
+        }
+      ],
+      "trace_scenarios": {
+        "0": {
+          "spans": 0,
+          "services": {},
+          "min_relative_s": null,
+          "max_relative_s": null,
+          "trace_count": 0,
+          "occupied_15s_bins_including_partial": 0,
+          "fraction_of_archive_spans": 0.0
+        },
+        "-28800": {
+          "spans": 149594,
+          "services": {
+            "user-service": 13403,
+            "text-service": 10311,
+            "unique-id-service": 3541,
+            "compose-post-service": 28328,
+            "home-timeline-service": 8756,
+            "user-timeline-service": 10623,
+            "user-mention-service": 3541,
+            "media-service": 3398,
+            "url-shorten-service": 3541,
+            "post-storage-service": 7982,
+            "nginx-web-server": 28160,
+            "social-graph-service": 28010
+          },
+          "min_relative_s": 0.9327700138092041,
+          "max_relative_s": 1409.5848491191864,
+          "trace_count": 2842,
+          "occupied_15s_bins_including_partial": 94,
+          "fraction_of_archive_spans": 0.9727476671977111
+        }
+      },
+      "archive_spans": 153785
+    }
+  },
+  "normal_shifted_overlap": [
+    {
+      "left": "SN.2022-04-20T182405D2022-04-20T184806",
+      "right": "SN.2022-04-21T105249D2022-04-21T111651",
+      "shifted_crop_span_key_intersection": 0
+    },
+    {
+      "left": "SN.2022-04-20T182405D2022-04-20T184806",
+      "right": "SN.2022-04-21T153302D2022-04-21T155703",
+      "shifted_crop_span_key_intersection": 0
+    },
+    {
+      "left": "SN.2022-04-21T105249D2022-04-21T111651",
+      "right": "SN.2022-04-21T153302D2022-04-21T155703",
+      "shifted_crop_span_key_intersection": 0
+    }
+  ],
+  "interpretation": "User-accepted fixed alignment hypothesis; sampled log boundaries are not exhaustive validation; resource units/measurement semantics unknown.",
+  "provenance": {
+    "assessment_sha256": "51eceeb83f0da480f88265f55bb09dd9ae953cba969783280622818658e5bf74",
+    "statistics_sha256": "3ec53090b13e648efc7bb0d6cf98a19674b8cafa26ac1384816cd65d467e2174",
+    "upstream": "https://zenodo.org/records/7615394",
+    "archive_md5": "4c523faf64770b1e9a709cdd610e07c4",
+    "official_preprocess": "https://github.com/BEbillionaireUSD/Eadro/tree/main/codes/preprocess",
+    "limitation": "No explicit timezone or raw collector found in official preprocess source; numeric alignment is an assumption."
+  }
+}
