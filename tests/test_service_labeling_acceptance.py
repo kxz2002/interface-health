@@ -18,6 +18,24 @@ def prepared(setup, monkeypatch):
     return root, index
 
 
+def test_public_reader_preserves_versions_for_score_join(setup, monkeypatch):
+    root, index = prepared(setup, monkeypatch)
+    package = bundle.read_bundle(root / "run")
+    labels = package["labels"]
+    splits = package["splits"]
+    test_ids = set(splits.loc[splits["split"].eq("test"), "sample_id"])
+    expected = set(
+        labels.loc[labels["sample_id"].isin(test_ids) & labels["label"].notna(), "sample_id"].head(
+            1
+        )
+    )
+    scores = labels.loc[labels.sample_id.isin(expected), ["sample_id", "label"]].copy()
+    scores["score"] = 0.5
+    scores.attrs.update(labels.attrs)
+    joined = acceptance.join_scores(labels, splits, scores, expected)
+    assert set(joined.sample_id) == expected
+
+
 def test_conservation_and_tamper(setup, monkeypatch):
     root, index = prepared(setup, monkeypatch)
     assert acceptance.check_bundle(root / "run", root / "prepared")["rows"] == 3
@@ -64,6 +82,22 @@ def test_explicit_score_mask():
     scores.attrs["label_version"] = "wrong"
     with pytest.raises(ValueError):
         acceptance.join_scores(labels, splits, scores, {"a", "b"})
+
+
+def test_read_bundle_versions_join_scores(setup, monkeypatch):
+    root, _ = prepared(setup, monkeypatch)
+    data = bundle.read_bundle(root / "run")
+    sample_ids = list(data["labels"].sample_id)
+    scores = pd.DataFrame({"sample_id": sample_ids, "score": [0.1, 0.9, 0.5]})
+    scores.attrs.update(
+        label_version=data["manifest"]["label_version"],
+        split_version=data["manifest"]["split_version"],
+    )
+    expected_ids = set(data["splits"].loc[data["splits"].split.eq("test"), "sample_id"])
+    joined = acceptance.join_scores(data["labels"], data["splits"], scores, expected_ids)
+    assert set(joined.sample_id) == expected_ids
+    assert data["labels"].attrs["label_version"] == data["manifest"]["label_version"]
+    assert data["splits"].attrs["split_version"] == data["manifest"]["split_version"]
 
 
 def test_unknown_and_single_class():

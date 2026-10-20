@@ -1,6 +1,6 @@
 # TT 注入关联标签基础设施实施 Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. 执行方式在计划审阅后确认；当前不启动代理或实施。
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. 本计划已按审阅后的执行方式完成实施；此处保留历史执行说明。
 
 **Goal:** 为已准备的TT窗口生成可追溯、可版本化重标的A协议标签与4/1/1划分包。
 
@@ -157,7 +157,7 @@ conda run -n interface python scripts/label_service_data.py build \
 证据/准入落到Task 1，标签/划分与例外落到Task 2，重标/版本落到Task 3，验收/评分连接落到Task 4，生产复核/历史交接落到Task 5。
 B、KILL持续区间推断、数据库传播及训练不在本计划内。具体阈值分位数留到模型session确定。
 复用开发分支`feature/service-labeling-infrastructure`；执行隔离遵循届时技能与用户工作区约束，不覆盖dirty文件。
-本计划中的测试和生产构建尚未执行。请审阅计划并确认执行方式后进入实施。
+本计划中的测试和生产构建已执行；实际结果见上方实施状态与实现报告。
 
 ## 实施状态（2026-10-20）
 

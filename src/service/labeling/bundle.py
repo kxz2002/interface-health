@@ -284,6 +284,14 @@ def read_bundle(path: Path) -> dict:
         raise ValueError("Bundle split version mismatch")
     if not labels.label_version.eq(manifest["label_version"]).all():
         raise ValueError("Bundle label version mismatch")
+    labels.attrs.update(
+        label_version=manifest["label_version"],
+        split_version=manifest["split_version"],
+    )
+    splits.attrs.update(
+        label_version=manifest["label_version"],
+        split_version=manifest["split_version"],
+    )
     result.update(manifest=manifest, labels=labels, splits=splits)
     return result
 
