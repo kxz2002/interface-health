@@ -1,0 +1,69 @@
+{
+  "profile": "sn_exploratory_v1",
+  "archive_md5": "4c523faf64770b1e9a709cdd610e07c4",
+  "alignment_assumption": true,
+  "offset_seconds": -28800,
+  "resource_unit": "unknown",
+  "resource_measurement_semantics": "unknown",
+  "resource_aggregation": "raw_sequence_and_pure_mathematical_mean_no_rate_no_diff",
+  "execution_object": "Span",
+  "evidence": "docs/research/service-20261019/sn-exploratory-evidence.json",
+  "services": [
+    "compose-post-service",
+    "home-timeline-service",
+    "media-service",
+    "nginx-web-server",
+    "post-storage-service",
+    "social-graph-service",
+    "text-service",
+    "unique-id-service",
+    "url-shorten-service",
+    "user-mention-service",
+    "user-service",
+    "user-timeline-service"
+  ],
+  "runs": {
+    "SN.2022-04-21T105249D2022-04-21T111651": {
+      "container": "SN Dataset/no fault/SN.2022-04-21T105249D2022-04-21T111651.tar.xz",
+      "is_fault_run": false,
+      "proposed_role": "calibration",
+      "qualification_evidence": "archive_no_declared_injection"
+    },
+    "SN.2022-04-21T153302D2022-04-21T155703": {
+      "container": "SN Dataset/no fault/SN.2022-04-21T153302D2022-04-21T155703.tar.xz",
+      "is_fault_run": false,
+      "proposed_role": "normal_test",
+      "qualification_evidence": "archive_no_declared_injection"
+    },
+    "SN.2022-04-20T182405D2022-04-20T184806": {
+      "container": "SN Dataset/no fault/SN.2022-04-20T182405D2022-04-20T184806.tar.xz",
+      "is_fault_run": false,
+      "proposed_role": "fit",
+      "qualification_evidence": "archive_no_declared_injection"
+    },
+    "SN.2022-04-17T190213D2022-04-17T192544": {
+      "container": "SN Dataset/SN-all.tgz",
+      "is_fault_run": true,
+      "proposed_role": "fault_test",
+      "qualification_evidence": "declared_fault_run_test_only"
+    },
+    "SN.2022-04-17T183729D2022-04-17T190100": {
+      "container": "SN Dataset/SN-all.tgz",
+      "is_fault_run": true,
+      "proposed_role": "fault_test",
+      "qualification_evidence": "declared_fault_run_test_only"
+    },
+    "SN.2022-04-17T192658D2022-04-17T195031": {
+      "container": "SN Dataset/SN-all.tgz",
+      "is_fault_run": true,
+      "proposed_role": "fault_test",
+      "qualification_evidence": "declared_fault_run_test_only"
+    },
+    "SN.2022-04-17T181245D2022-04-17T183616": {
+      "container": "SN Dataset/SN-all.tgz",
+      "is_fault_run": true,
+      "proposed_role": "fault_test",
+      "qualification_evidence": "declared_fault_run_test_only"
+    }
+  }
+}

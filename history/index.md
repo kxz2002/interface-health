@@ -61,6 +61,8 @@
 | [032](./entries/032-new-merge-drift-commit.md) | 2026-10-08 | Data | new_merge 数据漂移处置（entry 029/031 三次恢复成本的根源）：189 个 `_pipeline_out` 派生文件（27 case×7）漂移以 `dvc commit` 承认现状——决策依据：用户确认 AnoMod 论文统计基于漂移后状态、哈希级枚举证实 contract 输入零漂移、commit 为论文数据集落 cache 备份；同步 11 个 v1 时代 stage lock dep 哈希；三道验收门（status 全绿 / 裸 repro dry-run 零触发 / 2268 文件零字节变更）；「禁止裸 repro + 禁止 checkout」状态解除，CLAUDE.md gotcha 重写并留结构教训（整目录 dep ⇒ 派生物应拆独立输出） | `data/new_merge.dvc`, `dvc_new_merge/dvc.lock`, `CLAUDE.md`, DVC 操作纪律 |
 | [033](./entries/033-service-minimal-v1.md) | 2026-10-14 | Feature / Docs | Service独立资源基线、证据分层与只读报告 | src/service/, configs/service/, scripts/service_experiment.py, tests/test_service_*, docs/research/ |
 | [034](./entries/034-retire-anomod-datasets.md) | 2026-10-15 | Data + Chore | anomod/anomod_v1 数据集退役（物理删除 85G + `dvc gc -w` 回收 cache 59G，anomod_v1 无追踪永久丢失经用户确认）：删 3 个 root 全灭的 dataset config + base.yaml 残留 Hydra default；根 dvc.yaml 6 个 v0/v1 死 stage 正式下葬（留 toy train/eval），lock 手动修剪并清 entry 015 stale RG 条目；守卫测试 `test_dvc_pipeline_v0.py` 删除、`test_dvc_pipeline_v1.py` 裁掉两条根 dvc 断言；base.yaml 改动弄脏 8 个 new_merge train stage，按 032 先例 `dvc commit` 同步（零执行，status 全绿 + 裸 repro dry-run 零触发验收） | `data/`, `configs/data/`, `configs/base.yaml`, `dvc.yaml`, `dvc.lock`, `dvc_new_merge/dvc.lock`, `tests/`, `.gitignore` |
+| [035](./entries/035-service-selected17-handoff.md) | 2026-10-19 | Data / Docs | selected17复制校验、研究原件归档与Service二分类当前目标；仅交接文档/不训练 | AGENTS.md, CLAUDE.md, .gitignore, docs/research/service-20261019/, data快照 |
+| [036](./entries/036-service-training-preparation.md) | 2026-10-20 | Feature / Data / Docs / Test | TT/SN五表准备、显式SN探索协议及独立质量验收；不训练 | src/service/, configs/service/, scripts/prepare_service_data.py, tests/test_service_*, docs/research/service-20261019/ |
 
 ---
 
@@ -144,5 +146,6 @@
 
 |影响域|Entry|
 |---|---|
-|src/service/, configs/service/, scripts/service_experiment.py|033|
-|tests/test_service_*, docs/research/service-*|033|
+|src/service/, configs/service/, scripts/service_experiment.py, scripts/prepare_service_data.py|033, 036|
+|tests/test_service_*, docs/research/service-*|033, 035（新批研究目标、归档与后续入口）, 036（训练前准备）|
+|AGENTS.md, CLAUDE.md, .gitignore, 新批selected17数据交接|035|

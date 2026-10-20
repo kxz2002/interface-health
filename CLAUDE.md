@@ -1,8 +1,20 @@
 # Interface-Health
 
-接口健康度多模态数据融合与退化轨迹预测研究。基于 PyTorch，融合微服务环境中异构多源数据（metrics/KPI/logs），实现 per-API-endpoint 粒度的健康度建模与时序异常检测。
+面向微服务系统的Service–Endpoint双层异常感知研究；两层独立建模与输出，保留现有Endpoint管线，并在独立Service数据快照上开展模型原型。
 
-## 研究背景与方向
+## 当前研究目标（2026-10-19）
+
+研究总体目标是 **Service–Endpoint 双层异常感知**。Service 主任务是从 Metrics、Logs、Traces 等运行时观测，对 **Service×固定时间窗**输出正常/异常二分类及可选异常分数；Endpoint 模型独立输出 Endpoint×时间窗结果，后续按真实依赖关联。Service 报警不是 Endpoint 检测的前置条件。Operation、缺失处理、漂移和服务排序仅为可选模块或辅助任务。
+
+目标为可信、可复现的硕士论文，允许在成熟 ML、LSTM/GRU、Transformer、GNN、日志表示等方法上作有动机的适度改进，以公平实验和必要消融说明价值。不以顶会级原创或跨系统验证完成作为启动轻量原型的前提。旧报告的 No-Go/强新颖性评级是当时意见，不构成当前开发禁令；不预先承诺增益或把模型组合写成有效贡献。
+
+二分类是输出任务，**不自动改变 Normal-only 训练协议**。用户明确变更前，仅用独立 Normal Case 拟合，用独立 Normal 校准阈值；异常 Case 仅测试，不用于调阈值或选超参数。按整 Case 隔离训练/校准/测试，时序上下文不跨划分边界。模型与统计规则、IF、OCSVM等尽可能同输入、同样本、同划分；保留强规则对照，不因其检出部分故障而禁止轻量模型实验。
+
+注入对象和时段仅是受控暴露证据，不是完整 Service×Window 状态真值。主评价标签须记录 label、label_source、适用范围和证据；不把所有注入窗当异常、非目标或恢复窗当健康。Unknown 从相应训练/评价中排除，不填正常，也不新增第三个预测类别。同源指标弱标签不能冒充独立真值。注入时间、phase、故障类型、Case 名、target、probe结果只供索引/评价，不进入预测特征。Endpoint 历史注入关联评价规则不直接套用于 Service。
+
+当前入口见 [研究索引](docs/research/service-20261019/README.md)：新批 `data/tt_service_20261017_004546/` 仅加载selected17，复制与路径映射见 `_handoff/`；不混旧数据和failed27。旧四Case的 `configs/service/minimal_v1.yaml` 不适用于仅更换根路径的新批实验。下述旧Endpoint协议与历史统计保留其原适用范围，不覆盖当前Service目标。
+
+## 历史Endpoint研究背景与方向
 
 ### 项目定位
 
@@ -11,35 +23,36 @@
 - **场景 A（项目拿到）**：在 SAT 专有数据上做论文，考虑周期性、动态基线等真实业务场景
 - **场景 B（项目落空）**：在 Train-Ticket 数据集上做，专注异常检测创新
 
-当前主数据集：`data/new_merge/`（Train-Ticket 微服务系统，27 case，2026-07-28/29 单一批次采集，不与历史批次混合——entry 017 已证实跨 run 合并会污染评估），由 `configs/data/new_merge.yaml` 声明（`roots`/`normal_source` 均为 `data/new_merge`，见 `configs/contract/v1_new_merge.yaml`）。原始采集 28 case，已剔除 `Lv_S_KILLPOD_gateway`（inject 阶段 trace 数据永久缺失导致 AUROC 无定义，见 history/entries/023）。
+历史Endpoint主数据集：`data/new_merge/`（Train-Ticket 微服务系统，27 case，2026-07-28/29 单一批次采集，不与历史批次混合——entry 017 已证实跨 run 合并会污染评估），由 `configs/data/new_merge.yaml` 声明（`roots`/`normal_source` 均为 `data/new_merge`，见 `configs/contract/v1_new_merge.yaml`）。原始采集 28 case，已剔除 `Lv_S_KILLPOD_gateway`（inject 阶段 trace 数据永久缺失导致 AUROC 无定义，见 history/entries/023）。
 
-历史数据源**已全部退出仓库**：`data/anomod/` 与 `data/anomod_v1/` 于 entry 034 物理删除（用户确认接受；anomod_v1 无 DVC 追踪，删除即永久丢失），`data/endpoint_raw2/`、`data/normal_v2/`、`data/new_ep1/` 更早即已永久丢失——磁盘、DVC cache、DVC remote 三处皆无（`endpoint_raw2` 由 `326b885` 物理删除，另两个的丢失于 entry 025 核实）。依赖它们的链路一并退役：`configs/data/anomod.yaml`/`merged_v1.yaml`/`merged_v2.yaml` 与根 `dvc.yaml` 的 v0/v1 stage（build_contract/train_v0/eval_v0/build_contract_v1/train_v1/eval_v1）已于 entry 034 删除；`dvc_reliability_gate/`、`dvc_deviation_weighted/`、`dvc_new_ep1/` 三个 pipeline 文件按惯例留树备查，但其数据与 dataset config 均已不存在，**无法从原始数据 `dvc repro` 重建，也无法通过重跑刷新其数字**——entry 014/016/018/022 的 AUROC/AUPRC/gate 权重只能标记作废（它们同时还建立在 entry 025 修掉的错误 service 级标签之上）。仅已提交的 `metrics.json` 可作为"当时如此"的历史记录查阅，不要在此基础上继续实验、不要与 entry 025 之后的数字并列比较。**当前唯一口径正确且可重建的数据集是 `data/new_merge`**（entry 025 从异机备份恢复，字节数与 `data/new_merge.dvc` 一致；189 个 `_pipeline_out` 漂移文件已于 entry 032 `dvc commit` 承认现状——cache 已填充完整内容，`dvc checkout` 技术上安全，但数据仍 READ-ONLY、无理由执行）。
+历史数据源**已全部退出仓库**：`data/anomod/` 与 `data/anomod_v1/` 于 entry 034 物理删除（用户确认接受；anomod_v1 无 DVC 追踪，删除即永久丢失），`data/endpoint_raw2/`、`data/normal_v2/`、`data/new_ep1/` 更早即已永久丢失——磁盘、DVC cache、DVC remote 三处皆无（`endpoint_raw2` 由 `326b885` 物理删除，另两个的丢失于 entry 025 核实）。依赖它们的链路一并退役：`configs/data/anomod.yaml`/`merged_v1.yaml`/`merged_v2.yaml` 与根 `dvc.yaml` 的 v0/v1 stage（build_contract/train_v0/eval_v0/build_contract_v1/train_v1/eval_v1）已于 entry 034 删除；`dvc_reliability_gate/`、`dvc_deviation_weighted/`、`dvc_new_ep1/` 三个 pipeline 文件按惯例留树备查，但其数据与 dataset config 均已不存在，**无法从原始数据 `dvc repro` 重建，也无法通过重跑刷新其数字**——entry 014/016/018/022 的 AUROC/AUPRC/gate 权重只能标记作废（它们同时还建立在 entry 025 修掉的错误 service 级标签之上）。仅已提交的 `metrics.json` 可作为"当时如此"的历史记录查阅，不要在此基础上继续实验、不要与 entry 025 之后的数字并列比较。**历史Endpoint链确认口径正确且可重建的数据集是 `data/new_merge`；新增Service批次以当前研究索引为准**（entry 025 从异机备份恢复，字节数与 `data/new_merge.dvc` 一致；189 个 `_pipeline_out` 漂移文件已于 entry 032 `dvc commit` 承认现状——cache 已填充完整内容，`dvc checkout` 技术上安全，但数据仍 READ-ONLY、无理由执行）。
 
 数据集字段口径、pipeline 逻辑与已知问题详见 `docs/agent-docs/dataset-guide.md`（**注意**：该文档写于项目最早期，仍描述已删除的 `data/anomod/` 单批次格式（entry 034）与 `process_tt_traces.py`/`build_endpoint_health.py` 老 pipeline，未覆盖 endpoint_raw2/normal_v2/contract v1/new_ep1/new_merge 等后续所有数据集和现行 pipeline——这些以本文件和各 `configs/data/*.yaml`/`configs/contract/*.yaml` 注释为准），接触数据相关代码前必读。
 
-### 两个论文创新方向
+### 历史Endpoint方案（非当前Service创新门槛）
 
 1. **新的检测模型**（主，小论文重点）：per-endpoint × time-window 的**单类分类（One-Class）**任务，只用正常数据训练，学习"正常边界"，推理时偏离边界的即为异常。
 2. **多模态数据融合**（次，特征层面补充贡献）：将客户端 RED（api_responses）+ 服务端 RED（traces）融合为统一特征向量，融合策略作为消融实验的对比维度。
 
 **为什么选 One-Class**：学术界主流方法（VAE/OCSVM/Deep SVDD）均为无监督/半监督——工业场景标注贵、迁移性差，审稿人会质疑依赖故障注入标注的监督方法无法泛化。One-Class 只需正常运行数据训练，强标注只用于**评估**，不进入训练。
 
-**文献差异化点**：现有工作几乎全是 service-level 粒度；本研究做 **per-endpoint × time-window** 粒度，结合多模态 RED 特征输入 Deep SVDD，在文献中几乎是空白。
+**历史差异化设想**：per-endpoint×time-window与RED融合曾作为探索方向；不能未经文献核实宣称研究空白。当前论文允许成熟方法上的适度改进，以公平实验和消融验证。
 
-### 核心任务定义
+### 历史Endpoint核心任务定义（不作为Service状态标签）
 
 **单类异常检测**：
 - 训练输入：Normal case 下各 endpoint 各时间窗的多模态 RED 特征向量（全部 label=0）
 - 推理输出：偏离正常边界的程度分数，阈值化后得到 0/1
 - 评估标签：`phase == 'inject'`（来自 `case_metadata.json` 的 `inject_start_ms`/`inject_end_ms`，精确到毫秒），**不依赖 `weak_is_anomaly`**
 - 正样本（评估用）：inject 阶段内的 endpoint × 时间窗
-- 负样本（训练+评估）：Normal case 全程 + 异常 case 的 baseline/recover 阶段
+- 历史Endpoint负样本来源曾包括Normal及Fault baseline/recover；当前Service仍仅Normal训练，baseline/recover不因阶段名获得健康标签。
 
 ## Directory Structure
 ```
 data/                  # 所有数据集根目录，每个数据集为独立原子单元
-                       # 以下清单已于 entry 034（2026-10-15）按磁盘实况校准
-├── new_merge/         # 【当前唯一数据集】27 case，2026-07-28/29 单一批次采集，READ-ONLY，见 history/entries/023、025
+                       # 旧批退役见 entry 034；新批交接见 entry 035（2026-10-19）
+├── tt_service_20261017_004546/ # 当前Service selected17，只读快照，_handoff校验；不混旧Endpoint数据
+├── new_merge/         # 【历史Endpoint主数据集】27 case，2026-07-28/29 单一批次采集，READ-ONLY，见 history/entries/023、025
 │   └── Lv_D_*/ Lv_E_HTTP{ABORT,DELAY,PATCH,REPLACE}_{assurance,order,travel,travel2}/ Lv_P_*/ Lv_S_*/ Normal_*/
 └── external/          # 外部数据占位
 #
@@ -81,6 +94,8 @@ notebooks/             # Jupyter notebook 探索性分析
 ```
 ## Commands
 
+下列Endpoint/DVC命令是历史流程索引，不构成执行授权。禁止无target的根目录`dvc repro`；历史丢失资产链不能重建。Service收尾和文档验证不调用DVC、旧训练、采集或集群；新批数据/模型入口先读当前研究索引。
+
 ```bash
 # 建立环境（新设备）
 make setup && make torch-cpu   # 或 make torch-gpu CUDA_VERSION=cu121
@@ -103,7 +118,7 @@ pip install -e ".[dev]"
 # 模态观测覆盖诊断 scripts/analyze_modality_observability.py 仍在树中，均为一次性
 # 分析脚本（--contract-dir 参数自取），不挂任何活 pipeline。
 
-# === new_merge（【当前唯一数据集】27 case，单一批次，不与历史批次混合，见 history/entries/023）===
+# === new_merge（【历史Endpoint主数据集】27 case，单一批次，不与历史批次混合，见 history/entries/023）===
 # v1 链路：configs/data/new_merge.yaml / configs/contract/v1_new_merge.yaml，contract 与
 # concat(L0)/independent_concat(L1)/gated(L2)/deviation_weighted(DWF) 四种融合方式 +
 # 三条平凡基线（rel_pos/zscore_l2/zscore_max，entry 029 起常驻）的训练评估均隔离到
@@ -151,7 +166,7 @@ pytest tests/
 - 切换配置组: `python scripts/train.py model=vae`
 - 模型通过 `hydra.utils.instantiate(cfg.model)` 实例化，融合机制同理通过 `hydra.utils.instantiate(cfg.fusion)` 实例化，`_target_` 指向具体类
 - `train_baseline_v0.py` 是 `@hydra.main` 入口：`contract_dir`/`out` 是 `configs/base.yaml` 里的必填 Hydra 字段（`???`），不是 argparse flag，调用改用 `contract_dir=... out=...` override 语法
-- `configs/data/*.yaml` 声明数据集组成：`roots`（合并哪些数据源目录）+ `normal_source`（Normal 只取自哪个 root）。现行唯一活配置是 `new_merge.yaml`（单数据源，roots/normal_source 均指向 `data/new_merge`）；`build_contract.py --dataset <该文件>` 消费。`new_ep1.yaml`（数据已丢失）与 `ep2_0729.yaml`（源数据在仓库外）留树备查
+- `configs/data/*.yaml` 声明数据集组成：`roots`（合并哪些数据源目录）+ `normal_source`（Normal 只取自哪个 root）。现行Endpoint主链配置是 `new_merge.yaml`（单数据源，roots/normal_source 均指向 `data/new_merge`）；`build_contract.py --dataset <该文件>` 消费。`new_ep1.yaml`（数据已丢失）与 `ep2_0729.yaml`（源数据在仓库外）留树备查
 - `configs/contract/v1.yaml` 的 `expand_train_pool: bool` 字段（v1/v2 契约消费，v0 不识别）：`false`（默认）=train 仅纯 Normal `train_fit`；`true`=train 按三个独立 fraction 额外吸收故障 case 的 baseline 阶段行、inject 阶段非目标 endpoint 行、recover 阶段非目标 endpoint 行，被吸收窗口同步从 eval_all 摘除防泄漏。三个 fraction 默认分别是 0.2 / 0.0 / 0.0，`v1_expanded_pool.yaml` 与 `v1_new_ep1.yaml` 把后两个显式设为 1.0；`v1_new_merge.yaml` 的 `fault_baseline_train_fraction` 同样是 0.2，但这是针对 new_merge 单独实测校准得出的（不是借用 endpoint_raw2 的数值），换数据集时不要假设可以直接复用别的数据集已校准的 fraction，必须重新跑 `build_contract.py` 核实 eval_all 类别比例，见 history/entries/023
 
 ## Data Rules
