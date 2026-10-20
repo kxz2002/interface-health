@@ -227,6 +227,8 @@ def _coverage(labels: pd.DataFrame, splits: pd.DataFrame, grid: pd.DataFrame, ca
 
 def _protect(output: Path, protected: list[Path]) -> Path:
     output = output.resolve()
+    if output == Path(__file__).resolve().parents[3] / "outputs/service":
+        raise ValueError("Output must be a new run, not outputs/service root")
     for root in protected:
         root = root.resolve()
         if output == root or output.is_relative_to(root) or root.is_relative_to(output):
