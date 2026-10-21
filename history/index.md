@@ -63,6 +63,7 @@
 | [034](./entries/034-retire-anomod-datasets.md) | 2026-10-15 | Data + Chore | anomod/anomod_v1 数据集退役（物理删除 85G + `dvc gc -w` 回收 cache 59G，anomod_v1 无追踪永久丢失经用户确认）：删 3 个 root 全灭的 dataset config + base.yaml 残留 Hydra default；根 dvc.yaml 6 个 v0/v1 死 stage 正式下葬（留 toy train/eval），lock 手动修剪并清 entry 015 stale RG 条目；守卫测试 `test_dvc_pipeline_v0.py` 删除、`test_dvc_pipeline_v1.py` 裁掉两条根 dvc 断言；base.yaml 改动弄脏 8 个 new_merge train stage，按 032 先例 `dvc commit` 同步（零执行，status 全绿 + 裸 repro dry-run 零触发验收） | `data/`, `configs/data/`, `configs/base.yaml`, `dvc.yaml`, `dvc.lock`, `dvc_new_merge/dvc.lock`, `tests/`, `.gitignore` |
 | [035](./entries/035-service-selected17-handoff.md) | 2026-10-19 | Data / Docs | selected17复制校验、研究原件归档与Service二分类当前目标；仅交接文档/不训练 | AGENTS.md, CLAUDE.md, .gitignore, docs/research/service-20261019/, data快照 |
 | [036](./entries/036-service-training-preparation.md) | 2026-10-20 | Feature / Data / Docs / Test | TT/SN五表准备、显式SN探索协议及独立质量验收；不训练 | src/service/, configs/service/, scripts/prepare_service_data.py, tests/test_service_*, docs/research/service-20261019/ |
+| [037](./entries/037-tt-labeling-infrastructure.md) | 2026-10-20 | Feature / Data / Docs / Test | TT版本化标签基础设施、v2证据扩展与独立主评价清单 | src/service/labeling/, scripts/label_service_data.py, configs/service/, tests/, docs/research/service-20261019/ |
 
 ---
 
@@ -149,3 +150,4 @@
 |src/service/, configs/service/, scripts/service_experiment.py, scripts/prepare_service_data.py|033, 036|
 |tests/test_service_*, docs/research/service-*|033, 035（新批研究目标、归档与后续入口）, 036（训练前准备）|
 |AGENTS.md, CLAUDE.md, .gitignore, 新批selected17数据交接|035|
+|src/service/labeling/、scripts/label_service_data.py、TT标签版本与验收|037|

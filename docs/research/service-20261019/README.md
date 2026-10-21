@@ -1,5 +1,8 @@
 # Service研究交接 — 2026-10-19
 
+- [TT 主评价范围决策](evaluation-scope-decision-20261021.md)：独立 Normal test 负类、Fault 已知正类，不纳入 Fault 注入前负类；保留实施前差距快照及补采版本接入要求。
+- [2026-10-20 TT 标签 v2 实施交接](labeling-v2-implementation-20261020.md)：已生成并验收479正类与2975负类的主评价清单；资源有效掩码后397正类、2453负类，附模型接入示例和证据边界。
+
 主任务为Service×固定时间窗正常/异常二分类；维持Normal-only训练，以独立校准阈值输出二分类。允许成熟方法上的适度改进，不以顶会级原创作为启动门槛。Endpoint模型独立开展，Operation/漂移/缺失等不代替主任务。
 
 阅读顺序：
@@ -20,3 +23,5 @@
 - [实施与验收记录](preparation-implementation.md)：五表、质量mask和来源清单已生成；全部评价标签Unknown，尚未训练。
 - [来源核验](preparation-source-verification.md)：版本、时间与物理语义证据边界。
 - [本次收尾与下次session入口](preparation-session-handoff.md)：数据准备到此结束，模型与训练配置留下一session。
+
+- [TT注入关联标签 Spec](labeling-infrastructure-spec.md)、[Plan](labeling-infrastructure-plan.md) 与 [实现及生产验收](labeling-infrastructure-implementation.md)：版本化标签/划分、真实来源复验及覆盖限制。

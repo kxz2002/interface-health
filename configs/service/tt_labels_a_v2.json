@@ -1,0 +1,27 @@
+{
+  "protocol_id": "tt_labels_a_v2",
+  "label_version": "tt_controlled_association_a_v2",
+  "split_version": "tt_normal_case_4_1_1_v1",
+  "evaluation_version": "tt_normal_test_and_controlled_positive_v2",
+  "expansion_rule": "network_and_joint_lifecycle_v1",
+  "lifecycle_max_snapshot_gap_ms": 30000,
+  "lifecycle_quality_source": "batch_control/collection_evidence_20261018T150158Z/collection_sources/TT_collection-scripts/T-Dataset/log_collector.py",
+  "window_ms": 15000,
+  "label_scope": "service_window",
+  "positive_rule": "complete_direct_target_or_network_participant_or_joint_lifecycle_observation_window",
+  "negative_rule": "admitted_normal_or_complete_pre_intervention_window",
+  "exception_rule": "issued_load_transport_exception_overlap_all_services",
+  "fault_exception_end_rule": "end_at_or_before_first_intervention",
+  "pause_clock_rule": "start_ms_plus_floor_monotonic_delta_ms",
+  "normal_splits": {
+    "Normal_20261017T020706Z_95064d21e8204018": "fit",
+    "Normal_20261017T110632Z_4c14d1c71d664ca9": "fit",
+    "Normal_20261017T115148Z_cc9a6da5e99a4263": "fit",
+    "Normal_20261018T030819Z_9adec05d73684fb6": "fit",
+    "Normal_20261018T035358Z_4496c85fde8e4f6e": "calibration",
+    "Normal_20261018T153211Z_e448a74ed7104ebd": "test"
+  },
+  "fault_split": "test",
+  "threshold_rule": null,
+  "reference_semantics": "controlled association and discrete lifecycle observations; not full health gold"
+}
