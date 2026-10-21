@@ -10,6 +10,7 @@ from src.service.preparation import file_digest
 
 from . import bundle as package
 from . import rules
+from .evaluation import evaluation_counts, evaluation_table
 from .evidence import KEY_COLUMNS, load_evidence
 from .rules import IDENTITY_COLUMNS, classify_windows
 
@@ -50,7 +51,7 @@ def check_bundle(bundle: Path, preparation: Path) -> dict:
         sources=index.sources,
         cases=index.cases,
         preparation_manifest_sha256=index.preparation_manifest_sha256,
-        rules_sha256=file_digest(Path(rules.__file__)),
+        rules_sha256=package.implementation_hash(protocol),
     )
     if package._jsonable(evidence) != package._jsonable(data["evidence"]):
         raise ValueError("Reloaded evidence/provenance mismatch")
@@ -69,6 +70,14 @@ def check_bundle(bundle: Path, preparation: Path) -> dict:
     coverage = package._coverage(replay.labels, replay.splits, index.grid, index.cases)
     if package._jsonable(coverage) != data["coverage"]:
         raise ValueError("Recomputed coverage mismatch")
+    evaluation_coverage = None
+    if protocol.get("evaluation_version"):
+        evaluation = evaluation_table(replay.labels, replay.splits, protocol)
+        if package._records(evaluation) != package._records(data["evaluation"]):
+            raise ValueError("Recomputed evaluation membership mismatch")
+        evaluation_coverage = evaluation_counts(evaluation, replay.labels, index.grid)
+        if package._jsonable(evaluation_coverage) != data["evaluation_coverage"]:
+            raise ValueError("Recomputed evaluation coverage mismatch")
     eligibility = {}
     merged = replay.labels.merge(
         replay.splits[KEY_COLUMNS + ["split"]], on=KEY_COLUMNS, validate="one_to_one"
@@ -87,6 +96,7 @@ def check_bundle(bundle: Path, preparation: Path) -> dict:
         split_version=manifest["split_version"],
         coverage=coverage,
         negative_eligibility=eligibility,
+        evaluation_coverage=evaluation_coverage,
     )
 
 
@@ -161,4 +171,22 @@ def join_scores(
         ap=None,
         reason="empty" if not count else "single_class" if count == 1 else "available_not_computed",
     )
+    return result
+
+
+def join_evaluation_scores(data: dict, scores: pd.DataFrame, valid_ids: set[str]) -> pd.DataFrame:
+    """Join a fixed input-valid mask with the persisted main evaluation scope."""
+    if "evaluation" not in data:
+        raise ValueError("A versioned evaluation package is required")
+    expected = evaluation_table(data["labels"], data["splits"], data["protocol"])
+    if package._records(expected) != package._records(data["evaluation"]):
+        raise ValueError("Evaluation membership semantic mismatch")
+    version = data["protocol"]["evaluation_version"]
+    if scores.attrs.get("evaluation_version") != version:
+        raise ValueError("Evaluation version mismatch")
+    if not isinstance(valid_ids, set) or not valid_ids <= set(data["labels"].sample_id):
+        raise ValueError("Invalid predeclared input validity set")
+    eligible = set(expected.loc[expected.evaluation_eligible, "sample_id"]) & valid_ids
+    result = join_scores(data["labels"], data["splits"], scores, eligible)
+    result.attrs["evaluation_version"] = version
     return result

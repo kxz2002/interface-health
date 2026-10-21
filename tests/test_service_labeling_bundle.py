@@ -68,6 +68,25 @@ def test_replay_semantic_hash(setup):
     assert list(labels.evidence_ids.iloc[0]) == ["source"]
 
 
+def test_v2_read_persists_and_checks_evaluation_membership(setup):
+    setup[3]["evaluation_version"] = "evaluation-v2"
+    setup[1].write_text(json.dumps(setup[3]))
+    build(setup, "v2")
+    data = bundle.read_bundle(setup[0] / "v2")
+    assert "evaluation" in data and "evaluation_coverage" in data
+    assert not data["evaluation"].evaluation_eligible.any()
+    path = setup[0] / "v2/labels/evaluation.parquet"
+    evaluation = pd.read_parquet(path)
+    evaluation.loc[0, "evaluation_eligible"] = True
+    evaluation.to_parquet(path, index=False)
+    manifest_path = setup[0] / "v2/labels/manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["files"]["evaluation.parquet"]["sha256"] = bundle.file_digest(path)
+    manifest_path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="Evaluation membership"):
+        bundle.read_bundle(setup[0] / "v2")
+
+
 def test_no_overwrite_or_partial_publish(setup, monkeypatch):
     build(setup, "a")
     with pytest.raises(FileExistsError):

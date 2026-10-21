@@ -1,5 +1,7 @@
 # TT 注入关联标签基础设施实施 Plan
 
+> v2 增量已于2026-10-20（America/Los_Angeles）实现并验收，见[主评价范围决策](evaluation-scope-decision-20261021.md)及[v2实施交接](labeling-v2-implementation-20261020.md)：新版评价清单为479正类与2975负类，已完成来源重放、独立check及零差异复验。下文保留已执行 A 版历史计划，新增规则以v2报告为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. 本计划已按审阅后的执行方式完成实施；此处保留历史执行说明。
 
 **Goal:** 为已准备的TT窗口生成可追溯、可版本化重标的A协议标签与4/1/1划分包。

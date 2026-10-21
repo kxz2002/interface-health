@@ -199,3 +199,18 @@ conda run -n interface python scripts/train_baseline_v0.py --cfg job
 |/tmp/b-admission-20261012|此前候选路线准入审查，仅作历史参考|
 
 这些临时资产有存在性与版本限制，先检查再引用。**核心开发原则：用正确的样本、明确的任务和可复现证据回答问题；数据工程、严格评估和现成算法组合不自动等于方法创新。**
+<!-- ARIS-CODEX:BEGIN -->
+## ARIS Codex Skill Scope
+ARIS Codex packages installed in this project: skills-codex
+Managed entries: 86
+Manifest: `.aris/installed-skills-codex.txt`
+ARIS repo root: `/home/kxz2002/Code/Repos/Auto-claude-code-research-in-sleep`
+Project skill path: `.agents/skills/<skill-name>`
+For ARIS Codex workflows, prefer the project-local skills under `.agents/skills/`.
+When a skill needs ARIS helper scripts, resolve the repo root from the manifest or set it explicitly:
+`ARIS_REPO=$(awk -F'\t' '$1=="repo_root"{print $2; exit}' "/home/kxz2002/Code/Repos/interface-health/.aris/installed-skills-codex.txt")`
+Do not edit or delete symlinked skills in place; update upstream or rerun:
+`bash /home/kxz2002/Code/Repos/Auto-claude-code-research-in-sleep/tools/install_aris_codex.sh "/home/kxz2002/Code/Repos/interface-health" --reconcile`
+For copied Codex installs, use:
+`bash /home/kxz2002/Code/Repos/Auto-claude-code-research-in-sleep/tools/smart_update_codex.sh --project "/home/kxz2002/Code/Repos/interface-health"`
+<!-- ARIS-CODEX:END -->

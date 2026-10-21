@@ -1,5 +1,7 @@
 # TT 注入关联标签基础设施 Spec
 
+> v2 增量已于2026-10-20（America/Los_Angeles）实现并验收：[主评价范围决策](evaluation-scope-decision-20261021.md)、[v2实施交接](labeling-v2-implementation-20261020.md)。新版主评价排除 Fault 注入前负类，生成479正类与2975负类的固定清单。本文正文保留 A 版历史规范；新版来源、质量规则及实际覆盖以v2报告为准。
+
 日期：2026-10-20。用户已认可前序Spec内容，本文正式整理该设计。
 配套实施计划见 [Plan](labeling-infrastructure-plan.md)。Task 1–5 已实施打标与生产验收，未训练；实际计数及证据更正见 [实现报告](labeling-infrastructure-implementation.md)。
 

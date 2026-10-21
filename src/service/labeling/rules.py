@@ -132,6 +132,19 @@ def classify_windows(grid: pd.DataFrame, evidence: EvidenceIndex, protocol: dict
                     unknown.add("partial_boundary")
         if positive and negative:
             raise ValueError("Positive/negative candidate conflict")
+        expansion_source = None
+        if protocol.get("expansion_rule") and not admitted:
+            positive = False
+        for interval in case.get("expansion_intervals", []) if admitted else []:
+            if (
+                row.canonical_service_id == interval["service"]
+                and interval["start_ms"] <= row.window_start_ms
+                and row.window_end_ms <= interval["end_ms"]
+            ):
+                positive = True
+                expansion_source = interval["source"]
+        if positive and negative:
+            raise ValueError("Expanded positive/negative candidate conflict")
         if negative:
             for event in case["transport_exceptions"]:
                 # Only failures completed before the *earliest* intervention may
@@ -145,6 +158,8 @@ def classify_windows(grid: pd.DataFrame, evidence: EvidenceIndex, protocol: dict
         value = 1 if positive else 0 if negative else pd.NA
         if positive:
             source, reason = "injection_association", "complete_direct_target_window"
+            if expansion_source:
+                source, reason = expansion_source, "complete_" + expansion_source + "_window"
         elif negative:
             source = "pre_intervention_reference" if fault_run else "normal_run_reference"
             reason = "complete_pre_intervention_window" if fault_run else "admitted_normal_run"

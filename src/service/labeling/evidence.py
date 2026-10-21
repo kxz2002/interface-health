@@ -17,6 +17,8 @@ import pandas as pd
 from src.service.modality_preparation import copy_manifest, stable_ids, validate_grid
 from src.service.preparation import checked_path, file_digest, selected_tt_inventory
 
+from .expansion import lifecycle_intervals, network_intervals
+
 KEY_COLUMNS = ["dataset_id", "run_id", "canonical_service_id", "window_start_ms"]
 
 
@@ -305,6 +307,8 @@ def load_evidence(tt_root: Path, preparation: Path, protocol: dict) -> EvidenceI
     ):
         raise ValueError("Protocol Normal split identity mismatch")
     cases = {}
+    if protocol.get("expansion_rule"):
+        source(checked_path(tt_root, protocol["lifecycle_quality_source"]), migrated=True)
     for selected, run in zip(selection["cases"], inventory["runs"]):
         cid, base = selected["case_id"], selected["case_root"]
         if base != cid:
@@ -386,6 +390,39 @@ def load_evidence(tt_root: Path, preparation: Path, protocol: dict) -> EvidenceI
             }
         admission = run_admission(quality, load, is_fault=fault_run)
         admission["warnings"].extend(warnings)
+        expansions = []
+        if protocol.get("expansion_rule") == "network_and_joint_lifecycle_v1" and fault_run:
+            document = fault.get("document", {})
+            target = document.get("metadata", {}).get("labels", {}).get("target_service")
+            if (
+                document.get("kind") == "NetworkChaos"
+                and document.get("spec", {}).get("action") == "delay"
+                and target not in run["candidate_services"]
+            ):
+                runtime, sid = read(f"{base}/control/runtime_snapshot.json")
+                evidence_ids.append(sid)
+                _identity(runtime, run["collection_identity"])
+                expansions = network_intervals(fault, runtime, run["candidate_services"])
+            if (
+                document.get("spec", {}).get("action") == "pod-kill"
+                and target in run["candidate_services"]
+            ):
+                latest, sid = read(f"{base}/log_data/identity_latest.json")
+                evidence_ids.append(sid)
+                _identity(latest, run["collection_identity"])
+                identity_path = checked_path(tt_root, f"{base}/log_data/identity_events.jsonl")
+                evidence_ids.append(source(identity_path, migrated=True))
+                with identity_path.open() as handle:
+                    identity_events = [json.loads(line) for line in handle]
+                for event in identity_events:
+                    _identity(event, run["collection_identity"])
+                expansions = lifecycle_intervals(
+                    identity_events,
+                    latest,
+                    target,
+                    fault["effective_ms"],
+                    protocol["lifecycle_max_snapshot_gap_ms"],
+                )
         cases[cid] = {
             "case_id": cid,
             "is_fault": fault_run,
@@ -399,4 +436,6 @@ def load_evidence(tt_root: Path, preparation: Path, protocol: dict) -> EvidenceI
             "split": protocol["normal_splits"].get(cid, "test"),
             "candidate_services": run["candidate_services"],
         }
+        if protocol.get("expansion_rule"):
+            cases[cid]["expansion_intervals"] = expansions
     return EvidenceIndex(grid, cases, sources, protocol, file_digest(manifest_path))

@@ -22,8 +22,28 @@ import pandas as pd
 from src.service.preparation import file_digest
 
 from . import rules
+from .evaluation import evaluation_counts, evaluation_table
 from .evidence import KEY_COLUMNS, load_evidence
 from .rules import IDENTITY_COLUMNS, classify_windows, split_content_version
+
+
+def implementation_hash(protocol):
+    if not protocol.get("expansion_rule"):
+        return file_digest(Path(rules.__file__))
+    return _digest(
+        {
+            name: file_digest(Path(__file__).with_name(name))
+            for name in [
+                "rules.py",
+                "expansion.py",
+                "evaluation.py",
+                "evidence.py",
+                "acceptance.py",
+                "bundle.py",
+            ]
+        }
+    )
+
 
 FILES = (
     "protocol.json",
@@ -137,6 +157,8 @@ def _validate_tables(labels: pd.DataFrame, splits: pd.DataFrame, sources: dict) 
         "injection_association",
         "normal_run_reference",
         "pre_intervention_reference",
+        "network_participant_association",
+        "lifecycle_observation_association",
     }
     if (
         not labels.label_source.isin(allowed).all()
@@ -147,7 +169,17 @@ def _validate_tables(labels: pd.DataFrame, splits: pd.DataFrame, sources: dict) 
         raise ValueError("Missing label metadata")
     if not labels.label.isna().equals(labels.label_source.eq("unknown")):
         raise ValueError("Unknown source/label mismatch")
-    if not labels.loc[labels.label.eq(1), "label_source"].eq("injection_association").all():
+    if (
+        not labels.loc[labels.label.eq(1), "label_source"]
+        .isin(
+            [
+                "injection_association",
+                "network_participant_association",
+                "lifecycle_observation_association",
+            ]
+        )
+        .all()
+    ):
         raise ValueError("Positive source mismatch")
     if (
         not labels.loc[labels.label.eq(0), "label_source"]
@@ -266,9 +298,13 @@ def read_bundle(path: Path) -> dict:
     if not (path / "manifest.json").is_file():
         path = path / "labels"
     manifest = json.loads((path / "manifest.json").read_text())
-    if manifest.get("schema_version") != 1 or set(manifest.get("files", {})) != set(FILES):
+    schema_version = manifest.get("schema_version")
+    files = FILES + (
+        ("evaluation.parquet", "evaluation_coverage.json") if schema_version == 2 else ()
+    )
+    if schema_version not in {1, 2} or set(manifest.get("files", {})) != set(files):
         raise ValueError("Malformed bundle manifest")
-    for name in FILES:
+    for name in files:
         if file_digest(path / name) != manifest["files"][name]["sha256"]:
             raise ValueError(f"Bundle hash mismatch: {name}")
     result = {
@@ -293,6 +329,13 @@ def read_bundle(path: Path) -> dict:
         split_version=manifest["split_version"],
     )
     result.update(manifest=manifest, labels=labels, splits=splits)
+    if schema_version == 2:
+        evaluation = pd.read_parquet(path / "evaluation.parquet")
+        expected = evaluation_table(labels, splits, result["protocol"])
+        if _records(evaluation) != _records(expected):
+            raise ValueError("Evaluation membership semantic mismatch")
+        result["evaluation"] = evaluation
+        result["evaluation_coverage"] = json.loads((path / "evaluation_coverage.json").read_text())
     return result
 
 
@@ -313,14 +356,14 @@ def build_bundle(tt_root: Path, preparation: Path, protocol_path: Path, output: 
         "sources": index.sources,
         "cases": index.cases,
         "preparation_manifest_sha256": index.preparation_manifest_sha256,
-        "rules_sha256": file_digest(Path(rules.__file__)),
+        "rules_sha256": implementation_hash(protocol),
     }
     _validate_tables(labels, splits, index.sources)
     hashes = _semantic(protocol, evidence, labels, splits)
     label_version = _label_version(hashes)
     labels["label_version"] = label_version
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2 if protocol.get("evaluation_version") else 1,
         "label_version": label_version,
         "split_version": split_content_version(protocol),
         "semantic_hashes": hashes,
@@ -349,9 +392,18 @@ def build_bundle(tt_root: Path, preparation: Path, protocol_path: Path, output: 
             _write(package / name, value)
         labels.to_parquet(package / "labels.parquet", index=False)
         splits.to_parquet(package / "splits.parquet", index=False)
+        files = FILES
+        if protocol.get("evaluation_version"):
+            evaluation = evaluation_table(labels, splits, protocol)
+            evaluation.to_parquet(package / "evaluation.parquet", index=False)
+            _write(
+                package / "evaluation_coverage.json",
+                evaluation_counts(evaluation, labels, index.grid),
+            )
+            files = FILES + ("evaluation.parquet", "evaluation_coverage.json")
         manifest["files"] = {
             name: {"sha256": file_digest(package / name), "bytes": (package / name).stat().st_size}
-            for name in FILES
+            for name in files
         }
         _write(package / "manifest.json", manifest)
         read_bundle(package)
