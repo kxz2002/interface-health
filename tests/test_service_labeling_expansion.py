@@ -132,6 +132,34 @@ def test_lifecycle_rejects_unordered_or_missing_observation():
         lifecycle_intervals([event], latest, "svc", 0, 15000)
 
 
+@pytest.mark.parametrize(
+    "events",
+    [
+        [
+            snapshot(0),
+            snapshot(31000, False, False),
+            snapshot(41000, False, False),
+            snapshot(42000),
+        ],
+        [
+            snapshot(0),
+            snapshot(10000),
+            snapshot(20000),
+            snapshot(31000, False, False),
+            snapshot(41000, False, False),
+            snapshot(42000),
+        ],
+        [snapshot(0), snapshot(2000, False, False), snapshot(12000, False, False), snapshot(43000)],
+    ],
+)
+def test_lifecycle_rejects_stale_entry_or_exit_observations(events):
+    latest = {
+        "observation_gaps": [],
+        "relationship_observation": {"status": "current", "errors": []},
+    }
+    assert lifecycle_intervals(events, latest, "svc", 1000, 30000) == []
+
+
 def test_evaluation_excludes_pre_unknown_fit_and_calibration():
     rows = []
     sources = [

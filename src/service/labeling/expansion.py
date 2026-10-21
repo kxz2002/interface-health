@@ -102,6 +102,8 @@ def lifecycle_intervals(events, latest, target, effective, max_gap_ms):
             continue
         zero = not pods and not routes
         if zero and ready_anchor is not None and effective - ready_anchor <= max_gap_ms:
+            if current is None and timestamp - ready_anchor > max_gap_ms:
+                return []
             if current is None or timestamp - current["end_ms"] > max_gap_ms:
                 if current is not None:
                     return []
@@ -116,6 +118,8 @@ def lifecycle_intervals(events, latest, target, effective, max_gap_ms):
                 current["end_ms"] = timestamp
                 current["observations"] += 1
         elif current is not None:
+            if timestamp - current["end_ms"] > max_gap_ms:
+                return []
             result.append(current)
             current = None
             break

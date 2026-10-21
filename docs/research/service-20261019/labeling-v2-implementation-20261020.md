@@ -19,7 +19,7 @@
 
 NetworkChaos 逐对象要求成功 Apply、Injected 状态、对象 spec 一致、唯一 runtime Pod UID→Service 映射，且 Apply 时间不晚于 effective_ms。仅取 effective_ms 至 removed_ms 内完整窗口。未取得逐对象 Remove 回执，结束使用全局控制撤销确认边界；它界定关联区间，不证明每个参与对象持续受到业务损害。7 个参与对象服务区间来自 2 个 Case，不能按 273 个窗口宣称独立重复。
 
-KILL 使用 hash 绑定的 identity_events 和 identity_latest：事件前 30 秒内存在双 ready 观察；无已记录 observation gap、无 relationship_refresh_failed，最终关系观测 current 且无 errors。仅取首个双缺失 episode 内首末零观察之间的完整窗口；相邻零观察超过 30 秒则拒绝该 episode，未观察离开双缺失也拒绝。离开双缺失表示至少一种 ready 状态出现，不代表业务完全恢复。
+KILL 使用 hash 绑定的 identity_events 和 identity_latest：事件前 30 秒内存在双 ready 观察；无已记录 observation gap、无 relationship_refresh_failed，最终关系观测 current 且无 errors。仅取首个双缺失 episode 内首末零观察之间的完整窗口；首次零观察距事件前双 ready 锚点、相邻零观察、退出观察距最后零观察均不得超过 30 秒，否则拒绝该 episode，未观察离开双缺失也拒绝。离开双缺失表示至少一种 ready 状态出现，不代表业务完全恢复。
 
 30 秒预算依据采集器原始快照 `log_collector.py::refresh_relationships` 的既有 freshness budget，该文件已纳入来源 hash。EndpointSlice/关系来自刷新和离散快照，不是连续健康证明。开发期 15 秒敏感性规则得到 KILL 0、合计 467；正式 30 秒规则得到 KILL 12、合计 479。阈值依据采集约定，未使用模型成绩选择。
 
@@ -27,20 +27,21 @@ cachelimit 为数据库内存压力，未传播成任何应用正类。恢复期
 
 ## 产物与数量
 
-正式包：`outputs/service/tt-labels-a-v2-20261020-verified/labels/`。
+正式包：`outputs/service/tt-labels-a-v2-20261020-pr35-reviewed-final/labels/`。
 
 - 全网格 50,575 行：26,275 个参考负类、479 个正类、23,821 个 Unknown。
 - 主评价清单：2,975 负类 + 479 正类 = 3,454 行，负∶正约 6.21∶1。
 - 应用共同 `resource_valid` 掩码后：2,453 负类 + 397 正类 = 2,850 行，负∶正约 6.18∶1。
 - Fault pre 参考负类 9,725 行排除在主评价外；未进入拟合或校准。
 - 正类覆盖 10 个 Fault Case、5 个应用服务。仍应按 Case/来源报告，不能把窗口当独立实验。
+- 各服务正类为 `ts-preserve-service` 276、`ts-order-service` 83、`ts-user-service` 78、`ts-travel-service` 39、`ts-gateway-service` 3；不包含 `travel-plan`。
 - 其他模态和时序上下文质量掩码须在建模前声明，实际共同评价数量另报，不承诺都能保留 479。
 
 主要文件：`labels.parquet`、`splits.parquet`、新增 `evaluation.parquet`、`evaluation_coverage.json`、`protocol.json`、`evidence.json`、`exceptions.json`、`coverage.json`、`manifest.json`。evaluation 表包含完整网格的稳定 sample_id、准入布尔值、排除原因与 evaluation_version。
 
 配置：`configs/service/tt_labels_a_v2.json`。human-readable evaluation_version 为 `tt_normal_test_and_controlled_positive_v2`；精确来源/规则/标签内容由 manifest semantic hashes 和内容寻址 label_version 绑定。
 
-原 A 版目录保持保留。开发中间产物 `tt-labels-a-v2-20261020` 和 `tt-labels-a-v2-20261020-final` 为未最终验收的阶段包，不作为模型输入。正式包仅使用 `-verified`。
+原 A 版和原 `tt-labels-a-v2-20261020-verified` 目录保留。开发中间产物 `tt-labels-a-v2-20261020`、`tt-labels-a-v2-20261020-final` 和 `tt-labels-a-v2-20261020-pr35-reviewed` 不作为模型输入。正式包使用 `-pr35-reviewed-final`，绑定 PR 审查修复后的源码。
 
 ## 模型侧接入
 
@@ -52,7 +53,7 @@ import pandas as pd
 from src.service.labeling.bundle import read_bundle
 from src.service.labeling.acceptance import join_evaluation_scores
 
-data = read_bundle(Path("outputs/service/tt-labels-a-v2-20261020-verified"))
+data = read_bundle(Path("outputs/service/tt-labels-a-v2-20261020-pr35-reviewed-final"))
 grid = pd.read_parquet(
     "outputs/service/preparation-exploratory-20261020-task4/tt/resource_windows.parquet"
 )
@@ -68,9 +69,11 @@ evaluated = join_evaluation_scores(data, scores, valid_ids)
 
 新增 `expansion.py`（证据区间）和 `evaluation.py`（固定主评价清单）；扩展 evidence/rules/bundle/acceptance，新增 v2 配置。schema 2 持久化评价清单，读取时语义重算，check 再从原始来源重放；旧 schema 1 包仍可读取。新增测试覆盖完整窗口、Unknown、准入拒绝、双缺失首 episode、间隔/闭环、评价范围、缺评分及清单语义篡改。
 
-定向测试：`conda run -n interface python -m pytest tests/test_service_labeling_expansion.py tests/test_service_labeling_rules.py tests/test_service_labeling_bundle.py tests/test_service_labeling_acceptance.py tests/test_service_labeling_evidence.py tests/test_service_label_splits.py -q`，75 passed。
+定向测试：`conda run -n interface python -m pytest tests/test_service_labeling_expansion.py tests/test_service_labeling_rules.py tests/test_service_labeling_bundle.py tests/test_service_labeling_acceptance.py tests/test_service_labeling_evidence.py tests/test_service_label_splits.py -q`，PR 审查修复后 78 passed。
 
-CLI 沿用 `scripts/label_service_data.py build/check/diff`；重复 build 到新目录即执行重放。正式包独立 check 已通过，50,575 行守恒且评价语义重算一致。重放包 `outputs/service/tt-labels-a-v2-20261020-replay/` 与正式包全部九项业务文件 hash 相同，内容 label_version 同为 `label:f20e82b68c5a50cb89f408a4a7f84a87edaf52a25253884700625039e41f8cde`。
+CLI 沿用 `scripts/label_service_data.py build/check/diff`；重复 build 到新目录即执行重放。历史 verified 包独立 check 曾通过，历史重放包 `outputs/service/tt-labels-a-v2-20261020-replay/` 与其九项业务文件 hash 相同，历史 label_version 为 `label:f20e82b68c5a50cb89f408a4a7f84a87edaf52a25253884700625039e41f8cde`。
+
+PR #35 审查发现生命周期首次双缺失及退出观察缺少新鲜度边界检查，已修复并补三项回归。同时提交钩子的导入排序已改变原包绑定的源码字节，不能继续宣称原包通过当前源码 check。现按修复后源码在新目录构建并独立 check，正式 label_version 为 `label:0a3e30789b8880547e3645eaa159cb895807f7144f7b431ff38ac3f6862c01aa`。原包至新包稳定键差异为 0，标签、划分和评价范围均未改变；版本变化来自源码绑定。差异报告为 `outputs/service/tt-labels-a-v2-20261020-pr35-reviewed-final-diff/`，不得改写旧包 manifest。
 
 A→v2 差异包 `outputs/service/tt-labels-a-v1-to-v2-20261020-diff/` 显示 14,875 行元数据或标签发生变化，多数因为补充来源引用；实际状态仅 285 行 Unknown→1，既有负类和 split 均保持。主评价额外排除 9,725 个 Fault pre 负类。通用旧 diff 比较标签/split，不比较新 evaluation 表；本次评价验收由独立重算语义与覆盖量完成。
 
@@ -78,4 +81,4 @@ A→v2 差异包 `outputs/service/tt-labels-a-v1-to-v2-20261020-diff/` 显示 14
 
 历史 A 版文件仍由 read_bundle 核验通过，未被覆盖；用当前修改后的源码对旧包做 check 会因历史 rules hash 不同被拒绝，不能因此改写旧 manifest。
 
-未来补采必须提供显式选择清单、迁移来源和 preparation 验收，生成新的数据/标签/评价版本。当前基础设施不会自动 glob 接入新 Case，Normal 划分仍显式固定。此次未训练模型、未补采、未改写 raw，未提交或推送。
+未来补采必须提供显式选择清单、迁移来源和 preparation 验收，生成新的数据/标签/评价版本。当前基础设施不会自动 glob 接入新 Case，Normal 划分仍显式固定。此次未训练模型、未补采、未改写 raw。源码与文档随 PR #35 提交，生产大产物保留本地。
