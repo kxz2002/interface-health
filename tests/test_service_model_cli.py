@@ -20,6 +20,23 @@ def test_frame_hash_supports_array_object_cells():
     assert len(digest) == 64
 
 
+def test_frame_hash_retains_nested_array_contents():
+    values = np.arange(2000)
+    changed = values.copy()
+    changed[1000] = -1
+    original = pd.DataFrame({"sample_id": ["a"], "evidence": [{"ids": values}]})
+    modified = pd.DataFrame({"sample_id": ["a"], "evidence": [{"ids": changed}]})
+    assert cli._frame_hash(original) != cli._frame_hash(modified)
+
+
+def test_frame_hash_matches_parquet_round_trip(tmp_path):
+    frame = pd.DataFrame({"sample_id": ["b", "a"], "evidence": [["x"], []]})
+    frame.to_parquet(tmp_path / "frame.parquet", index=False)
+    restored = pd.read_parquet(tmp_path / "frame.parquet")
+    assert cli._frame_hash(frame) == cli._frame_hash(restored.iloc[::-1])
+    assert isinstance(frame.evidence.iloc[0], list)
+
+
 def test_cli_has_no_implicit_training(tmp_path, monkeypatch, capsys):
     def forbidden(*args, **kwargs):
         raise AssertionError("help must not load inputs or construct models")

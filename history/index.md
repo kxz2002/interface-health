@@ -4,6 +4,8 @@
 
 详细文档放 [`entries/`](./entries/)。
 
+最新模型基础设施记录：[038 · Service 模型基础设施与远端首轮验收](entries/038-service-model-infrastructure.md)。影响域：`src/service/modeling/`、`scripts/service_model.py`、`configs/service/`、模型测试及 `AGENTS.md`。
+
 ## 使用约定
 
 ### 对 agent

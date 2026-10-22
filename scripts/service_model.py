@@ -459,6 +459,16 @@ def _model_lists(manifest, prepared, root):
     return baseline_sample_lists(bundle, prepared, prepared.lists)[arm]
 
 
+def _hash_json_default(value):
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+    if value is pd.NA or value is pd.NaT:
+        return None
+    raise TypeError(f"Unsupported frame hash value: {type(value).__name__}")
+
+
 def _frame_hash(frame, ids=None):
     selected = frame if ids is None else frame[frame.sample_id.isin(ids)]
     selected = selected.sort_values("sample_id").reset_index(drop=True)
@@ -474,10 +484,10 @@ def _frame_hash(frame, ids=None):
         if selected[name].dtype == "object":
             selected[name] = selected[name].map(
                 lambda value: json.dumps(
-                    value.tolist() if isinstance(value, np.ndarray) else value,
+                    value,
                     sort_keys=True,
                     separators=(",", ":"),
-                    default=str,
+                    default=_hash_json_default,
                 )
             )
     digest = hashlib.sha256(pd.util.hash_pandas_object(selected, index=False).values.tobytes())

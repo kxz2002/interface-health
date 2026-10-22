@@ -1,6 +1,6 @@
 # Task 9：gpu-b 真实预检
 
-2026-10-22，用户授权远端运行与 subagent-driven 推进。Task 9 尚在执行，未发布正式训练效果。
+2026-10-22，用户授权远端运行与 subagent-driven 推进。Task 9 已完成；Task 10 已完成首轮 CLS、numeric_IF 和 numeric_OCSVM，完整矩阵尚未完成。
 
 ## 已核验环境与同步
 

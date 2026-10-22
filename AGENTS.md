@@ -155,6 +155,15 @@ conda run -n interface python scripts/train_baseline_v0.py --cfg job
 - 每次实验保存resolved config、git commit/dirty状态、环境、data标识、seed、特征序、稳定train/cal/eval ID、模型参数、逐样本分数、事件排序和质量报告。单靠汇总指标不足以复现。
 - Hydra入口用key=value；学习率为training.optimizer.lr。现有scripts/service_experiment.py也是Hydra入口，后续adapter先核对其实际接口，不修改configs/base.yaml改变旧行为。
 
+### 远端 GPU：gpu-b
+
+- 使用已有 SSH Host 别名 `gpu-b`：`ssh gpu-b 'hostname && whoami && nvidia-smi'`。认证由用户本机 SSH 配置或 ssh-agent 提供；不要读取、输出私钥、密码或 token，不自动修改 SSH 配置、权限或 known_hosts。
+- 远端仓库为 `~/Code/Repos/interface-health`，conda 环境为 `interface`；非交互命令可用 `conda run -n interface python ...`。先核对分支、HEAD、dirty 状态、依赖与 GPU，再同步或运行。连接失败应报告原因。
+- GitHub `origin` 是源码远程，`gpu-b` 是计算服务器。提交和推送优先在本机完成；远端有未提交修改时先比较和备份，不用 reset/clean 强行对齐。
+- 同步必须保留目录结构：`rsync -aR -e 'ssh -T' scripts/service_model.py src/service/modeling/ gpu-b:~/Code/Repos/interface-health/`。`-e` 中不再填写主机别名；按明确文件清单同步并核对 SHA256，不使用 `--delete`。
+- 原始数据、checkpoint、Parquet、日志和 MLflow 数据库留在远端输出目录或研究备份；配置、源码、测试及小型结果摘要提交 Git。远端实验输出使用新的 run_id，拒绝覆盖已有目录。
+- 训练、重建、安装依赖须在当前任务授权范围内执行；连接检查本身不授权训练。已授权任务用持久后台进程及独立日志运行，检查 status/manifest 后再报告完成。
+
 ## 8. 按需读取的项目规则
 
 这些文件沿用为共享知识来源，无需复制成Codex专用版本：
