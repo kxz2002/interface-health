@@ -306,3 +306,14 @@ asinh神经模型进行中，尚无其测试成绩。为区分尺度变换与神
 仅当配置显式含reconstruction_asinh时基线采用该变换，bundle保存numeric_transform，
 模型指纹绑定变换和配置。旧bundle未声明时按identity恢复。
 该对照用CPU单线程运行，不抢占当前神经训练GPU。
+
+对照实现4693df2已推送并部署到
+`~/Code/Repos/interface-health-runs/asinh-controls-20261023-a`；
+本机与远端src/scripts/configs Git tree核对一致，模型测试154项通过（79.19秒）。
+脚本`/tmp/launch-interface-asinh-controls-4693df2.sh`固定依次运行上述四方法的
+fit/calibration/test/evaluate，输出前缀为
+`outputs/service/asinh-control-{method}-seed42-20261023-a`，
+日志`outputs/service/collapse-logs/asinh-controls-4693df2.log`。
+numeric_IF fit已成功（MLflow 1113821e80cb46ab9a276532c1ed7fb7），
+校准评分PID209246已确认存活；同一检查确认神经训练PID204345仍在第4轮。
+后续必须完整报告新旧基线，不用原始基线作为唯一对照归因于神经结构。
