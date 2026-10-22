@@ -85,7 +85,8 @@ def validate_temporal_config(config):
         or config["score"] != "masked_value_mse_plus_modality_bce"
         or config["training"]["checkpoint"] != "last"
         or config["training"]["device"] not in {"cpu", "cuda"}
-        or config["isolation_forest"] != dict(n_estimators=100, n_jobs=1, random_state=42)
+        or config["isolation_forest"]
+        != dict(n_estimators=100, n_jobs=1, random_state=config["training"]["seed"])
         or config["quantiles"] != [0.95, 0.975, 0.99, 0.995]
     ):
         raise ValueError("Unsupported temporal experiment protocol")
@@ -93,8 +94,8 @@ def validate_temporal_config(config):
     for name in ["hidden_dim", "epochs", "batch_size"]:
         if type(settings[name]) is not int or settings[name] < 1:
             raise ValueError("Temporal dimensions, epochs and batch size must be positive integers")
-    if type(settings["seed"]) is not int or settings["seed"] != 42:
-        raise ValueError("Temporal prototype seed must be 42")
+    if type(settings["seed"]) is not int or settings["seed"] not in {1, 2, 42}:
+        raise ValueError("Temporal seed must be one of 1, 2, 42")
     for name in ["lr", "weight_decay", "gradient_clip"]:
         if (
             type(settings[name]) not in {int, float}
@@ -111,10 +112,15 @@ def main(argv=None):
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--tracking-uri", required=True)
     parser.add_argument("--method", choices=["gru", "lag_IF", "service_lag_IF"], required=True)
+    parser.add_argument("--seed", type=int, choices=[1, 2, 42])
     args = parser.parse_args(argv)
     if args.output.exists():
         raise FileExistsError(args.output)
     config = json.loads(args.config.read_text())
+    validate_temporal_config(config)
+    if args.seed is not None:
+        config["training"]["seed"] = args.seed
+        config["isolation_forest"]["random_state"] = args.seed
     validate_temporal_config(config)
     tables, prepared, _ = read_prepared(args.prepared)
     prior = (
@@ -167,12 +173,13 @@ def main(argv=None):
                 services = inputs["identity"].canonical_service_id.astype(str).to_numpy()
                 model = {
                     service: fit_iforest(
-                        features[indices[services[indices] == service]], config["training"]["seed"]
+                        features[indices[services[indices] == service]],
+                        config["isolation_forest"]["random_state"],
                     )
                     for service in sorted(set(services[indices]))
                 }
             else:
-                model = fit_iforest(features[indices], config["training"]["seed"])
+                model = fit_iforest(features[indices], config["isolation_forest"]["random_state"])
             torch.save(
                 dict(
                     estimator=model,

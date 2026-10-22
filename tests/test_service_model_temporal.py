@@ -77,9 +77,11 @@ def test_temporal_loss_ignores_unobserved_values_and_scores_missing_modalities()
     assert torch.isfinite(prediction.grad).all()
 
 
-def test_temporal_training_is_reproducible_and_ignores_test_values():
+@pytest.mark.parametrize("seed", [1, 2, 42])
+def test_temporal_training_is_reproducible_and_ignores_test_values(seed):
     torch.set_num_threads(1)
     prepared, config = fixture()
+    config["training"]["seed"] = seed
     inputs = temporal_inputs(prepared)
     model, history = train_temporal(prepared, inputs, config["training"])
     changed = copy.deepcopy(prepared)
@@ -113,6 +115,25 @@ def test_temporal_config_rejects_invalid_optimization_and_protocol():
     config["training"]["epochs"] = 2
     config["training"]["lr"] = float("nan")
     with pytest.raises(ValueError, match="finite and positive"):
+        validate_temporal_config(config)
+
+
+@pytest.mark.parametrize("seed", [1, 2, 42])
+def test_temporal_config_records_consistent_neural_and_forest_seeds(seed):
+    _, config = fixture()
+    config["training"]["seed"] = seed
+    config["isolation_forest"]["random_state"] = seed
+    validate_temporal_config(config)
+    config["isolation_forest"]["random_state"] = 123
+    with pytest.raises(ValueError, match="protocol"):
+        validate_temporal_config(config)
+
+
+def test_temporal_config_rejects_unplanned_seed():
+    _, config = fixture()
+    config["training"]["seed"] = 3
+    config["isolation_forest"]["random_state"] = 3
+    with pytest.raises(ValueError, match="seed"):
         validate_temporal_config(config)
 
 

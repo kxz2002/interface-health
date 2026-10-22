@@ -196,6 +196,8 @@ def test_temporal_model_end_to_end(tmp_path, offline, method, with_prior):
         str(output),
         "--method",
         method,
+        "--seed",
+        "1" if with_prior else "2",
         "--tracking-uri",
         f"sqlite:///{tmp_path / 'mlflow.db'}",
     ]
@@ -205,6 +207,16 @@ def test_temporal_model_end_to_end(tmp_path, offline, method, with_prior):
     assert report["main"]["auroc"] is not None
     assert report["coverage"]["missing_ids"] == []
     checkpoint = torch.load(output / "run/model.pt", weights_only=False)
+    expected_seed = 1 if with_prior else 2
+    assert checkpoint["config"]["training"]["seed"] == expected_seed
+    assert checkpoint["config"]["isolation_forest"]["random_state"] == expected_seed
+    if method != "gru":
+        estimators = (
+            checkpoint["estimator"].values()
+            if method == "service_lag_IF"
+            else [checkpoint["estimator"]]
+        )
+        assert all(estimator.random_state == expected_seed for estimator in estimators)
     _, data, _ = cli.read_prepared(prepared)
     assert checkpoint["fit_ids"] == sorted(data.lists.fit)
     if method == "gru":
