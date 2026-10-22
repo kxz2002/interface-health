@@ -262,3 +262,21 @@ q=.99为TP170、FP313、FN275、TN2539，召回0.38202247，F1 0.36637931，
 Normal告警率0.10974755。相比32维重建两项排序指标均下降，压缩维度未带来改善；
 不将此失败隐藏，也不据此重选其他维数。asinh设计在读取该报告前已写入工作区。
 新增尺度分支后11个Service模型测试文件共153项通过（80.04秒）。
+
+### asinh远端部署与启动
+
+代码ae87b1c已推送，部署至独立目录
+`~/Code/Repos/interface-health-runs/asinh-ae87b1c`，远端工作区干净。
+本机与远端src/scripts/configs Git tree分别一致为
+`a50d570b9e5ea9f7a6d033bafce73a385c132580`、
+`7673c3758ca3096ae797ceee5e95c1583c30d4e5`、
+`df2a40c7c49a680896581b8aaefd3fdbeb5a9e61`。
+启动前GPU使用1MiB、利用率0%；未更改依赖或缓存模型revision。
+
+远端启动脚本`/tmp/launch-interface-asinh-ae87b1c.sh`按fit/calibration/test/evaluate
+顺序执行，任一步失败即停止。输出前缀
+`outputs/service/reconstruction-asinh-ae87b1c-seed42-20261023`；
+日志为`outputs/service/collapse-logs/asinh-ae87b1c.log`。
+确认训练PID204345存活、中心初始化完成并进入第1/20轮；当次progress显示
+已处理960/10148窗、60次更新、约36.84窗/秒，剩余训练估计5483秒。
+这是启动快照，不是收敛或检测有效性证据。不得因静态进度或观察超时重复启动。
