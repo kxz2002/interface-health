@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 from pathlib import Path
 
 DEFAULT_CONFIG = Path(__file__).resolve().parents[3] / "configs/service/tt_model_v1.json"
@@ -21,6 +22,10 @@ def _merge(defaults: dict, overrides: dict) -> dict:
     for key, value in overrides.items():
         if key not in defaults:
             raise ValueError(f"Unknown configuration key: {key}")
+        if key == "auxiliary_losses":
+            _validate_structure(value, {}, "configuration.model.auxiliary_losses")
+            result[key] = copy.deepcopy(value)
+            continue
         if isinstance(defaults[key], dict):
             if not isinstance(value, dict):
                 raise ValueError(f"Expected configuration mapping: {key}")
@@ -31,6 +36,15 @@ def _merge(defaults: dict, overrides: dict) -> dict:
 
 
 def _validate_structure(value: object, schema: object, path: str = "configuration") -> None:
+    if path == "configuration.model.auxiliary_losses":
+        if value == {}:
+            return
+        if not isinstance(value, dict) or set(value) != {"reconstruction"}:
+            raise ValueError("Unsupported auxiliary objective")
+        weight = value["reconstruction"]
+        if type(weight) not in {int, float} or not math.isfinite(weight) or weight <= 0:
+            raise ValueError("Reconstruction weight must be finite and positive")
+        return
     if isinstance(schema, dict):
         if not isinstance(value, dict) or set(value) != set(schema):
             raise ValueError(f"Incomplete or unknown configuration keys: {path}")

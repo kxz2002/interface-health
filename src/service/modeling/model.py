@@ -7,15 +7,23 @@ from collections.abc import Iterable
 import torch
 from torch import Tensor, nn
 
-from .encoders import NumericEncoder, TextEncoder
+from .encoders import NumericEncoder, TextEncoder, masked_values
 
 
 class ServiceSVDD(nn.Module):
-    def __init__(self, text_backbone: nn.Module, fusion: str = "transformer_cls"):
+    def __init__(
+        self,
+        text_backbone: nn.Module,
+        fusion: str = "transformer_cls",
+        reconstruction_weight: float = 0.0,
+    ):
         super().__init__()
         if fusion not in {"transformer_cls", "transformer_mean", "concat_svdd"}:
             raise ValueError(f"Unsupported fusion: {fusion}")
         self.fusion = fusion
+        self.reconstruction_weight = reconstruction_weight
+        if reconstruction_weight:
+            self.decoder = nn.Sequential(nn.Linear(32, 64), nn.ReLU(), nn.Linear(64, 12))
         self.resource_encoder = NumericEncoder(3)
         self.execution_encoder = NumericEncoder(5)
         self.text_encoder = TextEncoder(text_backbone)
@@ -68,7 +76,8 @@ class ServiceSVDD(nn.Module):
         elif self.fusion == "transformer_cls":
             tokens = torch.cat([self.summary_token.expand(len(valid), -1, -1), tokens], dim=1)
             padding = torch.cat(
-                [torch.zeros(len(valid), 1, dtype=torch.bool, device=valid.device), ~valid], dim=1
+                [torch.zeros(len(valid), 1, dtype=torch.bool, device=valid.device), ~valid],
+                dim=1,
             )
             combined = self.transformer(tokens, src_key_padding_mask=padding)[:, 0]
         else:
@@ -89,6 +98,36 @@ class ServiceSVDD(nn.Module):
             raise RuntimeError("SVDD center has not been initialized")
         output = self.encode(batch)
         output["score"] = (output["representation"] - self.center).square().sum(-1)
+        if self.reconstruction_weight:
+            targets = torch.cat([batch["resource"], batch["execution"], batch["stats"]], dim=-1)
+            text_valid = torch.tensor(
+                [
+                    messages is not None
+                    and bool(
+                        (
+                            torch.as_tensor(messages["attention_mask"]).bool()
+                            & ~torch.as_tensor(messages["special_mask"]).bool()
+                        ).any()
+                    )
+                    for messages in batch["logs"]
+                ],
+                device=targets.device,
+            )
+            mask = torch.cat(
+                [
+                    batch["resource_mask"],
+                    batch["execution_mask"],
+                    batch["stats_mask"] & text_valid[:, None],
+                ],
+                dim=-1,
+            )
+            targets = masked_values(targets, mask)
+            residual = (self.decoder(output["representation"]) - targets).masked_fill(~mask, 0)
+            reconstruction = residual.square().sum(-1) / mask.sum(-1).clamp_min(1)
+            output["aux_losses"]["reconstruction"] = (
+                self.reconstruction_weight * reconstruction.mean()
+            )
+            output["score"] = reconstruction
         if not torch.isfinite(output["score"]).all():
             raise ValueError("Nonfinite SVDD scores")
         return output
@@ -136,8 +175,13 @@ def build_model(config: dict, text_backbone: nn.Module) -> ServiceSVDD:
     for name, expected in defaults.items():
         if settings.get(name, expected) != expected:
             raise ValueError(f"Unsupported network setting: {name}")
-    if settings.get("auxiliary_losses", {}):
-        raise ValueError("No auxiliary objectives approved for the initial model")
+    auxiliary = settings.get("auxiliary_losses", {})
+    if auxiliary and (
+        set(auxiliary) != {"reconstruction"}
+        or not isinstance(auxiliary["reconstruction"], (int, float))
+        or not 0 < auxiliary["reconstruction"] < float("inf")
+    ):
+        raise ValueError("Unsupported reconstruction objective")
     fusion = settings.get("fusion", "transformer_cls")
     fusion = {"summary_token": "transformer_cls", "mean": "transformer_mean"}.get(fusion, fusion)
-    return ServiceSVDD(text_backbone, fusion)
+    return ServiceSVDD(text_backbone, fusion, auxiliary.get("reconstruction", 0.0))
