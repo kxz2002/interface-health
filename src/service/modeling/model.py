@@ -16,21 +16,27 @@ class ServiceSVDD(nn.Module):
         text_backbone: nn.Module,
         fusion: str = "transformer_cls",
         reconstruction_weight: float = 0.0,
+        representation_dim: int = 32,
     ):
         super().__init__()
         if fusion not in {"transformer_cls", "transformer_mean", "concat_svdd"}:
             raise ValueError(f"Unsupported fusion: {fusion}")
         self.fusion = fusion
         self.reconstruction_weight = reconstruction_weight
+        self.representation_dim = representation_dim
         if reconstruction_weight:
-            self.decoder = nn.Sequential(nn.Linear(32, 64), nn.ReLU(), nn.Linear(64, 12))
+            self.decoder = nn.Sequential(
+                nn.Linear(representation_dim, 64), nn.ReLU(), nn.Linear(64, 12)
+            )
         self.resource_encoder = NumericEncoder(3)
         self.execution_encoder = NumericEncoder(5)
         self.text_encoder = TextEncoder(text_backbone)
         self.modality_embedding = nn.Embedding(3, 64)
         if fusion == "concat_svdd":
             self.projection = nn.Sequential(
-                nn.Linear(195, 64, bias=False), nn.ReLU(), nn.Linear(64, 32, bias=False)
+                nn.Linear(195, 64, bias=False),
+                nn.ReLU(),
+                nn.Linear(64, representation_dim, bias=False),
             )
         else:
             layer = nn.TransformerEncoderLayer(
@@ -42,8 +48,8 @@ class ServiceSVDD(nn.Module):
             if fusion == "transformer_cls":
                 self.summary_token = nn.Parameter(torch.empty(1, 1, 64))
                 nn.init.normal_(self.summary_token, std=0.02)
-            self.projection = nn.Linear(64, 32, bias=False)
-        self.register_buffer("center", torch.zeros(32))
+            self.projection = nn.Linear(64, representation_dim, bias=False)
+        self.register_buffer("center", torch.zeros(representation_dim))
         self.register_buffer("center_initialized", torch.tensor(False))
 
     def encode(self, batch: dict) -> dict:
@@ -86,7 +92,10 @@ class ServiceSVDD(nn.Module):
                 1, keepdim=True
             )
         representation = self.projection(combined)
-        if representation.shape != (len(valid), 32) or not torch.isfinite(representation).all():
+        if (
+            representation.shape != (len(valid), self.representation_dim)
+            or not torch.isfinite(representation).all()
+        ):
             raise ValueError("Invalid SVDD representation")
         auxiliary = {}
         for name, modality in zip(["resource", "execution", "log"], encoded):
@@ -163,7 +172,6 @@ def build_model(config: dict, text_backbone: nn.Module) -> ServiceSVDD:
     defaults = dict(
         hidden_dim=64,
         token_dim=64,
-        representation_dim=32,
         transformer_layers=1,
         attention_heads=4,
         feedforward_dim=128,
@@ -182,6 +190,13 @@ def build_model(config: dict, text_backbone: nn.Module) -> ServiceSVDD:
         or not 0 < auxiliary["reconstruction"] < float("inf")
     ):
         raise ValueError("Unsupported reconstruction objective")
+    representation_dim = settings.get("representation_dim", 32)
+    if type(representation_dim) is not int or representation_dim < 1 or representation_dim > 32:
+        raise ValueError("Representation dimension must be an integer between 1 and 32")
+    if not auxiliary and representation_dim != 32:
+        raise ValueError("SVDD representation dimension remains fixed at 32")
     fusion = settings.get("fusion", "transformer_cls")
     fusion = {"summary_token": "transformer_cls", "mean": "transformer_mean"}.get(fusion, fusion)
-    return ServiceSVDD(text_backbone, fusion, auxiliary.get("reconstruction", 0.0))
+    return ServiceSVDD(
+        text_backbone, fusion, auxiliary.get("reconstruction", 0.0), representation_dim
+    )
