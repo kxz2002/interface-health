@@ -172,6 +172,7 @@ def test_offline_end_to_end(tmp_path, offline):
         "numeric_OCSVM",
         "trimodal_IF",
         "trimodal_OCSVM",
+        "availability",
     ],
 )
 def test_all_matrix_methods_support_offline_fit_score_evaluation(
@@ -179,13 +180,13 @@ def test_all_matrix_methods_support_offline_fit_score_evaluation(
 ):
     _, common = offline
     runtime = TinyRuntime()
-    if method in {"L2", "Max", "numeric_IF", "numeric_OCSVM"}:
+    if method in {"L2", "Max", "numeric_IF", "numeric_OCSVM", "availability"}:
 
         def no_backbone(config):
             raise AssertionError("Numeric methods must not load BERT")
 
         runtime.backbone = no_backbone
-    if method in {"L2", "Max"}:
+    if method in {"L2", "Max", "availability"}:
 
         def forbidden(*args, **kwargs):
             raise AssertionError("Rule fit must not fit unrequested sklearn methods")
