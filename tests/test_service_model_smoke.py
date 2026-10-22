@@ -103,6 +103,59 @@ def offline(tmp_path, monkeypatch):
     return config, common
 
 
+@pytest.mark.parametrize("value_method", ["L2", "transformer_cls"])
+def test_normal_fit_tail_fusion_end_to_end(tmp_path, offline, value_method):
+    from scripts.service_score_fusion import main as fuse
+
+    _, common = offline
+    runtime = TinyRuntime()
+
+    def stage(command, name, extra):
+        output = tmp_path / name
+        assert (
+            cli.main([command, *common, "--output", str(output), *extra], runtime_factory=runtime)
+            == 0
+        )
+        return output
+
+    prepared = stage(
+        "prepare", "prepared", ["--preparation", "synthetic", "--label-bundle", "synthetic"]
+    )
+    arguments = [
+        "--prepared",
+        str(prepared),
+        "--output",
+        str(tmp_path / "fused"),
+        "--tracking-uri",
+        f"sqlite:///{tmp_path / 'mlflow.db'}",
+    ]
+    for channel, method in [("value", value_method), ("availability", "availability")]:
+        fit = stage("fit", channel, ["--prepared", str(prepared), "--method", method])
+        for scope in ["fit", "calibration", "test"]:
+            scored = stage(
+                "score",
+                channel + "-" + scope,
+                ["--prepared", str(prepared), "--model-run", str(fit), "--score-scope", scope],
+            )
+            arguments.extend([f"--{channel}-{scope}", str(scored)])
+    assert fuse(arguments) == 0
+    assert cli.check_run(tmp_path / "fused")["status"] == "success"
+    report = json.loads((tmp_path / "fused/evaluation/report.json").read_text())
+    assert report["main"]["auroc"] is not None
+    assert report["coverage"]["missing_ids"] == []
+    state = json.loads((tmp_path / "fused/run/fusion_state.json").read_text())
+    _, data, _ = cli.read_prepared(prepared)
+    assert state["fit_ids"] == sorted(data.lists.fit)
+    with pytest.raises(FileExistsError):
+        fuse(arguments)
+    bad_arguments = list(arguments)
+    bad_arguments[bad_arguments.index("--output") + 1] = str(tmp_path / "bad-fusion")
+    bad_arguments.extend(["--value-fit", str(tmp_path / "value-calibration")])
+    with pytest.raises(ValueError, match="scope or input binding"):
+        fuse(bad_arguments)
+    assert not (tmp_path / "bad-fusion").exists()
+
+
 def test_offline_end_to_end(tmp_path, offline):
     config, common = offline
     runtime = TinyRuntime()
