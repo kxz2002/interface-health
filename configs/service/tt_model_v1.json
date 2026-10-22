@@ -1,0 +1,21 @@
+{
+  "schema_version": "service-model-v1",
+  "dataset": "tt",
+  "preparation_schema_version": "service-preparation-v1",
+  "label_schema_version": 2,
+  "window_ms": 15000,
+  "features": {
+    "resource": ["cpu_cores", "memory_usage_ratio", "process_count"],
+    "execution": ["observation_count", "duration_mean_ms", "duration_p95_ms", "duration_max_ms", "error_known_count", "error_count", "error_coverage"],
+    "log": ["messages_json"]
+  },
+  "preprocessing": {"log1p": ["process_count", "observation_count", "duration_mean_ms", "duration_p95_ms", "duration_max_ms", "event_count", "matched_template_count", "unmatched_count"], "std_ddof": 0, "scale_epsilon": 0.000001, "fallback_scale": 1.0},
+  "log": {"model": "google/bert_uncased_L-4_H-256_A-4", "revision": null, "tokenizer_revision": null, "max_messages": 16, "error_quota": 4, "unmatched_quota": 4, "max_tokens": 128, "head_fraction": 0.6666666666666666, "freeze_templates_after_fit": true},
+  "model": {"hidden_dim": 64, "token_dim": 64, "representation_dim": 32, "fusion": "summary_token", "transformer_layers": 1, "attention_heads": 4, "feedforward_dim": 128, "dropout": 0.1, "bias": false, "activation": "relu", "center_epsilon": 0.1, "auxiliary_losses": {}},
+  "training": {"prototype_seed": 42, "seeds": [1, 2, 42], "epochs": 20, "micro_batch_windows": 1, "accumulation_windows": 16, "optimizer": "AdamW", "bert_lr": 0.00001, "other_lr": 0.001, "weight_decay": 0.0001, "checkpoint": "last", "scheduler": null, "precision": null, "device": null},
+  "calibration": {"quantile": 0.99, "sensitivity_quantiles": [0.95, 0.975, 0.99, 0.995], "method": "linear", "comparison": "strict_greater"},
+  "baselines": {"iforest": {"n_estimators": 100, "n_jobs": 1}, "ocsvm": {"kernel": "rbf", "gamma": "scale", "nu": 0.1}},
+  "diagnostics": {"max_fit_windows": 256, "variance_absolute_floor": 0.00000001, "variance_relative_floor": 0.0001},
+  "quality_rule": "tt_source_quality_and_fit_field_validity_v1",
+  "output_root": "outputs/service"
+}

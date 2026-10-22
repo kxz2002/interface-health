@@ -20,6 +20,7 @@ dependencies:
       - dvc==3.67.1
       - mlflow==3.13.0
       - pyarrow==17.0.0
+      - transformers==4.57.1
       # dev
       - pytest==9.0.3
       - pre-commit==4.6.0

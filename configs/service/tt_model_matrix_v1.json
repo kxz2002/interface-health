@@ -1,0 +1,20 @@
+{
+  "schema_version": "service-model-matrix-v1",
+  "base_config": "configs/service/tt_model_v1.json",
+  "automatic_execution": false,
+  "prototype_seed": 42,
+  "formal_seeds": [1, 2, 42],
+  "default_score_scope": "test",
+  "calibration_scope": "calibration",
+  "methods": {
+    "transformer_cls": {"kind": "neural", "fusion": "summary_token", "seeds": [1, 2, 42]},
+    "transformer_mean": {"kind": "neural", "fusion": "mean", "seeds": [1, 2, 42]},
+    "concat_svdd": {"kind": "neural", "fusion": "concat_svdd", "seeds": [1, 2, 42]},
+    "L2": {"kind": "rule", "input": "numeric", "seeds": [42], "deterministic": true},
+    "Max": {"kind": "rule", "input": "numeric", "seeds": [42], "deterministic": true},
+    "numeric_IF": {"kind": "classical", "input": "numeric", "seeds": [1, 2, 42]},
+    "numeric_OCSVM": {"kind": "classical", "input": "numeric", "seeds": [42], "deterministic": true},
+    "trimodal_IF": {"kind": "classical", "input": "frozen_initial_text_and_numeric", "seeds": [1, 2, 42]},
+    "trimodal_OCSVM": {"kind": "classical", "input": "frozen_initial_text_and_numeric", "seeds": [42], "deterministic": true}
+  }
+}

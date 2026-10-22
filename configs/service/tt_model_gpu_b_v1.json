@@ -1,0 +1,10 @@
+{
+  "log": {
+    "revision": "387825ce42dbb39b87911cdf8e383ee3b25184f8",
+    "tokenizer_revision": "387825ce42dbb39b87911cdf8e383ee3b25184f8"
+  },
+  "training": {
+    "device": "cuda",
+    "precision": "float32"
+  }
+}
