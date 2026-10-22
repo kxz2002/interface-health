@@ -17,6 +17,7 @@ class ServiceSVDD(nn.Module):
         fusion: str = "transformer_cls",
         reconstruction_weight: float = 0.0,
         representation_dim: int = 32,
+        reconstruction_asinh: bool = False,
     ):
         super().__init__()
         if fusion not in {"transformer_cls", "transformer_mean", "concat_svdd"}:
@@ -24,6 +25,7 @@ class ServiceSVDD(nn.Module):
         self.fusion = fusion
         self.reconstruction_weight = reconstruction_weight
         self.representation_dim = representation_dim
+        self.reconstruction_asinh = reconstruction_asinh
         if reconstruction_weight:
             self.decoder = nn.Sequential(
                 nn.Linear(representation_dim, 64), nn.ReLU(), nn.Linear(64, 12)
@@ -53,6 +55,10 @@ class ServiceSVDD(nn.Module):
         self.register_buffer("center_initialized", torch.tensor(False))
 
     def encode(self, batch: dict) -> dict:
+        if self.reconstruction_asinh:
+            batch = dict(batch)
+            for name in ["resource", "execution", "stats"]:
+                batch[name] = torch.asinh(batch[name])
         observed_text = []
         for messages in batch["logs"]:
             if messages is None:
@@ -131,6 +137,8 @@ class ServiceSVDD(nn.Module):
                 dim=-1,
             )
             targets = masked_values(targets, mask)
+            if self.reconstruction_asinh:
+                targets = torch.asinh(targets)
             residual = (self.decoder(output["representation"]) - targets).masked_fill(~mask, 0)
             reconstruction = residual.square().sum(-1) / mask.sum(-1).clamp_min(1)
             output["aux_losses"]["reconstruction"] = (
@@ -185,9 +193,9 @@ def build_model(config: dict, text_backbone: nn.Module) -> ServiceSVDD:
             raise ValueError(f"Unsupported network setting: {name}")
     auxiliary = settings.get("auxiliary_losses", {})
     if auxiliary and (
-        set(auxiliary) != {"reconstruction"}
-        or not isinstance(auxiliary["reconstruction"], (int, float))
-        or not 0 < auxiliary["reconstruction"] < float("inf")
+        set(auxiliary) not in ({"reconstruction"}, {"reconstruction_asinh"})
+        or type(next(iter(auxiliary.values()))) not in {int, float}
+        or not 0 < next(iter(auxiliary.values())) < float("inf")
     ):
         raise ValueError("Unsupported reconstruction objective")
     representation_dim = settings.get("representation_dim", 32)
@@ -198,5 +206,9 @@ def build_model(config: dict, text_backbone: nn.Module) -> ServiceSVDD:
     fusion = settings.get("fusion", "transformer_cls")
     fusion = {"summary_token": "transformer_cls", "mean": "transformer_mean"}.get(fusion, fusion)
     return ServiceSVDD(
-        text_backbone, fusion, auxiliary.get("reconstruction", 0.0), representation_dim
+        text_backbone,
+        fusion,
+        next(iter(auxiliary.values()), 0.0),
+        representation_dim,
+        "reconstruction_asinh" in auxiliary,
     )

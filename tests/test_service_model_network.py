@@ -151,6 +151,41 @@ def test_invalid_representation_dimension_rejected(dimension):
         build_model({"model": {"representation_dim": dimension}}, TinyBackbone())
 
 
+def test_asinh_reconstruction_matches_explicit_transform_and_masks(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps(
+            {"model": {"representation_dim": 4, "auxiliary_losses": {"reconstruction_asinh": 1.0}}}
+        )
+    )
+    config = load_config(path)
+    model = build_model(config, TinyBackbone()).eval()
+    reference = build_model(
+        {"model": {"representation_dim": 4, "auxiliary_losses": {"reconstruction": 1.0}}},
+        TinyBackbone(),
+    ).eval()
+    inputs = batch()
+    inputs["stats"][0, 1] = -262.34
+    inputs["resource_mask"][0, 0] = False
+    inputs["resource"][0, 0] = float("nan")
+    initialize_center(model, [inputs])
+    reference.load_state_dict(model.state_dict())
+    transformed = dict(inputs)
+    for name in ["resource", "execution", "stats"]:
+        transformed[name] = torch.asinh(inputs[name])
+    expected = reference(transformed)
+    actual = model(inputs)
+    torch.testing.assert_close(actual["score"], expected["score"])
+    torch.testing.assert_close(actual["representation"], expected["representation"])
+    assert inputs["stats"][0, 1] == -262.34
+    actual["aux_losses"]["reconstruction"].backward()
+    assert all(
+        torch.isfinite(parameter.grad).all()
+        for parameter in model.parameters()
+        if parameter.grad is not None
+    )
+
+
 def test_equal_message_template_pooling():
     encoder = TextEncoder(TinyBackbone())
     messages = batch()["logs"][0]

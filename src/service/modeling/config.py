@@ -39,9 +39,12 @@ def _validate_structure(value: object, schema: object, path: str = "configuratio
     if path == "configuration.model.auxiliary_losses":
         if value == {}:
             return
-        if not isinstance(value, dict) or set(value) != {"reconstruction"}:
+        if not isinstance(value, dict) or set(value) not in (
+            {"reconstruction"},
+            {"reconstruction_asinh"},
+        ):
             raise ValueError("Unsupported auxiliary objective")
-        weight = value["reconstruction"]
+        weight = next(iter(value.values()))
         if type(weight) not in {int, float} or not math.isfinite(weight) or weight <= 0:
             raise ValueError("Reconstruction weight must be finite and positive")
         return
