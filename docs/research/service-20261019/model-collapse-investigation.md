@@ -147,3 +147,32 @@ seed42、20轮、学习率、样本、预处理、阈值和评价保持不变。
 4维表示显式压缩。该改动不保证增益，属于已可见测试集上的探索，
 不能作为新的盲测证据，不据Fault指标挑选维数或checkpoint。
 旧SVDD继续固定32维，原重建配置继续32维；不覆盖首轮checkpoint和输出。
+
+### 首轮分组诊断与第二轮启动
+
+第二轮代码 `b78bb19` 已推送并部署至独立干净仓库
+`~/Code/Repos/interface-health-runs/bottleneck-b78bb19`，src/scripts/configs Git tree
+与本机一致，152项Service模型测试通过。GPU检查时使用1MiB且无其他模型进程。
+已确认进入第1/20轮，训练PID176677；输出前缀
+`reconstruction-bottleneck-b78bb19-seed42-20261023`，四阶段分别独立目录。
+
+首轮 q=.99 的210个Normal告警中，travel为97/119，order-other为94/119，
+两者共191，占全部误报90.95%。order为6/119，preserve、user均为0/119。
+共享阈值下各服务告警率差异明显；可能涉及服务间分数尺度和Normal运行差异，
+仅凭这些测试统计尚不能区分原因。当前不新增按服务阈值或删去误报较高服务。
+
+|首轮正类Case|q=.99检出/正窗|召回|
+|---|---:|---:|
+|CPU|34/39|0.8718|
+|DISKIO|35/38|0.9211|
+|NETLOSS|30/34|0.8824|
+|TRANSACTION|64/138|0.4638|
+|CONNECTION_POOL|0/117|0|
+|DNSFAIL|0/39|0|
+|HTTPABORT|0/34|0|
+|三个KILL Case合计|6/6|1|
+
+正类来源中network_participant为64/255，injection_association为99/184，
+lifecycle为6/6。这些是相关窗口统计，尤其KILL仅6个准入窗，不能视为大量独立重复。
+聚合AP改进不能掩盖整Case漏检。下一步解释需要特征覆盖与同Case前后分数证据；
+不把当前测试分组结果作为重新选择维度、阈值或评价范围的依据。
