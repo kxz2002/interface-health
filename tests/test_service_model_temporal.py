@@ -8,6 +8,7 @@ import pytest
 import torch
 
 from scripts.service_temporal_model import validate_temporal_config
+from src.service.modeling.availability import availability_prior_logits, fit_availability
 from src.service.modeling.temporal import (
     TemporalPredictor,
     lag_features,
@@ -127,3 +128,35 @@ def test_temporal_inputs_reject_nonboolean_masks_and_stale_statistics():
     prepared.logs["statistics"]["state_hash"] = "wrong"
     with pytest.raises(ValueError, match="binding"):
         temporal_inputs(prepared)
+
+
+def test_temporal_service_prior_is_normal_only_and_survives_missing_context():
+    prepared, config = fixture()
+    for index in range(2):
+        prepared.identity.loc[index, "canonical_service_id"] = "other"
+        prepared.logs["masks"][f"fit-{index:03}"] = False
+    state = fit_availability(prepared, prepared.lists.fit)
+    inputs = temporal_inputs(prepared, availability_prior=state)
+    restored_inputs = temporal_inputs(prepared, availability_prior=json.loads(json.dumps(state)))
+    np.testing.assert_array_equal(inputs["prior_logits"], restored_inputs["prior_logits"])
+    assert lag_features(inputs).shape == (8, 142)
+    prior = availability_prior_logits(state, prepared, ["fit-000", "test"])
+    np.testing.assert_allclose(prior[0], [np.log(3), np.log(3), -np.log(3)], rtol=1e-6)
+    np.testing.assert_allclose(prior[1], [np.log(5)] * 3, rtol=1e-6)
+    prepared.logs["masks"]["test"] = False
+    assert fit_availability(prepared, prepared.lists.fit) == state
+    np.testing.assert_array_equal(availability_prior_logits(state, prepared, ["test"])[0], prior[1])
+    model = TemporalPredictor(hidden_dim=config["training"]["hidden_dim"])
+    with torch.no_grad():
+        for parameter in model.parameters():
+            parameter.zero_()
+        _, logits = model(torch.zeros(1, 4, 28), torch.as_tensor(prior[[1]]))
+    torch.testing.assert_close(logits, torch.as_tensor(prior[[1]]))
+    assert inputs["history_ids"]["test"] == []
+    broken = copy.deepcopy(state)
+    broken["fit_ids"] = broken["fit_ids"][:-1]
+    with pytest.raises(ValueError, match="Incompatible"):
+        temporal_inputs(prepared, availability_prior=broken)
+    prepared.identity.loc[6, "canonical_service_id"] = "unseen"
+    with pytest.raises(ValueError, match="Missing service"):
+        availability_prior_logits(state, prepared, ["test"])

@@ -156,8 +156,9 @@ def test_normal_fit_tail_fusion_end_to_end(tmp_path, offline, value_method):
     assert not (tmp_path / "bad-fusion").exists()
 
 
-@pytest.mark.parametrize("method", ["gru", "lag_IF"])
-def test_temporal_model_end_to_end(tmp_path, offline, method):
+@pytest.mark.parametrize("method", ["gru", "lag_IF", "service_lag_IF"])
+@pytest.mark.parametrize("with_prior", [False, True])
+def test_temporal_model_end_to_end(tmp_path, offline, method, with_prior):
     from scripts.service_temporal_model import main as temporal
 
     _, common = offline
@@ -178,7 +179,10 @@ def test_temporal_model_end_to_end(tmp_path, offline, method):
         )
         == 0
     )
-    config = json.loads(Path("configs/service/tt_temporal_predictor_gpu_b_v1.json").read_text())
+    config_name = (
+        "tt_temporal_prior_gpu_b_v1.json" if with_prior else "tt_temporal_predictor_gpu_b_v1.json"
+    )
+    config = json.loads((Path("configs/service") / config_name).read_text())
     config["training"].update(device="cpu", epochs=2)
     config_path = tmp_path / "temporal.json"
     config_path.write_text(json.dumps(config))
@@ -205,6 +209,11 @@ def test_temporal_model_end_to_end(tmp_path, offline, method):
     assert checkpoint["fit_ids"] == sorted(data.lists.fit)
     if method == "gru":
         assert "model_state" in checkpoint
+    elif method == "service_lag_IF":
+        assert set(checkpoint["estimator"]) == {"svc"}
+    if with_prior:
+        assert checkpoint["availability_prior"]["fit_ids"] == sorted(data.lists.fit)
+        assert (output / "run/availability_prior.json").exists()
     with pytest.raises(FileExistsError):
         temporal(arguments)
 

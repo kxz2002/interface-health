@@ -12,12 +12,13 @@ from torch import nn
 
 from src.utils.seed import set_seed
 
+from .availability import availability_prior_logits
 from .training import EXECUTION, RESOURCE
 
 LOGGER = logging.getLogger(__name__)
 
 
-def temporal_inputs(prepared, context_windows: int = 4):
+def temporal_inputs(prepared, context_windows: int = 4, *, availability_prior=None):
     if type(context_windows) is not int or context_windows < 1:
         raise ValueError("Temporal context must have a positive integer length")
     ids = sorted(prepared.sample_ids)
@@ -86,6 +87,12 @@ def temporal_inputs(prepared, context_windows: int = 4):
         features=features,
         history_ids=history_ids,
         feature_order=RESOURCE + EXECUTION + columns,
+        prior_logits=(
+            availability_prior_logits(availability_prior, prepared, ids)
+            if availability_prior is not None
+            else np.zeros((len(ids), 3), dtype=np.float32)
+        ),
+        availability_prior=availability_prior,
     )
 
 
@@ -95,10 +102,15 @@ class TemporalPredictor(nn.Module):
         self.recurrent = nn.GRU(input_dim, hidden_dim, batch_first=True)
         self.output = nn.Linear(hidden_dim, 15)
 
-    def forward(self, context):
+    def forward(self, context, prior_logits=None):
         _, hidden = self.recurrent(context)
         result = self.output(hidden[-1])
-        return result[:, :12], result[:, 12:]
+        logits = result[:, 12:]
+        if prior_logits is not None:
+            if prior_logits.shape != logits.shape:
+                raise ValueError("Temporal prior logits must match batch and modalities")
+            logits = logits + prior_logits
+        return result[:, :12], logits
 
 
 def temporal_loss(prediction, logits, values, observed, availability):
@@ -136,7 +148,7 @@ def train_temporal(prepared, inputs, settings, progress=None):
     )
     tensors = {
         name: torch.as_tensor(inputs[name][indices], device=device)
-        for name in ["context", "values", "observed", "availability"]
+        for name in ["context", "values", "observed", "availability", "prior_logits"]
     }
     history = []
     started = time.perf_counter()
@@ -146,7 +158,9 @@ def train_temporal(prepared, inputs, settings, progress=None):
         order = torch.randperm(len(indices), device=device)
         for start in range(0, len(order), settings["batch_size"]):
             selected = order[start : start + settings["batch_size"]]
-            prediction, logits = model(tensors["context"][selected])
+            prediction, logits = model(
+                tensors["context"][selected], tensors["prior_logits"][selected]
+            )
             loss, _, _ = temporal_loss(
                 prediction,
                 logits,
@@ -194,9 +208,9 @@ def score_temporal(model, inputs, ids, batch_size=256):
             selected = indices[start : start + batch_size]
             tensors = {
                 name: torch.as_tensor(inputs[name][selected], device=device)
-                for name in ["context", "values", "observed", "availability"]
+                for name in ["context", "values", "observed", "availability", "prior_logits"]
             }
-            prediction, logits = model(tensors["context"])
+            prediction, logits = model(tensors["context"], tensors["prior_logits"])
             components = temporal_loss(
                 prediction, logits, tensors["values"], tensors["observed"], tensors["availability"]
             )
@@ -210,6 +224,7 @@ def score_temporal(model, inputs, ids, batch_size=256):
 
 
 def lag_features(inputs):
-    return np.concatenate(
-        [inputs["context"].reshape(len(inputs["ids"]), -1), inputs["features"]], axis=1
-    )
+    parts = [inputs["context"].reshape(len(inputs["ids"]), -1), inputs["features"]]
+    if inputs.get("availability_prior") is not None:
+        parts.append(inputs["prior_logits"])
+    return np.concatenate(parts, axis=1)

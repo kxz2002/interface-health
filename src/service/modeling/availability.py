@@ -57,3 +57,35 @@ def score_availability(state, prepared, ids):
             raise ValueError("Invalid availability fit counts")
         scores.append(-np.log((counts[pattern] + 1.0) / (counts.sum() + 8.0)))
     return np.asarray(scores, dtype=float)
+
+
+def availability_prior_logits(state, prepared, ids):
+    if (
+        state.get("schema_version") != "service-availability-v1"
+        or state.get("alpha") != 1.0
+        or state.get("fit_ids") != sorted(prepared.lists.fit)
+    ):
+        raise ValueError("Incompatible Normal-fit availability prior")
+    ids = list(ids)
+    services = prepared.identity.set_index("sample_id").loc[ids, "canonical_service_id"]
+    patterns = np.arange(8)
+    fit_counts = (
+        prepared.identity.set_index("sample_id")
+        .loc[state["fit_ids"], "canonical_service_id"]
+        .astype(str)
+        .value_counts()
+    )
+    logits = {}
+    for service in services.unique():
+        counts = np.asarray(state["counts"].get(str(service), []))
+        if counts.shape != (8,) or not np.issubdtype(counts.dtype, np.integer):
+            raise ValueError("Missing service Normal-fit prior counts")
+        if (counts < 0).any() or counts.sum() <= 0:
+            raise ValueError("Invalid Normal-fit prior counts")
+        if counts.sum() != fit_counts.get(str(service), 0):
+            raise ValueError("Normal-fit prior service count mismatch")
+        present = np.array([counts[(patterns & bit) != 0].sum() for bit in [4, 2, 1]])
+        logits[str(service)] = np.log((present + 1.0) / (counts.sum() - present + 1.0))
+    return np.asarray([logits[str(service)] for service in services], dtype=np.float32).reshape(
+        -1, 3
+    )

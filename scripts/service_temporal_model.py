@@ -25,6 +25,7 @@ from scripts.service_model import (
     read_prepared,
     score_ids,
 )
+from src.service.modeling.availability import fit_availability
 from src.service.modeling.config import content_hash
 from src.service.modeling.evaluation import annotate_calibration, calibrate, evaluate_run
 from src.service.modeling.temporal import (
@@ -37,19 +38,24 @@ from src.service.modeling.temporal import (
 
 
 def validate_temporal_config(config):
+    expected_keys = {
+        "schema_version",
+        "context_windows",
+        "window_ms",
+        "value_transform",
+        "score",
+        "training",
+        "isolation_forest",
+        "quantiles",
+    }
+    prior_enabled = (
+        isinstance(config, dict) and config.get("schema_version") == "service-temporal-prior-v1"
+    )
+    if prior_enabled:
+        expected_keys.add("availability_prior")
     if (
         not isinstance(config, dict)
-        or set(config)
-        != {
-            "schema_version",
-            "context_windows",
-            "window_ms",
-            "value_transform",
-            "score",
-            "training",
-            "isolation_forest",
-            "quantiles",
-        }
+        or set(config) != expected_keys
         or not isinstance(config["training"], dict)
         or set(config["training"])
         != {
@@ -66,7 +72,13 @@ def validate_temporal_config(config):
     ):
         raise ValueError("Incomplete or unknown temporal configuration keys")
     if (
-        config["schema_version"] != "service-temporal-predictor-v1"
+        config["schema_version"]
+        not in {"service-temporal-predictor-v1", "service-temporal-prior-v1"}
+        or (
+            prior_enabled
+            and config["availability_prior"]
+            != dict(source="normal_fit_per_service", smoothing=1.0, integration="logit_offset")
+        )
         or config["context_windows"] != 4
         or config["window_ms"] != 15000
         or config["value_transform"] != "asinh_prepared_normal_fit_z"
@@ -98,18 +110,24 @@ def main(argv=None):
     parser.add_argument("--prepared", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--tracking-uri", required=True)
-    parser.add_argument("--method", choices=["gru", "lag_IF"], required=True)
+    parser.add_argument("--method", choices=["gru", "lag_IF", "service_lag_IF"], required=True)
     args = parser.parse_args(argv)
     if args.output.exists():
         raise FileExistsError(args.output)
     config = json.loads(args.config.read_text())
     validate_temporal_config(config)
     tables, prepared, _ = read_prepared(args.prepared)
-    inputs = temporal_inputs(prepared, config["context_windows"])
+    prior = (
+        fit_availability(prepared, prepared.lists.fit) if "availability_prior" in config else None
+    )
+    inputs = temporal_inputs(prepared, config["context_windows"], availability_prior=prior)
     indices = _fit_indices(prepared, inputs)
     lookup = {sample_id: index for index, sample_id in enumerate(inputs["ids"])}
     config["method"] = args.method
-    binding = content_hash(dict(config=config, prepared=_reference(args.prepared)))
+    payload = dict(config=config, prepared=_reference(args.prepared))
+    if prior is not None:
+        payload["availability_prior"] = prior
+    binding = content_hash(payload)
     provenance = dict(
         stage="temporal_experiment",
         method=args.method,
@@ -139,14 +157,30 @@ def main(argv=None):
                     model_state=model.state_dict(),
                     config=config,
                     fit_ids=sorted(prepared.lists.fit),
+                    **(dict(availability_prior=prior) if prior is not None else {}),
                 ),
                 model_path,
             )
         else:
             features = lag_features(inputs)
-            model = fit_iforest(features[indices], config["training"]["seed"])
+            if args.method == "service_lag_IF":
+                services = inputs["identity"].canonical_service_id.astype(str).to_numpy()
+                model = {
+                    service: fit_iforest(
+                        features[indices[services[indices] == service]], config["training"]["seed"]
+                    )
+                    for service in sorted(set(services[indices]))
+                }
+            else:
+                model = fit_iforest(features[indices], config["training"]["seed"])
             torch.save(
-                dict(estimator=model, config=config, fit_ids=sorted(prepared.lists.fit)), model_path
+                dict(
+                    estimator=model,
+                    config=config,
+                    fit_ids=sorted(prepared.lists.fit),
+                    **(dict(availability_prior=prior) if prior is not None else {}),
+                ),
+                model_path,
             )
             history = []
         fit_elapsed = time.perf_counter() - fit_started
@@ -158,7 +192,17 @@ def main(argv=None):
             else:
                 selected = [lookup[sample_id] for sample_id in ids]
                 frame = inputs["identity"].set_index("sample_id").loc[ids].reset_index()
-                frame["score"] = score_iforest(model, features[selected])
+                if args.method == "service_lag_IF":
+                    frame["score"] = 0.0
+                    for service, group in frame.groupby("canonical_service_id"):
+                        if str(service) not in model:
+                            raise ValueError("Missing service-specific lag IF model")
+                        group_indices = [lookup[sample_id] for sample_id in group.sample_id]
+                        frame.loc[group.index, "score"] = score_iforest(
+                            model[str(service)], features[group_indices]
+                        )
+                else:
+                    frame["score"] = score_iforest(model, features[selected])
             frame["model_version"] = config["schema_version"] + "-" + args.method
             frame["config_sha256"] = binding
             frame["lists_hash"] = prepared.lists.lists_hash
@@ -194,6 +238,7 @@ def main(argv=None):
                 fit_ids=sorted(prepared.lists.fit),
                 context_sample_ids=inputs["history_ids"],
                 feature_order=inputs["feature_order"],
+                **(dict(availability_prior=prior) if prior is not None else {}),
                 fit_summary=dict(
                     method=args.method,
                     elapsed_seconds=fit_elapsed,
