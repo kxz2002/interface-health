@@ -1,4 +1,3 @@
-import time
 from pathlib import Path
 
 import hydra
@@ -6,6 +5,7 @@ import numpy as np
 import pytest
 import torch
 from hydra import compose, initialize_config_dir
+from torch.profiler import ProfilerActivity, profile
 
 from src.fusion.base import MODALITY_ORDER
 from src.fusion.deviation_weighted_selfref import SelfReferentialDeviationFusion
@@ -99,41 +99,31 @@ def test_gradient_flows_through_to_downstream_and_input():
 
 
 def test_forward_is_vectorized_no_per_sample_python_loop():
-    """大 batch 下不得有 per-sample Python 循环（旧 DWF forward 逐行查
-    EndpointBaselineStats，v2 类应整批向量化）。shape 断言 + 计时兜底：
-    与显式逐行 Python 参考实现比加速比，阈值故意放宽（≥20x 且绝对时 <1s），
-    防 CI 共享机抖动误红，而真写成逐行循环会慢约两个数量级、必然触红。"""
+    """扩大 batch 不应增加算子调用次数；逐样本循环会使调用次数随之增长。"""
     dims = {"endpoint_red": 64, "service_metric": 32, "service_log": 32}
     fusion = SelfReferentialDeviationFusion(dims)
     fusion.eval()
     batch = _batch(16384, dims=dims, seed=4)
     x = torch.cat([batch[m] for m in MODALITY_ORDER], dim=-1)
 
-    with torch.no_grad():
-        fusion(batch)  # warmup
-        t0 = time.perf_counter()
+    with torch.no_grad(), profile(activities=[ProfilerActivity.CPU]) as large_profile:
         out = fusion(batch)
-        t_vec = time.perf_counter() - t0
     assert out.shape == (16384, 128)
-
-    def _python_loop_reference(x: torch.Tensor) -> torch.Tensor:
-        rows = []
-        for i in range(x.shape[0]):
-            rows.append(torch.sigmoid((x[i].abs() - 2.0) / 1.0) * x[i])
-        return torch.stack(rows)
-
     with torch.no_grad():
-        _python_loop_reference(x[:128])  # warmup
-        t0 = time.perf_counter()
-        ref = _python_loop_reference(x)
-        t_loop = time.perf_counter() - t0
+        ref = torch.sigmoid((x.abs() - 2.0) / 1.0) * x
     torch.testing.assert_close(out, ref, atol=1e-6, rtol=1e-6)
-
-    assert t_vec < 1.0, f"向量化 forward 耗时 {t_vec:.3f}s，疑似存在 per-sample Python 循环"
-    assert t_loop > 20 * t_vec, (
-        f"向量化仅比逐行 Python 循环快 {t_loop / max(t_vec, 1e-9):.1f}x，"
-        "疑似 forward 退化为 per-sample 循环"
-    )
+    small_batch = {name: values[:16] for name, values in batch.items()}
+    with torch.no_grad(), profile(activities=[ProfilerActivity.CPU]) as small_profile:
+        fusion(small_batch)
+    operations = {"aten::cat", "aten::abs", "aten::sub", "aten::div", "aten::sigmoid", "aten::mul"}
+    large_counts = {
+        event.key: event.count for event in large_profile.key_averages() if event.key in operations
+    }
+    small_counts = {
+        event.key: event.count for event in small_profile.key_averages() if event.key in operations
+    }
+    assert large_counts
+    assert large_counts == small_counts
 
 
 def test_invalid_modality_keys_raise():

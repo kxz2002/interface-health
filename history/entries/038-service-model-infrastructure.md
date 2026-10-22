@@ -24,3 +24,7 @@
 
 - 完整 Task 10 矩阵与重复 seed 尚未完成，不能把首轮结果表述为模型最终效果。
 - 后续模型诊断与新实验须使用新 run_id，保留已有 checkpoint、评分和版本绑定。
+
+## PR CI 修复
+
+- 首轮 CI 为 806 passed、5 skipped，唯一失败为旧 self-referential fusion 单次计时加速比未达 20x；两个运行分别为18.7x和18.8x。数值一致性通过。改用 CPU profiler 核对 batch 从16增至16384时张量算子调用次数不变，直接检查逐样本循环退化；保留数值和shape断言，避免把机器速度比例当正确性标准。
