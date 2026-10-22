@@ -92,6 +92,35 @@ def test_params_and_score_orientation():
     )
 
 
+def test_asinh_baselines_transform_values_and_statistics_preserving_masks():
+    from src.service.modeling.baselines import _features
+
+    prepared, lists, config = baseline_fixture()
+    config["model"]["auxiliary_losses"] = {"reconstruction_asinh": 1.0}
+    config["config_sha256"] = content_hash(
+        {key: value for key, value in config.items() if key != "config_sha256"}
+    )
+    bundle = fit_baselines(prepared, lists, config, text_backbone=TinyBackbone())
+    assert bundle["numeric_transform"] == "asinh"
+    prepared.logs["statistics"]["values"].loc[3, "s0"] = -262.34
+    prepared.numeric["masks"].loc[3, "cpu_cores"] = False
+    prepared.numeric["values"].loc[3, "cpu_cores"] = float("nan")
+    numeric, combined, values, masks, _ = _features(bundle, prepared, ["test"])
+    assert values[0, 0] == 0
+    np.testing.assert_allclose(values[0, 1:], np.arcsinh(np.full(7, 4.0)))
+    np.testing.assert_array_equal(numeric[:, 8:], masks.astype(float))
+    assert combined[0, -8] == pytest.approx(np.arcsinh(-262.34))
+    assert combined[0, -4] == 1
+    result = score_baselines(bundle, prepared, {"test"})
+    assert result["numeric_IF"].score.iloc[0] == pytest.approx(
+        -bundle["models"]["numeric_IF"].score_samples(numeric)[0]
+    )
+    assert result["numeric_OCSVM"].score.iloc[0] == pytest.approx(
+        -bundle["models"]["numeric_OCSVM"].decision_function(numeric)[0]
+    )
+    assert prepared.logs["statistics"]["values"].loc[3, "s0"] == -262.34
+
+
 def test_fit_text_statistics_exclude_missing_and_never_use_test():
     prepared, lists, config = baseline_fixture()
     for name in ["input_ids", "attention_mask", "special_mask", "group_ids"]:

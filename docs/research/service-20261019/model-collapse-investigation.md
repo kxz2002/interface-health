@@ -295,3 +295,14 @@ basic的matched_template_count有效fit数424，log1p后的均值3.21868327、
 仍约1.6—2.1，不能将极少数长尾泛化为所有Normal均失配。当前运行不重拟合
 预处理、不挪动Case、不将校准用于梯度训练。asinh第1轮损失0.08765670、
 耗时279.837秒，已确认进入第2轮；与原尺度MSE单位不同，不直接比较损失大小。
+
+### 同尺度经典对照预定设计
+
+asinh神经模型进行中，尚无其测试成绩。为区分尺度变换与神经结构贡献，
+新增同尺度numeric_IF、numeric_OCSVM、trimodal_IF、trimodal_OCSVM四个seed42对照。
+沿用相同fit/cal/test清单与固定算法参数，仅对8数值及4日志统计施加asinh；
+掩码保持布尔语义，冻结初始BERT文本及其fit标准化保持原义。
+输出与既有基线分离，不替换原矩阵结果，不以变换后的结果倒选模型配置。
+仅当配置显式含reconstruction_asinh时基线采用该变换，bundle保存numeric_transform，
+模型指纹绑定变换和配置。旧bundle未声明时按identity恢复。
+该对照用CPU单线程运行，不抢占当前神经训练GPU。

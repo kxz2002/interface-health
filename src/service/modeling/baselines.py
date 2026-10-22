@@ -126,6 +126,11 @@ def _text(backbone, prepared, ids):
 
 def _features(bundle, prepared, ids):
     values, masks = _numeric(prepared, ids, bundle["numeric_columns"])
+    transform = bundle.get("numeric_transform", "identity")
+    if transform not in {"identity", "asinh"}:
+        raise ValueError("Unsupported baseline numeric transform")
+    if transform == "asinh":
+        values = np.arcsinh(values)
     numeric = np.concatenate([values, masks.astype(float)], axis=1)
     if bundle["backbone"] is None:
         return numeric, numeric, values, masks, np.zeros(len(ids), dtype=bool)
@@ -145,6 +150,8 @@ def _features(bundle, prepared, ids):
     stat_masks = statistics["masks"].set_index("sample_id").loc[ids, columns].to_numpy(bool)
     stat_masks &= text_valid[:, None]
     stats = np.where(stat_masks, stats, 0.0)
+    if transform == "asinh":
+        stats = np.arcsinh(stats)
     trimodal = np.concatenate(
         [numeric, text, np.repeat(text_valid[:, None], text.shape[1], axis=1), stats, stat_masks],
         axis=1,
@@ -201,6 +208,8 @@ def fit_baselines(prepared, lists, config: dict, *, text_backbone=None, methods=
         binding=_binding(prepared, config),
         fit_ids=ids,
     )
+    if "reconstruction_asinh" in config["model"]["auxiliary_losses"]:
+        bundle["numeric_transform"] = "asinh"
     numeric, trimodal, _, masks, _ = _features(bundle, prepared, ids)
     if not masks.any(1).all():
         raise ValueError("Common fit requires valid numeric input")
@@ -224,6 +233,7 @@ def fit_baselines(prepared, lists, config: dict, *, text_backbone=None, methods=
             text_scale=scale.tolist(),
             numeric_columns=bundle["numeric_columns"],
             statistics_columns=bundle["statistics_columns"],
+            numeric_transform=bundle.get("numeric_transform", "identity"),
             method_lists={arm: asdict(members) for arm, members in bundle["method_lists"].items()},
         )
     )
