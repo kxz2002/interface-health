@@ -26,14 +26,20 @@ class ExperimentLogger:
         experiment_name: str,
         tracking_uri: str = "outputs/mlruns",
     ) -> None:
-        Path(tracking_uri).mkdir(parents=True, exist_ok=True)
+        if "://" not in tracking_uri:
+            Path(tracking_uri).mkdir(parents=True, exist_ok=True)
         mlflow.set_tracking_uri(tracking_uri)
         mlflow.set_experiment(experiment_name)
         self._experiment_name = experiment_name
 
-    def start_run(self, run_name: str | None = None, tags: dict[str, Any] | None = None):
+    def start_run(
+        self,
+        run_name: str | None = None,
+        tags: dict[str, Any] | None = None,
+        run_id: str | None = None,
+    ):
         """返回 mlflow.ActiveRun context manager，供 with 语句使用。"""
-        return mlflow.start_run(run_name=run_name, tags=tags)
+        return mlflow.start_run(run_name=run_name, tags=tags, run_id=run_id)
 
     def log_params(self, params: dict[str, Any]) -> None:
         mlflow.log_params(params)
