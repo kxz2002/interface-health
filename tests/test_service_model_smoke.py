@@ -156,6 +156,59 @@ def test_normal_fit_tail_fusion_end_to_end(tmp_path, offline, value_method):
     assert not (tmp_path / "bad-fusion").exists()
 
 
+@pytest.mark.parametrize("method", ["gru", "lag_IF"])
+def test_temporal_model_end_to_end(tmp_path, offline, method):
+    from scripts.service_temporal_model import main as temporal
+
+    _, common = offline
+    prepared = tmp_path / "prepared"
+    assert (
+        cli.main(
+            [
+                "prepare",
+                *common,
+                "--output",
+                str(prepared),
+                "--preparation",
+                "synthetic",
+                "--label-bundle",
+                "synthetic",
+            ],
+            runtime_factory=TinyRuntime(),
+        )
+        == 0
+    )
+    config = json.loads(Path("configs/service/tt_temporal_predictor_gpu_b_v1.json").read_text())
+    config["training"].update(device="cpu", epochs=2)
+    config_path = tmp_path / "temporal.json"
+    config_path.write_text(json.dumps(config))
+    output = tmp_path / "temporal"
+    arguments = [
+        "--config",
+        str(config_path),
+        "--prepared",
+        str(prepared),
+        "--output",
+        str(output),
+        "--method",
+        method,
+        "--tracking-uri",
+        f"sqlite:///{tmp_path / 'mlflow.db'}",
+    ]
+    assert temporal(arguments) == 0
+    assert cli.check_run(output)["status"] == "success"
+    report = json.loads((output / "evaluation/report.json").read_text())
+    assert report["main"]["auroc"] is not None
+    assert report["coverage"]["missing_ids"] == []
+    checkpoint = torch.load(output / "run/model.pt", weights_only=False)
+    _, data, _ = cli.read_prepared(prepared)
+    assert checkpoint["fit_ids"] == sorted(data.lists.fit)
+    if method == "gru":
+        assert "model_state" in checkpoint
+    with pytest.raises(FileExistsError):
+        temporal(arguments)
+
+
 def test_offline_end_to_end(tmp_path, offline):
     config, common = offline
     runtime = TinyRuntime()

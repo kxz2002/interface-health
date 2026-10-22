@@ -1,0 +1,129 @@
+import copy
+import io
+import json
+from pathlib import Path
+
+import numpy as np
+import pytest
+import torch
+
+from scripts.service_temporal_model import validate_temporal_config
+from src.service.modeling.temporal import (
+    TemporalPredictor,
+    lag_features,
+    score_temporal,
+    temporal_inputs,
+    temporal_loss,
+    train_temporal,
+)
+from tests.test_service_model_training import fixture as training_fixture
+
+
+def fixture():
+    prepared, _, _ = training_fixture(6)
+    prepared.logs["masks"] = {sample_id: True for sample_id in prepared.sample_ids}
+    config = json.loads(Path("configs/service/tt_temporal_predictor_gpu_b_v1.json").read_text())
+    config["training"].update(device="cpu", epochs=2, hidden_dim=4, batch_size=3)
+    return prepared, config
+
+
+def test_temporal_context_is_past_only_and_lag_if_has_identical_information():
+    prepared, _ = fixture()
+    inputs = temporal_inputs(prepared)
+    assert inputs["history_ids"]["fit-003"] == ["fit-000", "fit-001", "fit-002"]
+    assert inputs["history_ids"]["test"] == []
+    assert inputs["history_ids"]["calibration"] == []
+    assert lag_features(inputs).shape == (8, 139)
+    changed = copy.deepcopy(prepared)
+    changed.numeric["values"].loc[4, "cpu_cores"] = 9999
+    changed.logs["masks"]["fit-004"] = False
+    other = temporal_inputs(changed)
+    index = inputs["ids"].index("fit-003")
+    np.testing.assert_array_equal(inputs["context"][index], other["context"][index])
+    np.testing.assert_array_equal(inputs["values"][index], other["values"][index])
+
+
+@pytest.mark.parametrize(
+    "boundary", ["case_id", "canonical_service_id", "split", "gap", "unknown_fit"]
+)
+def test_temporal_context_stops_at_case_service_partition_gap_and_fit_exclusion(boundary):
+    prepared, _ = fixture()
+    if boundary in {"case_id", "canonical_service_id"}:
+        prepared.identity.loc[2, boundary] = "other"
+    elif boundary == "split":
+        prepared.splits.loc[2, "split"] = "test"
+    elif boundary == "gap":
+        prepared.identity.loc[2, "window_start_ms"] += 5000
+    else:
+        prepared.lists.fit = tuple(
+            sample_id for sample_id in prepared.lists.fit if sample_id != "fit-002"
+        )
+        prepared.labels.loc[2, "label"] = None
+    inputs = temporal_inputs(prepared)
+    assert inputs["history_ids"]["fit-003"] == []
+
+
+def test_temporal_loss_ignores_unobserved_values_and_scores_missing_modalities():
+    prediction = torch.zeros(1, 12, requires_grad=True)
+    target = torch.full((1, 12), float("nan"))
+    mask = torch.zeros(1, 12, dtype=torch.bool)
+    logits = torch.full((1, 3), 10.0)
+    score, values, present = temporal_loss(prediction, logits, target, mask, torch.ones(1, 3))
+    missing_score, _, _ = temporal_loss(prediction, logits, target, mask, torch.zeros(1, 3))
+    assert values.item() == 0.0 and present.item() < 0.001
+    assert missing_score.item() > score.item() + 9.0
+    score.mean().backward()
+    assert torch.isfinite(prediction.grad).all()
+
+
+def test_temporal_training_is_reproducible_and_ignores_test_values():
+    torch.set_num_threads(1)
+    prepared, config = fixture()
+    inputs = temporal_inputs(prepared)
+    model, history = train_temporal(prepared, inputs, config["training"])
+    changed = copy.deepcopy(prepared)
+    changed.numeric["values"].loc[6, "cpu_cores"] = 9999
+    repeat, _ = train_temporal(changed, temporal_inputs(changed), config["training"])
+    assert len(history) == 2 and np.isfinite(history[-1]["mean_loss"])
+    for name, parameter in model.state_dict().items():
+        assert torch.equal(parameter, repeat.state_dict()[name])
+    result = score_temporal(model, inputs, {"test", "calibration"})
+    assert set(result.sample_id) == {"test", "calibration"}
+    assert np.isfinite(result.score).all()
+    checkpoint = io.BytesIO()
+    torch.save(model.state_dict(), checkpoint)
+    checkpoint.seek(0)
+    restored = TemporalPredictor(hidden_dim=config["training"]["hidden_dim"])
+    restored.load_state_dict(torch.load(checkpoint, weights_only=True))
+    np.testing.assert_array_equal(
+        score_temporal(restored, inputs, {"test", "calibration"}).score, result.score
+    )
+    prepared.labels.loc[0, "label"] = 1
+    with pytest.raises(ValueError, match="known-normal"):
+        train_temporal(prepared, inputs, config["training"])
+
+
+def test_temporal_config_rejects_invalid_optimization_and_protocol():
+    _, config = fixture()
+    validate_temporal_config(config)
+    config["training"]["epochs"] = 0
+    with pytest.raises(ValueError, match="positive integers"):
+        validate_temporal_config(config)
+    config["training"]["epochs"] = 2
+    config["training"]["lr"] = float("nan")
+    with pytest.raises(ValueError, match="finite and positive"):
+        validate_temporal_config(config)
+
+
+def test_temporal_inputs_reject_nonboolean_masks_and_stale_statistics():
+    prepared, _ = fixture()
+    prepared.logs["masks"]["test"] = 1
+    with pytest.raises(ValueError, match="boolean"):
+        temporal_inputs(prepared)
+    prepared.logs["masks"]["test"] = True
+    prepared.logs["statistics"]["masks"]["s0"] = "False"
+    with pytest.raises(ValueError, match="boolean"):
+        temporal_inputs(prepared)
+    prepared.logs["statistics"]["state_hash"] = "wrong"
+    with pytest.raises(ValueError, match="binding"):
+        temporal_inputs(prepared)
