@@ -147,12 +147,8 @@ def main(argv=None):
         if args.mode == "semantic":
             score = semantic_score
         else:
-            temporal = (
-                pd.read_parquet(temporal_run / "run/scores.parquet")
-                .set_index("sample_id")
-                .reindex(selected_ids)
-                .score.to_numpy(float)
-            )
+            temporal_source = temporal_calibration if scope == "calibration" else temporal_scores
+            temporal = temporal_source.reindex(selected_ids).score.to_numpy(float)
             score = config["semantic_weight"] * _robust_z(semantic_score, fit_semantic) + config[
                 "temporal_weight"
             ] * _robust_z(temporal, fit_temporal)
