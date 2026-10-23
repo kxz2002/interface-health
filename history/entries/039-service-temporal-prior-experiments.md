@@ -1,7 +1,7 @@
 # 039 · Service 时序先验、BERT 消融与 Normal-only 调参
 
 - **日期**: 2026-10-23
-- **PR**: 创建时登记于本分支 PR · **Commit**: 09bc287、bf5fdfd、a89bd1f、9271384
+- **PR**: #37 · **Commit**: 09bc287、bf5fdfd、a89bd1f、9271384
 - **类型**: Model / Experiment
 - **影响域**: src/service/modeling/、scripts/service_temporal*、configs/service/、tests/test_service*、docs/research/service-20261019/
 
