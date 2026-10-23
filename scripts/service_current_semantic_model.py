@@ -117,7 +117,7 @@ def main(argv=None):
         raise FileExistsError(args.output)
     config = _config(args.config)
     tables, prepared, _ = read_prepared(args.prepared)
-    embeddings = _load_embeddings(args.text_cache_run, args.prepared, tables, config)
+    embeddings = _load_embeddings(args.text_cache_run, args.prepared, prepared, config)
     ids = sorted(prepared.sample_ids)
     identity = prepared.identity.set_index("sample_id").loc[ids]
     services = identity.canonical_service_id.astype(str).to_numpy()
