@@ -118,6 +118,14 @@ def test_temporal_config_rejects_invalid_optimization_and_protocol():
         validate_temporal_config(config)
 
 
+def test_temporal_bert_config_requires_frozen_revision_and_pooling():
+    config = json.loads(Path("configs/service/tt_temporal_prior_bert_gpu_b_v1.json").read_text())
+    validate_temporal_config(config)
+    config["text_embedding"]["revision"] = "wrong"
+    with pytest.raises(ValueError, match="Unsupported"):
+        validate_temporal_config(config)
+
+
 @pytest.mark.parametrize("seed", [1, 2, 42])
 def test_temporal_config_records_consistent_neural_and_forest_seeds(seed):
     _, config = fixture()
@@ -181,3 +189,120 @@ def test_temporal_service_prior_is_normal_only_and_survives_missing_context():
     prepared.identity.loc[6, "canonical_service_id"] = "unseen"
     with pytest.raises(ValueError, match="Missing service"):
         availability_prior_logits(state, prepared, ["test"])
+
+
+def test_temporal_text_context_uses_only_past_cached_embeddings():
+    prepared, config = fixture()
+    cached = np.arange(len(prepared.sample_ids) * 3, dtype=np.float32).reshape(-1, 3)
+    inputs = temporal_inputs(prepared, text_embeddings=cached)
+    assert inputs["text_context"].shape == (8, 4, 3)
+    assert inputs["text_embedding_dim"] == 3
+    index = inputs["ids"].index("fit-003")
+    assert inputs["text_context"][index, -1].tolist() == cached[3].tolist()
+    changed = cached.copy()
+    changed[index] += 10000
+    other = temporal_inputs(prepared, text_embeddings=changed)
+    np.testing.assert_array_equal(inputs["text_context"][index], other["text_context"][index])
+    model = TemporalPredictor(input_dim=28, hidden_dim=4, text_dim=3)
+    prediction, logits = model(
+        torch.zeros(2, 4, 28),
+        torch.zeros(2, 3),
+        torch.zeros(2, 4, 3),
+    )
+    assert prediction.shape == (2, 12) and logits.shape == (2, 3)
+    assert lag_features(inputs).shape == (8, 151)
+
+
+def test_temporal_text_embeddings_require_one_finite_vector_per_sample():
+    prepared, _ = fixture()
+    with pytest.raises(ValueError, match="text embeddings"):
+        temporal_inputs(prepared, text_embeddings=np.zeros((len(prepared.sample_ids) - 1, 3)))
+    bad = np.zeros((len(prepared.sample_ids), 3), dtype=np.float32)
+    bad[0, 0] = np.nan
+    with pytest.raises(ValueError, match="text embeddings"):
+        temporal_inputs(prepared, text_embeddings=bad)
+
+
+def test_text_projection_preserves_absent_history_and_log_masks():
+    model = TemporalPredictor(text_dim=3)
+    context = torch.zeros(2, 4, 28)
+    text = torch.ones(2, 4, 3)
+    with torch.no_grad():
+        absent = model(context, text_context=text)
+        zero = model(context, text_context=torch.zeros_like(text))
+    for actual, expected in zip(absent, zero):
+        torch.testing.assert_close(actual, expected)
+    context[:, -1, -2:] = 1
+    with torch.no_grad():
+        present = model(context, text_context=text)
+        zero = model(context, text_context=torch.zeros_like(text))
+    assert not torch.equal(present[0], zero[0])
+
+
+def test_temporal_text_projection_trains_and_checkpoint_replays():
+    prepared, config = fixture()
+    cached = np.arange(len(prepared.sample_ids) * 3, dtype=np.float32).reshape(-1, 3)
+    inputs = temporal_inputs(prepared, text_embeddings=cached)
+    model, _ = train_temporal(prepared, inputs, config["training"])
+    assert model.text_projection.weight.grad is not None
+    assert torch.isfinite(model.text_projection.weight.grad).all()
+    restored = TemporalPredictor(hidden_dim=4, text_dim=3)
+    restored.load_state_dict(model.state_dict())
+    np.testing.assert_array_equal(
+        score_temporal(model, inputs, {"test"}).score,
+        score_temporal(restored, inputs, {"test"}).score,
+    )
+
+
+def test_frozen_text_embedding_pool_excludes_special_tokens_and_averages_groups():
+    from src.service.modeling.text_embeddings import pool_log_messages
+
+    class FakeBackbone:
+        def __call__(self, input_ids, attention_mask):
+            hidden = input_ids.float().unsqueeze(-1).repeat(1, 1, 2)
+            return type("Output", (), {"last_hidden_state": hidden})()
+
+    messages = {
+        "input_ids": [[101, 2, 3, 102], [101, 4, 6, 102], [101, 8, 10, 102]],
+        "attention_mask": [[1, 1, 1, 1]] * 3,
+        "special_mask": [[1, 0, 0, 1]] * 3,
+        "group_ids": ["a", "a", "b"],
+    }
+    result = pool_log_messages(FakeBackbone(), messages, torch.device("cpu"))
+    expected = torch.tensor([(3.75 + 9.0) / 2, (3.75 + 9.0) / 2])
+    torch.testing.assert_close(result, expected)
+
+
+def test_frozen_text_cache_uses_offline_loader_without_fitting_or_gradients(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+
+    from src.service.modeling.text_embeddings import build_frozen_text_embeddings
+    from tests.test_service_model_baselines import TinyBackbone, baseline_fixture
+
+    prepared, _, _ = baseline_fixture()
+    backbone = TinyBackbone()
+
+    def load(model, **kwargs):
+        assert model == "fixed-model"
+        assert kwargs == dict(revision="fixed-sha", local_files_only=True)
+        return backbone
+
+    monkeypatch.setitem(
+        sys.modules,
+        "transformers",
+        SimpleNamespace(AutoModel=SimpleNamespace(from_pretrained=load)),
+    )
+    for name in ["input_ids", "attention_mask", "special_mask", "group_ids"]:
+        prepared.logs[name]["test"] = []
+    ids = sorted(prepared.sample_ids)
+    vectors = build_frozen_text_embeddings(
+        prepared, ids, model_name="fixed-model", revision="fixed-sha", device="cpu"
+    )
+    assert vectors.shape == (len(ids), 2)
+    np.testing.assert_array_equal(vectors[ids.index("test")], [0, 0])
+    assert not backbone.training
+    assert all(
+        not parameter.requires_grad and parameter.grad is None
+        for parameter in backbone.parameters()
+    )

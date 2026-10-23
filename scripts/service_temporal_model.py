@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import math
@@ -10,6 +11,7 @@ import sys
 import time
 from pathlib import Path
 
+import numpy as np
 import torch
 
 if __package__ in {None, ""}:
@@ -35,6 +37,7 @@ from src.service.modeling.temporal import (
     temporal_inputs,
     train_temporal,
 )
+from src.service.modeling.text_embeddings import build_frozen_text_embeddings
 
 
 def validate_temporal_config(config):
@@ -48,11 +51,18 @@ def validate_temporal_config(config):
         "isolation_forest",
         "quantiles",
     }
-    prior_enabled = (
-        isinstance(config, dict) and config.get("schema_version") == "service-temporal-prior-v1"
+    prior_enabled = isinstance(config, dict) and config.get("schema_version") in {
+        "service-temporal-prior-v1",
+        "service-temporal-prior-bert-v1",
+    }
+    bert_enabled = (
+        isinstance(config, dict)
+        and config.get("schema_version") == "service-temporal-prior-bert-v1"
     )
     if prior_enabled:
         expected_keys.add("availability_prior")
+    if bert_enabled:
+        expected_keys.add("text_embedding")
     if (
         not isinstance(config, dict)
         or set(config) != expected_keys
@@ -73,7 +83,11 @@ def validate_temporal_config(config):
         raise ValueError("Incomplete or unknown temporal configuration keys")
     if (
         config["schema_version"]
-        not in {"service-temporal-predictor-v1", "service-temporal-prior-v1"}
+        not in {
+            "service-temporal-predictor-v1",
+            "service-temporal-prior-v1",
+            "service-temporal-prior-bert-v1",
+        }
         or (
             prior_enabled
             and config["availability_prior"]
@@ -88,6 +102,16 @@ def validate_temporal_config(config):
         or config["isolation_forest"]
         != dict(n_estimators=100, n_jobs=1, random_state=config["training"]["seed"])
         or config["quantiles"] != [0.95, 0.975, 0.99, 0.995]
+        or (
+            bert_enabled
+            and config["text_embedding"]
+            != dict(
+                model="google/bert_uncased_L-4_H-256_A-4",
+                revision="387825ce42dbb39b87911cdf8e383ee3b25184f8",
+                pooling="body_token_then_group_mean",
+                batch_size=32,
+            )
+        )
     ):
         raise ValueError("Unsupported temporal experiment protocol")
     settings = config["training"]
@@ -126,13 +150,47 @@ def main(argv=None):
     prior = (
         fit_availability(prepared, prepared.lists.fit) if "availability_prior" in config else None
     )
-    inputs = temporal_inputs(prepared, config["context_windows"], availability_prior=prior)
+    text_embeddings = None
+    text_embedding_elapsed = None
+    text_metadata = None
+    if "text_embedding" in config:
+        log_config = tables.config["log"]
+        if (
+            log_config["model"] != config["text_embedding"]["model"]
+            or log_config["tokenizer_revision"] != config["text_embedding"]["revision"]
+        ):
+            raise ValueError("Frozen text model must match the prepared tokenizer revision")
+        text_started = time.perf_counter()
+        text_embeddings = build_frozen_text_embeddings(
+            prepared,
+            sorted(prepared.sample_ids),
+            model_name=config["text_embedding"]["model"],
+            revision=config["text_embedding"]["revision"],
+            device=config["training"]["device"],
+            batch_size=config["text_embedding"]["batch_size"],
+        )
+        text_embedding_elapsed = time.perf_counter() - text_started
+        text_metadata = dict(
+            sample_ids=sorted(prepared.sample_ids),
+            embedding_dim=text_embeddings.shape[1],
+            config=config["text_embedding"],
+            prepared_log_cache_key=prepared.logs["cache"]["cache_key"],
+            vectors_sha256=hashlib.sha256(text_embeddings.tobytes(order="C")).hexdigest(),
+        )
+    inputs = temporal_inputs(
+        prepared,
+        config["context_windows"],
+        availability_prior=prior,
+        text_embeddings=text_embeddings,
+    )
     indices = _fit_indices(prepared, inputs)
     lookup = {sample_id: index for index, sample_id in enumerate(inputs["ids"])}
     config["method"] = args.method
     payload = dict(config=config, prepared=_reference(args.prepared))
     if prior is not None:
         payload["availability_prior"] = prior
+    if text_metadata is not None:
+        payload["text_embedding_metadata"] = text_metadata
     binding = content_hash(payload)
     provenance = dict(
         stage="temporal_experiment",
@@ -145,9 +203,13 @@ def main(argv=None):
         feature_order=inputs["feature_order"],
         context_policy="strict_past_same_case_service_split_15s_contiguous",
     )
+    if "text_embedding" in config:
+        provenance["text_embedding"] = config["text_embedding"]
     with _record(args.output, config, args, provenance) as recorder:
         fit_started = time.perf_counter()
         model_path = recorder.output / "run/model.pt"
+        if text_embeddings is not None:
+            np.save(recorder.output / "run/text_embeddings.npy", text_embeddings)
         if args.method == "gru":
             model, history = train_temporal(
                 prepared,
@@ -164,6 +226,11 @@ def main(argv=None):
                     config=config,
                     fit_ids=sorted(prepared.lists.fit),
                     **(dict(availability_prior=prior) if prior is not None else {}),
+                    **(
+                        dict(text_embedding=config["text_embedding"])
+                        if "text_embedding" in config
+                        else {}
+                    ),
                 ),
                 model_path,
             )
@@ -242,6 +309,14 @@ def main(argv=None):
                 thresholds=thresholds,
                 scores=scores_path,
                 calibration_scores=calibration_path,
+                **(
+                    dict(
+                        text_embeddings=recorder.output / "run/text_embeddings.npy",
+                        text_embedding_metadata=text_metadata,
+                    )
+                    if text_embeddings is not None
+                    else {}
+                ),
                 fit_ids=sorted(prepared.lists.fit),
                 context_sample_ids=inputs["history_ids"],
                 feature_order=inputs["feature_order"],
@@ -252,6 +327,11 @@ def main(argv=None):
                     fit_windows=len(indices),
                     seed=config["training"]["seed"],
                     checkpoint="last",
+                    **(
+                        dict(text_embedding_elapsed_seconds=text_embedding_elapsed)
+                        if text_metadata is not None
+                        else {}
+                    ),
                 ),
             ),
         )

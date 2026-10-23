@@ -688,3 +688,32 @@ GRU相对最强增强基线均值提高0.0906049241 AUROC和0.0882452467 AP，
 所有checkpoint、parquet及报告原件均保留于Git忽略的outputs，不随源码提交。
 另外已备份增强基线seed1、2的fit、fit/cal/test评分、evaluate、fusion共12个目录，
 以及原seed42融合目录；这13个目录的全部声明产物也通过本机大小与SHA256校验。
+
+### 冻结 BERT 历史上下文对照（方案 A，实施中）
+
+在先验 GRU 上增加历史日志语义输入，固定使用
+`google/bert_uncased_L-4_H-256_A-4` 的 revision
+`387825ce42dbb39b87911cdf8e383ee3b25184f8`，只从离线缓存加载。
+BERT 保持 eval、冻结全部参数；正文 token 均值后按模板组均衡聚合，
+为每个窗口缓存 256 维向量。可训练的无 bias 线性层将其投影到 64 维，
+与原 28 维历史输入拼接，GRU 实际输入为 92 维。
+缺失日志和补齐的历史位置均将语义投影清零，保留原可用性标志。
+
+只使用同 Case、Service、split 下严格过去的四个连续窗口；当前窗口日志向量
+不输入 GRU。输出、12 维 masked MSE、三模态 BCE、服务先验及评分保持不变，
+不新增语义重建目标。因此本轮检验的是历史日志语义对数值/可用性预测的帮助，
+不能把它解释为已具备当前日志语义异常检测能力。
+
+仍按原 Normal fit、独立 Normal calibration、冻结测试 ID 运行，
+50 轮末轮、hidden 32、batch 128、lr 0.001、weight decay 0.0001、clip 1。
+缓存保存明确的排序 sample IDs、prepared token cache key、模型 revision、
+向量 SHA256，并绑定实验标识；训练和特征缓存耗时分开记录。
+先执行 seed42 与原同 seed 比较，结果尚未产生，不预设加入 BERT 必然提升。
+novelty-check 和超参搜索按用户要求在本项实验完成后再执行。
+
+本轮相关测试 `test_service_model_temporal.py` 与 `test_service_model_smoke.py`
+共 55 passed（103.75 秒），覆盖历史因果边界、缺失语义清零、投影梯度、
+checkpoint 回放、冻结离线编码和三种方法的缓存发布。
+gpu-b 既有环境的 BERT CUDA 前向 witness 为 `(1, 3, 256)`，全部有限值；
+PyTorch 2.7.1+cu126、Transformers 4.57.1、RTX 4090 D。
+未安装或升级依赖；全项目测试尚在执行，不能将相关测试通过表述成全项目通过。

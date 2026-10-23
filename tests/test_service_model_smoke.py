@@ -157,11 +157,18 @@ def test_normal_fit_tail_fusion_end_to_end(tmp_path, offline, value_method):
 
 
 @pytest.mark.parametrize("method", ["gru", "lag_IF", "service_lag_IF"])
-@pytest.mark.parametrize("with_prior", [False, True])
-def test_temporal_model_end_to_end(tmp_path, offline, method, with_prior):
+@pytest.mark.parametrize("with_prior", [False, True, "bert"])
+def test_temporal_model_end_to_end(tmp_path, offline, method, with_prior, monkeypatch):
     from scripts.service_temporal_model import main as temporal
 
-    _, common = offline
+    preparation_config, common = offline
+    if with_prior == "bert":
+        settings = json.loads(preparation_config.read_text())
+        settings["log"] = dict(
+            revision="387825ce42dbb39b87911cdf8e383ee3b25184f8",
+            tokenizer_revision="387825ce42dbb39b87911cdf8e383ee3b25184f8",
+        )
+        preparation_config.write_text(json.dumps(settings))
     prepared = tmp_path / "prepared"
     assert (
         cli.main(
@@ -180,10 +187,24 @@ def test_temporal_model_end_to_end(tmp_path, offline, method, with_prior):
         == 0
     )
     config_name = (
-        "tt_temporal_prior_gpu_b_v1.json" if with_prior else "tt_temporal_predictor_gpu_b_v1.json"
+        "tt_temporal_prior_bert_gpu_b_v1.json"
+        if with_prior == "bert"
+        else (
+            "tt_temporal_prior_gpu_b_v1.json"
+            if with_prior
+            else "tt_temporal_predictor_gpu_b_v1.json"
+        )
     )
     config = json.loads((Path("configs/service") / config_name).read_text())
     config["training"].update(device="cpu", epochs=2)
+    if with_prior == "bert":
+        from scripts import service_temporal_model
+
+        monkeypatch.setattr(
+            service_temporal_model,
+            "build_frozen_text_embeddings",
+            lambda prepared, ids, **kwargs: np.ones((len(ids), 8), dtype=np.float32),
+        )
     config_path = tmp_path / "temporal.json"
     config_path.write_text(json.dumps(config))
     output = tmp_path / "temporal"
@@ -226,6 +247,13 @@ def test_temporal_model_end_to_end(tmp_path, offline, method, with_prior):
     if with_prior:
         assert checkpoint["availability_prior"]["fit_ids"] == sorted(data.lists.fit)
         assert (output / "run/availability_prior.json").exists()
+    if with_prior == "bert":
+        metadata = json.loads((output / "run/text_embedding_metadata.json").read_text())
+        cache = np.load(output / "run/text_embeddings.npy", allow_pickle=False)
+        assert cache.shape == (len(data.sample_ids), 8)
+        assert metadata["sample_ids"] == sorted(data.sample_ids)
+        assert metadata["config"] == config["text_embedding"]
+        assert metadata["embedding_dim"] == 8
     with pytest.raises(FileExistsError):
         temporal(arguments)
 

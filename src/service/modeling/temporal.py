@@ -18,10 +18,27 @@ from .training import EXECUTION, RESOURCE
 LOGGER = logging.getLogger(__name__)
 
 
-def temporal_inputs(prepared, context_windows: int = 4, *, availability_prior=None):
+def temporal_inputs(
+    prepared, context_windows: int = 4, *, availability_prior=None, text_embeddings=None
+):
     if type(context_windows) is not int or context_windows < 1:
         raise ValueError("Temporal context must have a positive integer length")
     ids = sorted(prepared.sample_ids)
+    if text_embeddings is not None:
+        text_embeddings = np.asarray(text_embeddings, dtype=np.float32)
+        if (
+            text_embeddings.ndim != 2
+            or text_embeddings.shape[0] != len(ids)
+            or not text_embeddings.shape[1]
+        ):
+            raise ValueError("Temporal text embeddings must have one vector per sample")
+        if not np.isfinite(text_embeddings).all():
+            raise ValueError("Temporal text embeddings must be finite")
+        text_lookup = {sample_id: text_embeddings[index] for index, sample_id in enumerate(ids)}
+        text_dim = text_embeddings.shape[1]
+    else:
+        text_lookup = {}
+        text_dim = 0
     identity = prepared.identity.set_index("sample_id").loc[ids]
     splits = prepared.splits.set_index("sample_id").split.loc[ids]
     if identity.index.duplicated().any() or splits.isna().any():
@@ -65,6 +82,9 @@ def temporal_inputs(prepared, context_windows: int = 4, *, availability_prior=No
         raise ValueError("Duplicate temporal case/service/partition/window key")
     fit_ids = set(prepared.lists.fit)
     context = np.zeros((len(ids), context_windows, features.shape[1] + 1), dtype=np.float32)
+    text_context = (
+        np.zeros((len(ids), context_windows, text_dim), dtype=np.float32) if text_dim else None
+    )
     history_ids = {}
     for index, (sample_id, key) in enumerate(zip(ids, keys)):
         case, service, partition, timestamp = key
@@ -75,6 +95,8 @@ def temporal_inputs(prepared, context_windows: int = 4, *, availability_prior=No
                 break
             context[index, context_windows - lag, :-1] = features[previous]
             context[index, context_windows - lag, -1] = 1.0
+            if text_context is not None:
+                text_context[index, context_windows - lag] = text_lookup[ids[previous]]
             history.append(ids[previous])
         history_ids[sample_id] = list(reversed(history))
     return dict(
@@ -93,16 +115,36 @@ def temporal_inputs(prepared, context_windows: int = 4, *, availability_prior=No
             else np.zeros((len(ids), 3), dtype=np.float32)
         ),
         availability_prior=availability_prior,
+        text_context=text_context,
+        text_embedding_dim=text_dim,
     )
 
 
 class TemporalPredictor(nn.Module):
-    def __init__(self, input_dim: int = 28, hidden_dim: int = 32):
+    def __init__(self, input_dim: int = 28, hidden_dim: int = 32, text_dim: int = 0):
         super().__init__()
-        self.recurrent = nn.GRU(input_dim, hidden_dim, batch_first=True)
+        if type(text_dim) is not int or text_dim < 0:
+            raise ValueError("Temporal text dimension must be a nonnegative integer")
+        self.text_dim = text_dim
+        self.text_projection = nn.Linear(text_dim, 64, bias=False) if text_dim else None
+        self.recurrent = nn.GRU(input_dim + (64 if text_dim else 0), hidden_dim, batch_first=True)
         self.output = nn.Linear(hidden_dim, 15)
 
-    def forward(self, context, prior_logits=None):
+    def forward(self, context, prior_logits=None, text_context=None):
+        if self.text_projection is not None:
+            if (
+                text_context is None
+                or text_context.ndim != 3
+                or text_context.shape[-1] != self.text_dim
+            ):
+                raise ValueError("Temporal text context must match configured text dimension")
+            if text_context.shape[:2] != context.shape[:2]:
+                raise ValueError("Temporal text context must match batch and history length")
+            text_valid = (context[..., -1] > 0) & (context[..., -2] > 0)
+            projected = self.text_projection(text_context).masked_fill(~text_valid[..., None], 0)
+            context = torch.cat([context, projected], dim=-1)
+        elif text_context is not None:
+            raise ValueError("Temporal model is not configured for text context")
         _, hidden = self.recurrent(context)
         result = self.output(hidden[-1])
         logits = result[:, 12:]
@@ -142,7 +184,9 @@ def train_temporal(prepared, inputs, settings, progress=None):
     indices = _fit_indices(prepared, inputs)
     set_seed(settings["seed"])
     device = torch.device(settings["device"])
-    model = TemporalPredictor(inputs["context"].shape[-1], settings["hidden_dim"]).to(device)
+    model = TemporalPredictor(
+        inputs["context"].shape[-1], settings["hidden_dim"], inputs.get("text_embedding_dim", 0)
+    ).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=settings["lr"], weight_decay=settings["weight_decay"]
     )
@@ -150,6 +194,8 @@ def train_temporal(prepared, inputs, settings, progress=None):
         name: torch.as_tensor(inputs[name][indices], device=device)
         for name in ["context", "values", "observed", "availability", "prior_logits"]
     }
+    if inputs.get("text_context") is not None:
+        tensors["text_context"] = torch.as_tensor(inputs["text_context"][indices], device=device)
     history = []
     started = time.perf_counter()
     for epoch in range(1, settings["epochs"] + 1):
@@ -159,7 +205,9 @@ def train_temporal(prepared, inputs, settings, progress=None):
         for start in range(0, len(order), settings["batch_size"]):
             selected = order[start : start + settings["batch_size"]]
             prediction, logits = model(
-                tensors["context"][selected], tensors["prior_logits"][selected]
+                tensors["context"][selected],
+                tensors["prior_logits"][selected],
+                tensors.get("text_context", None)[selected] if "text_context" in tensors else None,
             )
             loss, _, _ = temporal_loss(
                 prediction,
@@ -210,7 +258,13 @@ def score_temporal(model, inputs, ids, batch_size=256):
                 name: torch.as_tensor(inputs[name][selected], device=device)
                 for name in ["context", "values", "observed", "availability", "prior_logits"]
             }
-            prediction, logits = model(tensors["context"], tensors["prior_logits"])
+            if inputs.get("text_context") is not None:
+                tensors["text_context"] = torch.as_tensor(
+                    inputs["text_context"][selected], device=device
+                )
+            prediction, logits = model(
+                tensors["context"], tensors["prior_logits"], tensors.get("text_context")
+            )
             components = temporal_loss(
                 prediction, logits, tensors["values"], tensors["observed"], tensors["availability"]
             )
@@ -225,6 +279,8 @@ def score_temporal(model, inputs, ids, batch_size=256):
 
 def lag_features(inputs):
     parts = [inputs["context"].reshape(len(inputs["ids"]), -1), inputs["features"]]
+    if inputs.get("text_context") is not None:
+        parts.append(inputs["text_context"].reshape(len(inputs["ids"]), -1))
     if inputs.get("availability_prior") is not None:
         parts.append(inputs["prior_logits"])
     return np.concatenate(parts, axis=1)
