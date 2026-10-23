@@ -1,0 +1,20 @@
+{
+  "schema_version": "service-temporal-current-semantic-v1",
+  "context_windows": 4,
+  "window_ms": 15000,
+  "semantic_score": "per_service_normal_fit_cosine_distance",
+  "fusion": "normal_fit_robust_z_sum",
+  "semantic_weight": 1.0,
+  "temporal_weight": 1.0,
+  "text_embedding": {
+    "model": "google/bert_uncased_L-4_H-256_A-4",
+    "revision": "387825ce42dbb39b87911cdf8e383ee3b25184f8",
+    "pooling": "body_token_then_group_mean",
+    "batch_size": 32
+  },
+  "training": {
+    "seed": 42,
+    "device": "cuda"
+  },
+  "quantiles": [0.95, 0.975, 0.99, 0.995]
+}
