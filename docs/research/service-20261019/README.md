@@ -1,6 +1,11 @@
 # Service研究交接 — 2026-10-19
 
-- [2026-10-23 模型诊断与真实实验](model-collapse-investigation.md)：原SVDD坍缩、重建与可用性对照、Normal服务先验GRU及固定三seed复核；主评价3297窗，先验GRU三seed平均AUROC/AP为0.823970/0.680061。已见测试集后的探索，保留逐故障盲区；原Task10九方法矩阵尚未全部完成。
+- [两条 GRU 路线运行说明](temporal-model-running.md)：原先验 GRU 与可选冻结 BERT 共存、配置选择及产物保留。
+- [Normal-only 调参结果](temporal-tuning-protocol-20261023.md)：12 候选及选定配置三 seed 复核，未超过无 BERT 模型。
+- [服务先验 GRU 查新](service-prior-gru-novelty-20261023.md)：谨慎推进，说明最近邻、可辩护差异与必要消融。
+- [POOL / DNS 观测审计](pool-dns-observability-audit-20261023.md)：未见明确池等待或解析失败证据，优先核查干预路径与实际业务影响。
+
+- [2026-10-23 模型诊断与真实实验](model-collapse-investigation.md)：原SVDD坍缩、重建与可用性对照、Normal服务先验GRU及固定三seed复核；主评价3297窗，先验GRU三seed平均AUROC/AP为0.823970/0.680061，加入冻结BERT历史语义后为0.813235/0.667020，未改善。已见测试集后的探索，保留逐故障盲区；原Task10九方法矩阵尚未全部完成。
 - [TT 主评价范围决策](evaluation-scope-decision-20261021.md)：独立 Normal test 负类、Fault 已知正类，不纳入 Fault 注入前负类；保留实施前差距快照及补采版本接入要求。
 - [2026-10-20 TT 标签 v2 实施交接](labeling-v2-implementation-20261020.md)：已生成并验收479正类与2975负类的主评价清单；资源有效掩码后397正类、2453负类，附模型接入示例和证据边界。
 
