@@ -4,7 +4,7 @@
 
 详细文档放 [`entries/`](./entries/)。
 
-最新模型基础设施记录：[038 · Service 模型基础设施与远端首轮验收](entries/038-service-model-infrastructure.md)。影响域：`src/service/modeling/`、`scripts/service_model.py`、`configs/service/`、模型测试及 `AGENTS.md`。
+最新研究记录：[039 · Service 时序先验、BERT 消融与 Normal-only 调参](entries/039-service-temporal-prior-experiments.md)。前置基础设施见 [038](entries/038-service-model-infrastructure.md)。
 
 ## 使用约定
 
@@ -29,6 +29,7 @@
 
 | # | 日期 | 类型 | 标题 | 影响域 |
 |---|------|------|------|--------|
+| [039](./entries/039-service-temporal-prior-experiments.md) | 2026-10-23 | Model / Experiment | 服务先验 GRU、可选 BERT 与严格 Normal-only 搜索，保留双配置和负向发现 | src/service/modeling/, scripts/service_temporal*, configs/service/, tests/test_service*, docs/research/service-20261019/ |
 | [001](./entries/001-project-init.md) | 2026-05-10 | Feature | 初始化项目结构与基础设施 | 仓库骨架, CLAUDE.md, scripts/lo2-scripts/ |
 | [002](./entries/002-infrastructure.md) | 2026-06-22 | Chore (PR #1) | 搭建工程基础设施 | DVC, Hydra, pyproject, Makefile, environment.yml, CI, src/utils/, CLAUDE.md |
 | [003](./entries/003-experiment-loop.md) | 2026-06-24 | Chore (PR #2) | 最小可复现实验闭环（迭代 2） | src/contracts/, scripts/train_baseline.py, scripts/eval.py, dvc.yaml, artifacts/, tests/, CLAUDE.md |
@@ -149,7 +150,7 @@
 
 |影响域|Entry|
 |---|---|
-|src/service/, configs/service/, scripts/service_experiment.py, scripts/prepare_service_data.py|033, 036|
+|src/service/, configs/service/, scripts/service_experiment.py, scripts/prepare_service_data.py|033, 036, 039（时序先验、BERT与调参）|
 |tests/test_service_*, docs/research/service-*|033, 035（新批研究目标、归档与后续入口）, 036（训练前准备）|
 |AGENTS.md, CLAUDE.md, .gitignore, 新批selected17数据交接|035|
 |src/service/labeling/、scripts/label_service_data.py、TT标签版本与验收|037|

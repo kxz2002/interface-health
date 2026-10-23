@@ -12,6 +12,7 @@ import torch
 
 from scripts.benchmark_downstream import fit_iforest, fit_ocsvm, score_iforest, score_ocsvm
 
+from .availability import fit_availability, score_availability
 from .config import content_hash, validate_config
 from .data import validate_sample_lists
 from .training import _binding, _validate
@@ -126,6 +127,11 @@ def _text(backbone, prepared, ids):
 
 def _features(bundle, prepared, ids):
     values, masks = _numeric(prepared, ids, bundle["numeric_columns"])
+    transform = bundle.get("numeric_transform", "identity")
+    if transform not in {"identity", "asinh"}:
+        raise ValueError("Unsupported baseline numeric transform")
+    if transform == "asinh":
+        values = np.arcsinh(values)
     numeric = np.concatenate([values, masks.astype(float)], axis=1)
     if bundle["backbone"] is None:
         return numeric, numeric, values, masks, np.zeros(len(ids), dtype=bool)
@@ -145,6 +151,8 @@ def _features(bundle, prepared, ids):
     stat_masks = statistics["masks"].set_index("sample_id").loc[ids, columns].to_numpy(bool)
     stat_masks &= text_valid[:, None]
     stats = np.where(stat_masks, stats, 0.0)
+    if transform == "asinh":
+        stats = np.arcsinh(stats)
     trimodal = np.concatenate(
         [numeric, text, np.repeat(text_valid[:, None], text.shape[1], axis=1), stats, stat_masks],
         axis=1,
@@ -160,7 +168,7 @@ def fit_baselines(prepared, lists, config: dict, *, text_backbone=None, methods=
     ids = sorted(lists.fit)
     supported = {"L2", "Max", "numeric_IF", "numeric_OCSVM", "trimodal_IF", "trimodal_OCSVM"}
     requested = supported if methods is None else set(methods)
-    if not requested or requested - supported:
+    if not requested or requested - (supported | {"availability"}):
         raise ValueError("Unknown or empty baseline methods")
     needs_text = any(name.startswith("trimodal") for name in requested)
     backbone = text_backbone
@@ -201,11 +209,15 @@ def fit_baselines(prepared, lists, config: dict, *, text_backbone=None, methods=
         binding=_binding(prepared, config),
         fit_ids=ids,
     )
+    if "reconstruction_asinh" in config["model"]["auxiliary_losses"]:
+        bundle["numeric_transform"] = "asinh"
     numeric, trimodal, _, masks, _ = _features(bundle, prepared, ids)
     if not masks.any(1).all():
         raise ValueError("Common fit requires valid numeric input")
     seed = config["training"]["prototype_seed"]
     models = {}
+    if "availability" in requested:
+        models["availability"] = fit_availability(prepared, ids)
     for arm, values in [("numeric", numeric), ("trimodal", trimodal)]:
         if f"{arm}_IF" in requested:
             models[f"{arm}_IF"] = fit_iforest(values, seed)
@@ -213,7 +225,14 @@ def fit_baselines(prepared, lists, config: dict, *, text_backbone=None, methods=
             models[f"{arm}_OCSVM"] = fit_ocsvm(values, seed)
     bundle["models"] = models
     bundle["method_lists"] = baseline_sample_lists(bundle, prepared, lists)
-    bundle["resolved_parameters"] = {name: model.get_params() for name, model in models.items()}
+    bundle["resolved_parameters"] = {
+        name: (
+            dict(alpha=1.0, patterns=8, service_specific=True)
+            if name == "availability"
+            else model.get_params()
+        )
+        for name, model in models.items()
+    }
     bundle["baseline_sha256"] = content_hash(
         dict(
             binding=bundle["binding"],
@@ -224,6 +243,8 @@ def fit_baselines(prepared, lists, config: dict, *, text_backbone=None, methods=
             text_scale=scale.tolist(),
             numeric_columns=bundle["numeric_columns"],
             statistics_columns=bundle["statistics_columns"],
+            numeric_transform=bundle.get("numeric_transform", "identity"),
+            availability_state=models.get("availability"),
             method_lists={arm: asdict(members) for arm, members in bundle["method_lists"].items()},
         )
     )
@@ -247,7 +268,11 @@ def score_baselines(bundle: dict, prepared, ids: set[str]) -> dict[str, pd.DataF
         validate_sample_lists(members)
         valid = trimodal_valid if name.startswith("trimodal") else numeric_valid
         selected = np.flatnonzero(valid)
-        if name == "L2":
+        if name == "availability":
+            scores = score_availability(
+                bundle["models"][name], prepared, [ids[index] for index in selected]
+            )
+        elif name == "L2":
             scores = np.linalg.norm(values[selected], axis=1)
         elif name == "Max":
             scores = np.abs(values[selected]).max(1) if len(selected) else np.array([])

@@ -207,9 +207,10 @@ def _backward_group(model, windows, ids, report=None):
     total = 0.0
     for sample_id in ids:
         result = model(windows(sample_id))
-        if result.get("aux_losses"):
-            raise ValueError("Auxiliary objectives are not approved")
-        loss = result["score"].mean()
+        auxiliary = result.get("aux_losses", {})
+        if auxiliary and set(auxiliary) != {"reconstruction"}:
+            raise ValueError("Unsupported auxiliary objectives")
+        loss = auxiliary["reconstruction"] if auxiliary else result["score"].mean()
         _finite(loss, "training loss")
         (loss / len(ids)).backward()
         if report is not None:

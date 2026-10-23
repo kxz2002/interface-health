@@ -103,6 +103,175 @@ def offline(tmp_path, monkeypatch):
     return config, common
 
 
+@pytest.mark.parametrize("value_method", ["L2", "transformer_cls"])
+def test_normal_fit_tail_fusion_end_to_end(tmp_path, offline, value_method):
+    from scripts.service_score_fusion import main as fuse
+
+    _, common = offline
+    runtime = TinyRuntime()
+
+    def stage(command, name, extra):
+        output = tmp_path / name
+        assert (
+            cli.main([command, *common, "--output", str(output), *extra], runtime_factory=runtime)
+            == 0
+        )
+        return output
+
+    prepared = stage(
+        "prepare", "prepared", ["--preparation", "synthetic", "--label-bundle", "synthetic"]
+    )
+    arguments = [
+        "--prepared",
+        str(prepared),
+        "--output",
+        str(tmp_path / "fused"),
+        "--tracking-uri",
+        f"sqlite:///{tmp_path / 'mlflow.db'}",
+    ]
+    for channel, method in [("value", value_method), ("availability", "availability")]:
+        fit = stage("fit", channel, ["--prepared", str(prepared), "--method", method])
+        for scope in ["fit", "calibration", "test"]:
+            scored = stage(
+                "score",
+                channel + "-" + scope,
+                ["--prepared", str(prepared), "--model-run", str(fit), "--score-scope", scope],
+            )
+            arguments.extend([f"--{channel}-{scope}", str(scored)])
+    assert fuse(arguments) == 0
+    assert cli.check_run(tmp_path / "fused")["status"] == "success"
+    report = json.loads((tmp_path / "fused/evaluation/report.json").read_text())
+    assert report["main"]["auroc"] is not None
+    assert report["coverage"]["missing_ids"] == []
+    state = json.loads((tmp_path / "fused/run/fusion_state.json").read_text())
+    _, data, _ = cli.read_prepared(prepared)
+    assert state["fit_ids"] == sorted(data.lists.fit)
+    with pytest.raises(FileExistsError):
+        fuse(arguments)
+    bad_arguments = list(arguments)
+    bad_arguments[bad_arguments.index("--output") + 1] = str(tmp_path / "bad-fusion")
+    bad_arguments.extend(["--value-fit", str(tmp_path / "value-calibration")])
+    with pytest.raises(ValueError, match="scope or input binding"):
+        fuse(bad_arguments)
+    assert not (tmp_path / "bad-fusion").exists()
+
+
+@pytest.mark.parametrize("method", ["gru", "lag_IF", "service_lag_IF"])
+@pytest.mark.parametrize("with_prior", [False, True, "bert"])
+def test_temporal_model_end_to_end(tmp_path, offline, method, with_prior, monkeypatch):
+    from scripts.service_temporal_model import main as temporal
+
+    preparation_config, common = offline
+    if with_prior == "bert":
+        settings = json.loads(preparation_config.read_text())
+        settings["log"] = dict(
+            revision="387825ce42dbb39b87911cdf8e383ee3b25184f8",
+            tokenizer_revision="387825ce42dbb39b87911cdf8e383ee3b25184f8",
+        )
+        preparation_config.write_text(json.dumps(settings))
+    prepared = tmp_path / "prepared"
+    assert (
+        cli.main(
+            [
+                "prepare",
+                *common,
+                "--output",
+                str(prepared),
+                "--preparation",
+                "synthetic",
+                "--label-bundle",
+                "synthetic",
+            ],
+            runtime_factory=TinyRuntime(),
+        )
+        == 0
+    )
+    config_name = (
+        "tt_temporal_prior_bert_gpu_b_v1.json"
+        if with_prior == "bert"
+        else (
+            "tt_temporal_prior_gpu_b_v1.json"
+            if with_prior
+            else "tt_temporal_predictor_gpu_b_v1.json"
+        )
+    )
+    config = json.loads((Path("configs/service") / config_name).read_text())
+    config["training"].update(device="cpu", epochs=2)
+    if with_prior == "bert":
+        from scripts import service_temporal_model
+
+        monkeypatch.setattr(
+            service_temporal_model,
+            "build_frozen_text_embeddings",
+            lambda prepared, ids, **kwargs: np.ones((len(ids), 256), dtype=np.float32),
+        )
+    config_path = tmp_path / "temporal.json"
+    config_path.write_text(json.dumps(config))
+    output = tmp_path / "temporal"
+    arguments = [
+        "--config",
+        str(config_path),
+        "--prepared",
+        str(prepared),
+        "--output",
+        str(output),
+        "--method",
+        method,
+        "--seed",
+        "1" if with_prior else "2",
+        "--tracking-uri",
+        f"sqlite:///{tmp_path / 'mlflow.db'}",
+    ]
+    assert temporal(arguments) == 0
+    assert cli.check_run(output)["status"] == "success"
+    report = json.loads((output / "evaluation/report.json").read_text())
+    assert report["main"]["auroc"] is not None
+    assert report["coverage"]["missing_ids"] == []
+    checkpoint = torch.load(output / "run/model.pt", weights_only=False)
+    expected_seed = 1 if with_prior else 2
+    assert checkpoint["config"]["training"]["seed"] == expected_seed
+    assert checkpoint["config"]["isolation_forest"]["random_state"] == expected_seed
+    if method != "gru":
+        estimators = (
+            checkpoint["estimator"].values()
+            if method == "service_lag_IF"
+            else [checkpoint["estimator"]]
+        )
+        assert all(estimator.random_state == expected_seed for estimator in estimators)
+    _, data, _ = cli.read_prepared(prepared)
+    assert checkpoint["fit_ids"] == sorted(data.lists.fit)
+    if method == "gru":
+        assert "model_state" in checkpoint
+    elif method == "service_lag_IF":
+        assert set(checkpoint["estimator"]) == {"svc"}
+    if with_prior:
+        assert checkpoint["availability_prior"]["fit_ids"] == sorted(data.lists.fit)
+        assert (output / "run/availability_prior.json").exists()
+    if with_prior == "bert":
+        metadata = json.loads((output / "run/text_embedding_metadata.json").read_text())
+        cache = np.load(output / "run/text_embeddings.npy", allow_pickle=False)
+        assert cache.shape == (len(data.sample_ids), 256)
+        assert metadata["sample_ids"] == sorted(data.sample_ids)
+        assert metadata["config"] == config["text_embedding"]
+        assert metadata["embedding_dim"] == 256
+        if method == "gru":
+            monkeypatch.setattr(
+                service_temporal_model,
+                "build_frozen_text_embeddings",
+                lambda *args, **kwargs: pytest.fail("cache reuse re-encoded BERT"),
+            )
+            cached_arguments = list(arguments)
+            cached_arguments[cached_arguments.index("--output") + 1] = str(tmp_path / "cached")
+            cached_arguments.extend(["--text-cache-run", str(output)])
+            assert temporal(cached_arguments) == 0
+            assert cli.check_run(tmp_path / "cached")["status"] == "success"
+            np.testing.assert_array_equal(
+                np.load(tmp_path / "cached/run/text_embeddings.npy"), cache
+            )
+    with pytest.raises(FileExistsError):
+        temporal(arguments)
+
+
 def test_offline_end_to_end(tmp_path, offline):
     config, common = offline
     runtime = TinyRuntime()
@@ -172,6 +341,7 @@ def test_offline_end_to_end(tmp_path, offline):
         "numeric_OCSVM",
         "trimodal_IF",
         "trimodal_OCSVM",
+        "availability",
     ],
 )
 def test_all_matrix_methods_support_offline_fit_score_evaluation(
@@ -179,13 +349,13 @@ def test_all_matrix_methods_support_offline_fit_score_evaluation(
 ):
     _, common = offline
     runtime = TinyRuntime()
-    if method in {"L2", "Max", "numeric_IF", "numeric_OCSVM"}:
+    if method in {"L2", "Max", "numeric_IF", "numeric_OCSVM", "availability"}:
 
         def no_backbone(config):
             raise AssertionError("Numeric methods must not load BERT")
 
         runtime.backbone = no_backbone
-    if method in {"L2", "Max"}:
+    if method in {"L2", "Max", "availability"}:
 
         def forbidden(*args, **kwargs):
             raise AssertionError("Rule fit must not fit unrequested sklearn methods")

@@ -1,9 +1,11 @@
+import json
 from types import SimpleNamespace
 
 import pytest
 import torch
 from torch import nn
 
+from src.service.modeling.config import load_config
 from src.service.modeling.encoders import TextEncoder
 from src.service.modeling.model import build_model, initialize_center
 
@@ -84,6 +86,104 @@ def test_center_fixed_and_reload_score():
     torch.testing.assert_close(model.eval()(inputs)["score"], restored.eval()(inputs)["score"])
     with pytest.raises(RuntimeError, match="already"):
         initialize_center(model, [inputs])
+
+
+def test_reconstruction_learns_and_ignores_unobserved_values():
+    torch.manual_seed(42)
+    model = build_model(
+        {"model": {"fusion": "concat_svdd", "auxiliary_losses": {"reconstruction": 1.0}}},
+        TinyBackbone(),
+    )
+    inputs = batch()
+    inputs["resource_mask"][0, 0] = False
+    initialize_center(model, [inputs])
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.005)
+    initial = model(inputs)["score"].mean().detach()
+    for step in range(60):
+        optimizer.zero_grad()
+        model(inputs)["aux_losses"]["reconstruction"].backward()
+        optimizer.step()
+    model.eval()
+    expected = model(inputs)["score"].detach()
+    assert expected.mean() < initial * 0.1
+    inputs["resource"][0, 0] = float("nan")
+    torch.testing.assert_close(model(inputs)["score"], expected)
+
+
+@pytest.mark.parametrize("weight", [0, -1, True, "1", float("inf"), float("nan")])
+def test_invalid_reconstruction_weight_is_rejected(tmp_path, weight):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"model": {"auxiliary_losses": {"reconstruction": weight}}}))
+    with pytest.raises(ValueError, match="weight"):
+        load_config(path)
+
+
+def test_reconstruction_config_loads(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"model": {"auxiliary_losses": {"reconstruction": 1.0}}}))
+    assert load_config(path)["model"]["auxiliary_losses"] == {"reconstruction": 1.0}
+
+
+@pytest.mark.parametrize("fusion", ["transformer_cls", "transformer_mean", "concat_svdd"])
+def test_compressed_reconstruction_checkpoint_roundtrip(fusion):
+    config = {
+        "model": {
+            "fusion": fusion,
+            "representation_dim": 4,
+            "auxiliary_losses": {"reconstruction": 1.0},
+        }
+    }
+    model = build_model(config, TinyBackbone())
+    inputs = batch()
+    initialize_center(model, [inputs])
+    output = model(inputs)
+    assert output["representation"].shape == (2, 4)
+    output["aux_losses"]["reconstruction"].backward()
+    assert model.decoder[0].weight.grad is not None
+    restored = build_model(config, TinyBackbone())
+    restored.load_state_dict(model.state_dict())
+    torch.testing.assert_close(model.eval()(inputs)["score"], restored.eval()(inputs)["score"])
+
+
+@pytest.mark.parametrize("dimension", [0, 33, True, 4.5])
+def test_invalid_representation_dimension_rejected(dimension):
+    with pytest.raises(ValueError, match="dimension"):
+        build_model({"model": {"representation_dim": dimension}}, TinyBackbone())
+
+
+def test_asinh_reconstruction_matches_explicit_transform_and_masks(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps(
+            {"model": {"representation_dim": 4, "auxiliary_losses": {"reconstruction_asinh": 1.0}}}
+        )
+    )
+    config = load_config(path)
+    model = build_model(config, TinyBackbone()).eval()
+    reference = build_model(
+        {"model": {"representation_dim": 4, "auxiliary_losses": {"reconstruction": 1.0}}},
+        TinyBackbone(),
+    ).eval()
+    inputs = batch()
+    inputs["stats"][0, 1] = -262.34
+    inputs["resource_mask"][0, 0] = False
+    inputs["resource"][0, 0] = float("nan")
+    initialize_center(model, [inputs])
+    reference.load_state_dict(model.state_dict())
+    transformed = dict(inputs)
+    for name in ["resource", "execution", "stats"]:
+        transformed[name] = torch.asinh(inputs[name])
+    expected = reference(transformed)
+    actual = model(inputs)
+    torch.testing.assert_close(actual["score"], expected["score"])
+    torch.testing.assert_close(actual["representation"], expected["representation"])
+    assert inputs["stats"][0, 1] == -262.34
+    actual["aux_losses"]["reconstruction"].backward()
+    assert all(
+        torch.isfinite(parameter.grad).all()
+        for parameter in model.parameters()
+        if parameter.grad is not None
+    )
 
 
 def test_equal_message_template_pooling():

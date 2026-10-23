@@ -57,7 +57,8 @@ NEURAL_METHODS = {
 }
 BASELINE_METHODS = ("L2", "Max", "numeric_IF", "numeric_OCSVM", "trimodal_IF", "trimodal_OCSVM")
 METHODS = (*NEURAL_METHODS, *BASELINE_METHODS)
-SCOPES = ("calibration", "main_test", "diagnostic", "extended_test", "test")
+EXPLORATORY_METHODS = ("availability",)
+SCOPES = ("fit", "calibration", "main_test", "diagnostic", "extended_test", "test")
 
 
 class LocalRuntime:
@@ -152,6 +153,8 @@ def check_run(run, _visited=None):
 
 def score_ids(lists, scope):
     validate_sample_lists(lists)
+    if scope == "fit":
+        return set(lists.fit)
     if scope == "calibration":
         return set(lists.calibration)
     if scope == "main_test":
@@ -864,7 +867,9 @@ def parser():
         else:
             command.add_argument("--prepared", type=Path, required=True)
         if name in {"probe-fit", "fit"}:
-            command.add_argument("--method", choices=METHODS, default="transformer_cls")
+            command.add_argument(
+                "--method", choices=(*METHODS, *EXPLORATORY_METHODS), default="transformer_cls"
+            )
             command.add_argument("--seed", type=int)
         if name in {"score", "evaluate"}:
             command.add_argument("--model-run", type=Path, required=True)

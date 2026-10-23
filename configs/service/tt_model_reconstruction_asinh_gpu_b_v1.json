@@ -1,0 +1,11 @@
+{
+  "log": {
+    "revision": "387825ce42dbb39b87911cdf8e383ee3b25184f8",
+    "tokenizer_revision": "387825ce42dbb39b87911cdf8e383ee3b25184f8"
+  },
+  "model": {
+    "representation_dim": 4,
+    "auxiliary_losses": {"reconstruction_asinh": 1.0}
+  },
+  "training": {"device": "cuda", "precision": "float32", "epochs": 20}
+}

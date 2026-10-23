@@ -54,6 +54,7 @@ def test_cli_has_no_implicit_training(tmp_path, monkeypatch, capsys):
 
 def test_test_scoring_includes_diagnostics_once():
     _, lists, _ = evaluation_fixture()
+    assert cli.score_ids(lists, "fit") == set(lists.fit)
     assert cli.score_ids(lists, "test") == {"0", "1", "2"}
     assert cli.score_ids(lists, "main_test") == {"0", "1"}
     assert cli.score_ids(lists, "diagnostic") == {"1", "2"}

@@ -7,22 +7,38 @@ from collections.abc import Iterable
 import torch
 from torch import Tensor, nn
 
-from .encoders import NumericEncoder, TextEncoder
+from .encoders import NumericEncoder, TextEncoder, masked_values
 
 
 class ServiceSVDD(nn.Module):
-    def __init__(self, text_backbone: nn.Module, fusion: str = "transformer_cls"):
+    def __init__(
+        self,
+        text_backbone: nn.Module,
+        fusion: str = "transformer_cls",
+        reconstruction_weight: float = 0.0,
+        representation_dim: int = 32,
+        reconstruction_asinh: bool = False,
+    ):
         super().__init__()
         if fusion not in {"transformer_cls", "transformer_mean", "concat_svdd"}:
             raise ValueError(f"Unsupported fusion: {fusion}")
         self.fusion = fusion
+        self.reconstruction_weight = reconstruction_weight
+        self.representation_dim = representation_dim
+        self.reconstruction_asinh = reconstruction_asinh
+        if reconstruction_weight:
+            self.decoder = nn.Sequential(
+                nn.Linear(representation_dim, 64), nn.ReLU(), nn.Linear(64, 12)
+            )
         self.resource_encoder = NumericEncoder(3)
         self.execution_encoder = NumericEncoder(5)
         self.text_encoder = TextEncoder(text_backbone)
         self.modality_embedding = nn.Embedding(3, 64)
         if fusion == "concat_svdd":
             self.projection = nn.Sequential(
-                nn.Linear(195, 64, bias=False), nn.ReLU(), nn.Linear(64, 32, bias=False)
+                nn.Linear(195, 64, bias=False),
+                nn.ReLU(),
+                nn.Linear(64, representation_dim, bias=False),
             )
         else:
             layer = nn.TransformerEncoderLayer(
@@ -34,11 +50,15 @@ class ServiceSVDD(nn.Module):
             if fusion == "transformer_cls":
                 self.summary_token = nn.Parameter(torch.empty(1, 1, 64))
                 nn.init.normal_(self.summary_token, std=0.02)
-            self.projection = nn.Linear(64, 32, bias=False)
-        self.register_buffer("center", torch.zeros(32))
+            self.projection = nn.Linear(64, representation_dim, bias=False)
+        self.register_buffer("center", torch.zeros(representation_dim))
         self.register_buffer("center_initialized", torch.tensor(False))
 
     def encode(self, batch: dict) -> dict:
+        if self.reconstruction_asinh:
+            batch = dict(batch)
+            for name in ["resource", "execution", "stats"]:
+                batch[name] = torch.asinh(batch[name])
         observed_text = []
         for messages in batch["logs"]:
             if messages is None:
@@ -68,7 +88,8 @@ class ServiceSVDD(nn.Module):
         elif self.fusion == "transformer_cls":
             tokens = torch.cat([self.summary_token.expand(len(valid), -1, -1), tokens], dim=1)
             padding = torch.cat(
-                [torch.zeros(len(valid), 1, dtype=torch.bool, device=valid.device), ~valid], dim=1
+                [torch.zeros(len(valid), 1, dtype=torch.bool, device=valid.device), ~valid],
+                dim=1,
             )
             combined = self.transformer(tokens, src_key_padding_mask=padding)[:, 0]
         else:
@@ -77,7 +98,10 @@ class ServiceSVDD(nn.Module):
                 1, keepdim=True
             )
         representation = self.projection(combined)
-        if representation.shape != (len(valid), 32) or not torch.isfinite(representation).all():
+        if (
+            representation.shape != (len(valid), self.representation_dim)
+            or not torch.isfinite(representation).all()
+        ):
             raise ValueError("Invalid SVDD representation")
         auxiliary = {}
         for name, modality in zip(["resource", "execution", "log"], encoded):
@@ -89,6 +113,38 @@ class ServiceSVDD(nn.Module):
             raise RuntimeError("SVDD center has not been initialized")
         output = self.encode(batch)
         output["score"] = (output["representation"] - self.center).square().sum(-1)
+        if self.reconstruction_weight:
+            targets = torch.cat([batch["resource"], batch["execution"], batch["stats"]], dim=-1)
+            text_valid = torch.tensor(
+                [
+                    messages is not None
+                    and bool(
+                        (
+                            torch.as_tensor(messages["attention_mask"]).bool()
+                            & ~torch.as_tensor(messages["special_mask"]).bool()
+                        ).any()
+                    )
+                    for messages in batch["logs"]
+                ],
+                device=targets.device,
+            )
+            mask = torch.cat(
+                [
+                    batch["resource_mask"],
+                    batch["execution_mask"],
+                    batch["stats_mask"] & text_valid[:, None],
+                ],
+                dim=-1,
+            )
+            targets = masked_values(targets, mask)
+            if self.reconstruction_asinh:
+                targets = torch.asinh(targets)
+            residual = (self.decoder(output["representation"]) - targets).masked_fill(~mask, 0)
+            reconstruction = residual.square().sum(-1) / mask.sum(-1).clamp_min(1)
+            output["aux_losses"]["reconstruction"] = (
+                self.reconstruction_weight * reconstruction.mean()
+            )
+            output["score"] = reconstruction
         if not torch.isfinite(output["score"]).all():
             raise ValueError("Nonfinite SVDD scores")
         return output
@@ -124,7 +180,6 @@ def build_model(config: dict, text_backbone: nn.Module) -> ServiceSVDD:
     defaults = dict(
         hidden_dim=64,
         token_dim=64,
-        representation_dim=32,
         transformer_layers=1,
         attention_heads=4,
         feedforward_dim=128,
@@ -136,8 +191,24 @@ def build_model(config: dict, text_backbone: nn.Module) -> ServiceSVDD:
     for name, expected in defaults.items():
         if settings.get(name, expected) != expected:
             raise ValueError(f"Unsupported network setting: {name}")
-    if settings.get("auxiliary_losses", {}):
-        raise ValueError("No auxiliary objectives approved for the initial model")
+    auxiliary = settings.get("auxiliary_losses", {})
+    if auxiliary and (
+        set(auxiliary) not in ({"reconstruction"}, {"reconstruction_asinh"})
+        or type(next(iter(auxiliary.values()))) not in {int, float}
+        or not 0 < next(iter(auxiliary.values())) < float("inf")
+    ):
+        raise ValueError("Unsupported reconstruction objective")
+    representation_dim = settings.get("representation_dim", 32)
+    if type(representation_dim) is not int or representation_dim < 1 or representation_dim > 32:
+        raise ValueError("Representation dimension must be an integer between 1 and 32")
+    if not auxiliary and representation_dim != 32:
+        raise ValueError("SVDD representation dimension remains fixed at 32")
     fusion = settings.get("fusion", "transformer_cls")
     fusion = {"summary_token": "transformer_cls", "mean": "transformer_mean"}.get(fusion, fusion)
-    return ServiceSVDD(text_backbone, fusion)
+    return ServiceSVDD(
+        text_backbone,
+        fusion,
+        next(iter(auxiliary.values()), 0.0),
+        representation_dim,
+        "reconstruction_asinh" in auxiliary,
+    )
