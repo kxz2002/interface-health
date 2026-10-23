@@ -28,26 +28,28 @@ def fixture():
     return prepared, config
 
 
-def test_temporal_context_is_past_only_and_lag_if_has_identical_information():
+@pytest.mark.parametrize("length", [4, 8])
+def test_temporal_context_is_past_only_and_lag_if_has_identical_information(length):
     prepared, _ = fixture()
-    inputs = temporal_inputs(prepared)
+    inputs = temporal_inputs(prepared, length)
     assert inputs["history_ids"]["fit-003"] == ["fit-000", "fit-001", "fit-002"]
     assert inputs["history_ids"]["test"] == []
     assert inputs["history_ids"]["calibration"] == []
-    assert lag_features(inputs).shape == (8, 139)
+    assert lag_features(inputs).shape == (8, length * 28 + 27)
     changed = copy.deepcopy(prepared)
     changed.numeric["values"].loc[4, "cpu_cores"] = 9999
     changed.logs["masks"]["fit-004"] = False
-    other = temporal_inputs(changed)
+    other = temporal_inputs(changed, length)
     index = inputs["ids"].index("fit-003")
     np.testing.assert_array_equal(inputs["context"][index], other["context"][index])
     np.testing.assert_array_equal(inputs["values"][index], other["values"][index])
 
 
+@pytest.mark.parametrize("length", [4, 8])
 @pytest.mark.parametrize(
     "boundary", ["case_id", "canonical_service_id", "split", "gap", "unknown_fit"]
 )
-def test_temporal_context_stops_at_case_service_partition_gap_and_fit_exclusion(boundary):
+def test_temporal_context_stops_at_case_service_partition_gap_and_fit_exclusion(boundary, length):
     prepared, _ = fixture()
     if boundary in {"case_id", "canonical_service_id"}:
         prepared.identity.loc[2, boundary] = "other"
@@ -60,7 +62,7 @@ def test_temporal_context_stops_at_case_service_partition_gap_and_fit_exclusion(
             sample_id for sample_id in prepared.lists.fit if sample_id != "fit-002"
         )
         prepared.labels.loc[2, "label"] = None
-    inputs = temporal_inputs(prepared)
+    inputs = temporal_inputs(prepared, length)
     assert inputs["history_ids"]["fit-003"] == []
 
 
