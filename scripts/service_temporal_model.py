@@ -129,6 +129,48 @@ def validate_temporal_config(config):
             raise ValueError("Temporal optimization settings must be finite and positive")
 
 
+def load_text_cache(run, prepared_run, prepared, embedding_config):
+    """Reuse only a published embedding cache bound to the identical prepared input."""
+    check_run(run)
+    root = Path(run)
+    manifest = json.loads((root / "manifest.json").read_text())
+    if manifest.get("stage") != "temporal_experiment":
+        raise ValueError("Text cache must come from a temporal experiment")
+    if manifest["provenance"]["parents"].get("prepared") != _reference(prepared_run):
+        raise ValueError("Text cache prepared parent mismatch")
+    cached_config = json.loads((root / "run/config.json").read_text())
+    if (
+        cached_config.get("text_embedding") != embedding_config
+        or manifest["provenance"].get("text_embedding") != embedding_config
+    ):
+        raise ValueError("Text cache model configuration mismatch")
+    records = manifest["artifacts"]
+    for name, expected in [
+        ("text_embeddings", "run/text_embeddings.npy"),
+        ("text_embedding_metadata", "run/text_embedding_metadata.json"),
+    ]:
+        if name not in records or records[name]["path"] != expected:
+            raise ValueError("Missing declared text cache artifacts")
+    metadata = json.loads((root / "run/text_embedding_metadata.json").read_text())
+    expected_metadata = dict(
+        sample_ids=sorted(prepared.sample_ids),
+        embedding_dim=256,
+        config=embedding_config,
+        prepared_log_cache_key=prepared.logs["cache"]["cache_key"],
+    )
+    if any(metadata.get(name) != value for name, value in expected_metadata.items()):
+        raise ValueError("Text cache metadata/IDs/config mismatch")
+    vectors = np.load(root / "run/text_embeddings.npy", allow_pickle=False)
+    if (
+        vectors.dtype != np.float32
+        or vectors.shape != (len(prepared.sample_ids), 256)
+        or not np.isfinite(vectors).all()
+        or hashlib.sha256(vectors.tobytes(order="C")).hexdigest() != metadata.get("vectors_sha256")
+    ):
+        raise ValueError("Text cache vectors shape/dtype/hash mismatch")
+    return vectors, metadata
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, required=True)
@@ -137,11 +179,14 @@ def main(argv=None):
     parser.add_argument("--tracking-uri", required=True)
     parser.add_argument("--method", choices=["gru", "lag_IF", "service_lag_IF"], required=True)
     parser.add_argument("--seed", type=int, choices=[1, 2, 42])
+    parser.add_argument("--text-cache-run", type=Path)
     args = parser.parse_args(argv)
     if args.output.exists():
         raise FileExistsError(args.output)
     config = json.loads(args.config.read_text())
     validate_temporal_config(config)
+    if args.text_cache_run is not None and "text_embedding" not in config:
+        raise ValueError("Text cache requires the BERT architecture")
     if args.seed is not None:
         config["training"]["seed"] = args.seed
         config["isolation_forest"]["random_state"] = args.seed
@@ -161,14 +206,19 @@ def main(argv=None):
         ):
             raise ValueError("Frozen text model must match the prepared tokenizer revision")
         text_started = time.perf_counter()
-        text_embeddings = build_frozen_text_embeddings(
-            prepared,
-            sorted(prepared.sample_ids),
-            model_name=config["text_embedding"]["model"],
-            revision=config["text_embedding"]["revision"],
-            device=config["training"]["device"],
-            batch_size=config["text_embedding"]["batch_size"],
-        )
+        if args.text_cache_run is not None:
+            text_embeddings, _ = load_text_cache(
+                args.text_cache_run, args.prepared, prepared, config["text_embedding"]
+            )
+        else:
+            text_embeddings = build_frozen_text_embeddings(
+                prepared,
+                sorted(prepared.sample_ids),
+                model_name=config["text_embedding"]["model"],
+                revision=config["text_embedding"]["revision"],
+                device=config["training"]["device"],
+                batch_size=config["text_embedding"]["batch_size"],
+            )
         text_embedding_elapsed = time.perf_counter() - text_started
         text_metadata = dict(
             sample_ids=sorted(prepared.sample_ids),
@@ -205,6 +255,8 @@ def main(argv=None):
     )
     if "text_embedding" in config:
         provenance["text_embedding"] = config["text_embedding"]
+    if args.text_cache_run is not None:
+        provenance["parents"]["text_cache"] = _reference(args.text_cache_run)
     with _record(args.output, config, args, provenance) as recorder:
         fit_started = time.perf_counter()
         model_path = recorder.output / "run/model.pt"

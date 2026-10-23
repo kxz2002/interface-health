@@ -203,7 +203,7 @@ def test_temporal_model_end_to_end(tmp_path, offline, method, with_prior, monkey
         monkeypatch.setattr(
             service_temporal_model,
             "build_frozen_text_embeddings",
-            lambda prepared, ids, **kwargs: np.ones((len(ids), 8), dtype=np.float32),
+            lambda prepared, ids, **kwargs: np.ones((len(ids), 256), dtype=np.float32),
         )
     config_path = tmp_path / "temporal.json"
     config_path.write_text(json.dumps(config))
@@ -250,10 +250,24 @@ def test_temporal_model_end_to_end(tmp_path, offline, method, with_prior, monkey
     if with_prior == "bert":
         metadata = json.loads((output / "run/text_embedding_metadata.json").read_text())
         cache = np.load(output / "run/text_embeddings.npy", allow_pickle=False)
-        assert cache.shape == (len(data.sample_ids), 8)
+        assert cache.shape == (len(data.sample_ids), 256)
         assert metadata["sample_ids"] == sorted(data.sample_ids)
         assert metadata["config"] == config["text_embedding"]
-        assert metadata["embedding_dim"] == 8
+        assert metadata["embedding_dim"] == 256
+        if method == "gru":
+            monkeypatch.setattr(
+                service_temporal_model,
+                "build_frozen_text_embeddings",
+                lambda *args, **kwargs: pytest.fail("cache reuse re-encoded BERT"),
+            )
+            cached_arguments = list(arguments)
+            cached_arguments[cached_arguments.index("--output") + 1] = str(tmp_path / "cached")
+            cached_arguments.extend(["--text-cache-run", str(output)])
+            assert temporal(cached_arguments) == 0
+            assert cli.check_run(tmp_path / "cached")["status"] == "success"
+            np.testing.assert_array_equal(
+                np.load(tmp_path / "cached/run/text_embeddings.npy"), cache
+            )
     with pytest.raises(FileExistsError):
         temporal(arguments)
 
