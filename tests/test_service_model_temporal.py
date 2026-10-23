@@ -212,6 +212,46 @@ def test_global_prior_pools_normal_counts_once_and_ignores_test_masks():
         availability_prior_logits(state, prepared, ["test"], scope="unknown")
 
 
+def test_text_controls_keep_only_past_within_original_case_service_split():
+    prepared, _ = fixture()
+    vectors = np.arange(len(prepared.sample_ids) * 3, dtype=np.float32).reshape(-1, 3)
+    original = temporal_inputs(prepared, text_embeddings=vectors)
+    zero = temporal_inputs(prepared, text_embeddings=vectors, text_control="zero")
+    reverse = temporal_inputs(prepared, text_embeddings=vectors, text_control="reverse_past")
+    assert not zero["text_context"].any()
+    index = original["ids"].index("fit-003")
+    past = [original["ids"].index(sample_id) for sample_id in ["fit-002", "fit-001", "fit-000"]]
+    np.testing.assert_array_equal(reverse["text_context"][index, 1:], vectors[past])
+    np.testing.assert_array_equal(reverse["context"], original["context"])
+    assert reverse["history_ids"] == original["history_ids"]
+    assert reverse["text_control_summary"]["changed_windows"] > 0
+    changed = vectors.copy()
+    changed[index:] += 100000
+    other = temporal_inputs(prepared, text_embeddings=changed, text_control="reverse_past")
+    np.testing.assert_array_equal(reverse["text_context"][index], other["text_context"][index])
+    with pytest.raises(ValueError, match="requires"):
+        temporal_inputs(prepared, text_control="zero")
+    with pytest.raises(ValueError, match="control"):
+        temporal_inputs(prepared, text_embeddings=vectors, text_control="unknown")
+
+
+@pytest.mark.parametrize("control", ["zero", "reverse_past"])
+def test_text_control_config_training_and_scoring(control):
+    filename = "zero" if control == "zero" else "reverse"
+    config = json.loads(
+        Path(f"configs/service/tt_temporal_prior_bert_{filename}_gpu_b_v1.json").read_text()
+    )
+    validate_temporal_config(config)
+    prepared, _ = fixture()
+    vectors = np.arange(len(prepared.sample_ids) * 3, dtype=np.float32).reshape(-1, 3)
+    inputs = temporal_inputs(prepared, text_embeddings=vectors, text_control=control)
+    config["training"].update(device="cpu", epochs=2, hidden_dim=4)
+    model, history = train_temporal(prepared, inputs, config["training"])
+    scores = score_temporal(model, inputs, ["test"])
+    assert len(history) == 2
+    assert np.isfinite(scores.score).all()
+
+
 def test_temporal_text_context_uses_only_past_cached_embeddings():
     prepared, config = fixture()
     cached = np.arange(len(prepared.sample_ids) * 3, dtype=np.float32).reshape(-1, 3)

@@ -25,7 +25,12 @@ def temporal_inputs(
     availability_prior=None,
     text_embeddings=None,
     availability_prior_scope="per_service",
+    text_control="actual",
 ):
+    if text_control not in {"actual", "zero", "reverse_past"}:
+        raise ValueError("Unsupported temporal text control")
+    if text_control != "actual" and text_embeddings is None:
+        raise ValueError("Temporal text control requires text embeddings")
     if type(context_windows) is not int or context_windows < 1:
         raise ValueError("Temporal context must have a positive integer length")
     ids = sorted(prepared.sample_ids)
@@ -104,6 +109,22 @@ def temporal_inputs(
                 text_context[index, context_windows - lag] = text_lookup[ids[previous]]
             history.append(ids[previous])
         history_ids[sample_id] = list(reversed(history))
+    text_control_summary = None
+    if text_context is not None:
+        original = text_context.copy()
+        eligible = (context[..., -1] > 0) & (context[..., -2] > 0)
+        if text_control == "zero":
+            text_context.fill(0)
+        elif text_control == "reverse_past":
+            for index in range(len(ids)):
+                positions = np.flatnonzero(eligible[index])
+                text_context[index, positions] = text_context[index, positions[::-1]].copy()
+        text_control_summary = dict(
+            mode=text_control,
+            total_windows=len(ids),
+            windows_with_two_available_logs=int((eligible.sum(1) >= 2).sum()),
+            changed_windows=int(np.any(original != text_context, axis=(1, 2)).sum()),
+        )
     return dict(
         ids=ids,
         identity=identity.reset_index(),
@@ -124,6 +145,7 @@ def temporal_inputs(
         availability_prior=availability_prior,
         text_context=text_context,
         text_embedding_dim=text_dim,
+        text_control_summary=text_control_summary,
     )
 
 

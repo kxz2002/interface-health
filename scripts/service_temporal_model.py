@@ -63,6 +63,8 @@ def validate_temporal_config(config):
         expected_keys.add("availability_prior")
     if bert_enabled:
         expected_keys.add("text_embedding")
+        if "text_control" in config:
+            expected_keys.add("text_control")
     if (
         not isinstance(config, dict)
         or set(config) != expected_keys
@@ -100,6 +102,7 @@ def validate_temporal_config(config):
         or config["window_ms"] != 15000
         or config["value_transform"] != "asinh_prepared_normal_fit_z"
         or config["score"] != "masked_value_mse_plus_modality_bce"
+        or config.get("text_control", "actual") not in {"actual", "zero", "reverse_past"}
         or config["training"]["checkpoint"] != "last"
         or config["training"]["device"] not in {"cpu", "cuda"}
         or config["isolation_forest"]
@@ -235,6 +238,7 @@ def main(argv=None):
         config["context_windows"],
         availability_prior=prior,
         text_embeddings=text_embeddings,
+        text_control=config.get("text_control", "actual"),
         availability_prior_scope=(
             "global"
             if config.get("availability_prior", {}).get("source") == "normal_fit_global"
@@ -373,6 +377,7 @@ def main(argv=None):
                     dict(
                         text_embeddings=recorder.output / "run/text_embeddings.npy",
                         text_embedding_metadata=text_metadata,
+                        text_control_summary=inputs["text_control_summary"],
                     )
                     if text_embeddings is not None
                     else {}
