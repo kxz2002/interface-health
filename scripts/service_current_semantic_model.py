@@ -57,11 +57,11 @@ def _config(path: Path) -> dict:
     return value
 
 
-def _load_embeddings(run: Path, prepared: Path, tables, config: dict) -> np.ndarray:
+def _load_embeddings(run: Path, prepared_path: Path, prepared, config: dict) -> np.ndarray:
     check_run(run)
     root = run.resolve()
     manifest = json.loads((root / "manifest.json").read_text())
-    if manifest["provenance"]["parents"].get("prepared") != _reference(prepared):
+    if manifest["provenance"]["parents"].get("prepared") != _reference(prepared_path):
         raise ValueError("Embedding cache prepared parent mismatch")
     if (
         json.loads((root / "run/config.json").read_text()).get("text_embedding")
