@@ -19,7 +19,12 @@ LOGGER = logging.getLogger(__name__)
 
 
 def temporal_inputs(
-    prepared, context_windows: int = 4, *, availability_prior=None, text_embeddings=None
+    prepared,
+    context_windows: int = 4,
+    *,
+    availability_prior=None,
+    text_embeddings=None,
+    availability_prior_scope="per_service",
 ):
     if type(context_windows) is not int or context_windows < 1:
         raise ValueError("Temporal context must have a positive integer length")
@@ -110,7 +115,9 @@ def temporal_inputs(
         history_ids=history_ids,
         feature_order=RESOURCE + EXECUTION + columns,
         prior_logits=(
-            availability_prior_logits(availability_prior, prepared, ids)
+            availability_prior_logits(
+                availability_prior, prepared, ids, scope=availability_prior_scope
+            )
             if availability_prior is not None
             else np.zeros((len(ids), 3), dtype=np.float32)
         ),

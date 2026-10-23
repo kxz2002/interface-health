@@ -24,9 +24,15 @@ Normal-only、整 Case 隔离、独立 Normal 校准、selected17、主评价 ID
 每轮保留假设、配置、commit、环境、时间、训练/校准/评价ID、checkpoint、分数、manifest和完整负向结果。小摘要入Git，大产物留远端。最终逐项核对用户八项交付。
 
 |阶段|状态|证据|
-|历史基线复核|进行中|九组status显示success；完整hash与父链仍待本轮复核|
-|第一轮机制消融|待执行|无先验现有配置已确认；全局先验尚未实现|
+|历史基线复核|已完成|九组check_run递归通过，声明产物分别13/15/15项；fit/cal/test/main ID与版本、prepared父引用一致|
+|第一轮机制消融|进行中|无先验seed42完成、其他seed已启动；全局先验已实现，正在验证|
 |第二轮BERT消融|待执行|扰动语义与测试尚未实现|
 |后续优化与终审|待执行|按Normal证据及停止条件决定|
 
 之前重复询问路线选择没有推进实验；本协议按用户授权自主执行，不再把同一设计选择作为等待确认事项。
+
+## 本轮核验记录
+
+九组运行名沿用历史文档：`temporal-multiseed-a7e7794-gru-seed{1,2,42}-20261023-a`、`temporal-bert-bf5fdfd-gru-seed{1,2,42}-20261023-a`、`temporal-bert-tuned-a89bd1f-gru-seed{1,2,42}-20261023-a`，均位于gpu-b原仓库outputs/service。正式指标来自evaluation/report.json的main字段；完整测试12598、主集3297、校准2853。将fit IDs、排序test/cal/main IDs、versions、prepared父引用以sort_keys JSON组合后SHA256为`115dd3418cb648e7b5ac85ceb32908ba1ef269dd9d49dfec920c609fc6533871`，九组一致。临时校验脚本及日志：`/tmp/route_a_baseline_audit.py`、`/tmp/route_a_baseline_audit.log`；原始manifest和报告是长期证据。
+
+无先验新运行使用独立干净部署`~/Code/Repos/interface-health-runs/route-a-8bb258c`，HEAD为`8bb258c89b8ada0af6fd0a80dc9f60d8669fbadf`。输出`route-a-no-prior-8bb258c-seed{42,1,2}-20261023-a`，独立tracking为`route-a-20261023-mlflow.db`。seed42首次发布check_run通过12项声明产物，50轮训练18.99秒；其AUROC/AP复现历史无先验seed42的0.6269788991/0.4671827008。不据其Fault结果改变预定补齐另两seed的决定。

@@ -191,6 +191,27 @@ def test_temporal_service_prior_is_normal_only_and_survives_missing_context():
         availability_prior_logits(state, prepared, ["test"])
 
 
+def test_global_prior_pools_normal_counts_once_and_ignores_test_masks():
+    prepared, _ = fixture()
+    prepared.identity.loc[0:1, "canonical_service_id"] = "other"
+    for index in range(2):
+        prepared.logs["masks"][f"fit-{index:03}"] = False
+    state = fit_availability(prepared, prepared.lists.fit)
+    inputs = temporal_inputs(prepared, availability_prior=state, availability_prior_scope="global")
+    expected = np.array([np.log(7), np.log(7), np.log(5 / 3)], dtype=np.float32)
+    np.testing.assert_allclose(inputs["prior_logits"], np.tile(expected, (8, 1)), rtol=1e-6)
+    prepared.logs["masks"]["test"] = False
+    np.testing.assert_allclose(
+        availability_prior_logits(state, prepared, ["test"], scope="global")[0], expected
+    )
+    broken = copy.deepcopy(state)
+    broken["counts"]["other"][0] += 1
+    with pytest.raises(ValueError, match="count mismatch"):
+        availability_prior_logits(broken, prepared, ["test"], scope="global")
+    with pytest.raises(ValueError, match="scope"):
+        availability_prior_logits(state, prepared, ["test"], scope="unknown")
+
+
 def test_temporal_text_context_uses_only_past_cached_embeddings():
     prepared, config = fixture()
     cached = np.arange(len(prepared.sample_ids) * 3, dtype=np.float32).reshape(-1, 3)

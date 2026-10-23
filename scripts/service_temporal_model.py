@@ -91,7 +91,10 @@ def validate_temporal_config(config):
         or (
             prior_enabled
             and config["availability_prior"]
-            != dict(source="normal_fit_per_service", smoothing=1.0, integration="logit_offset")
+            not in [
+                dict(source=source, smoothing=1.0, integration="logit_offset")
+                for source in ["normal_fit_per_service", "normal_fit_global"]
+            ]
         )
         or config["context_windows"] != 4
         or config["window_ms"] != 15000
@@ -232,6 +235,11 @@ def main(argv=None):
         config["context_windows"],
         availability_prior=prior,
         text_embeddings=text_embeddings,
+        availability_prior_scope=(
+            "global"
+            if config.get("availability_prior", {}).get("source") == "normal_fit_global"
+            else "per_service"
+        ),
     )
     indices = _fit_indices(prepared, inputs)
     lookup = {sample_id: index for index, sample_id in enumerate(inputs["ids"])}
