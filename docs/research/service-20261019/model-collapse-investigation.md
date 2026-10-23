@@ -717,3 +717,38 @@ checkpoint 回放、冻结离线编码和三种方法的缓存发布。
 gpu-b 既有环境的 BERT CUDA 前向 witness 为 `(1, 3, 256)`，全部有限值；
 PyTorch 2.7.1+cu126、Transformers 4.57.1、RTX 4090 D。
 未安装或升级依赖；全项目测试尚在执行，不能将相关测试通过表述成全项目通过。
+
+### 方案 A 三 seed 实测与验收
+
+源码提交 `bf5fdfd` 已推送，gpu-b 独立目录
+`~/Code/Repos/interface-health-runs/temporal-bert-bf5fdfd` HEAD 一致且 clean。
+输出为 `outputs/service/temporal-bert-bf5fdfd-gru-seed{1,2,42}-20261023-a`。
+三个 run 均成功，分别通过 15 项声明产物检查；主 3297、校准 2853、
+完整测试评分 IDs、版本和 prepared 父引用与原先验 GRU 一致，覆盖无缺失。
+三次独立编码的 `(50575, 256)` 缓存 SHA256 完全相同：
+`a0b989621eeca45a8be2f18da8978a1fa0791a194f1ba181dadae47f8eb30ade`。
+
+|冻结 BERT + 先验 GRU|AUROC|AP|q99 TP/FP/FN/TN|MLflow|
+|---|---:|---:|---|---|
+|seed1|0.8076098776|0.6718793231|226/44/219/2808|377d2e7f7be9466fa7d04c02dda2540e|
+|seed2|0.8127062420|0.6593991033|217/33/228/2819|7852f04eca654cb08b39faace47fd638|
+|seed42|0.8193902958|0.6697817652|221/35/224/2817|b3a4055d99f24b7cbe2dae8b05c593f0|
+|三 seed 均值|0.8132354718|0.6670200639|不合并窗口冒充独立重复|—|
+
+原先验 GRU 均值为 0.8239703001/0.6800605901，方案 A 下降约
+0.01073 AUROC 和 0.01304 AP，三个 seed 的 AUROC 都下降。
+seed42 的 AP 微增不能抵消总体未改善的结果。保留 BERT 分支作为消融，
+不宣称多模态语义输入已带来性能增益，也不按这些 Fault 指标改权重或阈值。
+q99 下 CPU 检出分别 14/39、6/39、8/39；DISKIO 为 1/38、0/38、2/38，
+POOL 和 DNS 三次均为 0；NETLOSS、HTTPABORT、KILL 全部检出，
+TRANSACTION 三次均为 137/138。主要盲区尚未解决。
+
+seed42 完整进程 wall time 182 秒，其中 BERT 编码 96.320 秒、
+50 轮纯训练 18.42 秒，fit 阶段 18.989 秒；并行补跑的 seed1/2 编码各约
+136.51/136.93 秒、fit 各 21.261/21.189 秒，不能据此比较单任务吞吐。
+训练层包括语义投影、GRU 和输出头，BERT 本身始终冻结。
+
+最终 Service 范围回归为 `475 passed in 224.02s`；相关两文件为 55 passed。
+全项目测试在旧 `test_e2e_deviation_weighted_selfref_smoke.py` 附近长期无进展，
+本轮已中断，不能称全项目通过；没有修改这些历史 Endpoint 流程。
+上述结果仍是已见测试集上的探索性对照，不是新盲测或创新性证明。
