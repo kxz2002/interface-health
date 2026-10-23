@@ -27,7 +27,7 @@ Normal-only、整 Case 隔离、独立 Normal 校准、selected17、主评价 ID
 |历史基线复核|已完成|九组check_run递归通过，声明产物分别13/15/15项；fit/cal/test/main ID与版本、prepared父引用一致|
 |第一轮机制消融|三seed均已完成并核验|无先验和全局先验各seed1/2/42均已发布，统一身份校验通过|
 |第二轮BERT消融|三seed均已完成并核验|zero与reverse_past各三seed已发布，统一身份校验通过|
-|后续优化与终审|停止扩大搜索，整理交付|两轮未改善；既有Normal留出显示增加epoch退步，最终分析见route-a-final-analysis.md|
+|后续优化与终审|停止扩大搜索，终审完成|两轮未改善；Normal诊断、分组报告、history与21组复核已完成，最终组合回归66项通过；见route-a-final-analysis.md|
 
 之前重复询问路线选择没有推进实验；本协议按用户授权自主执行，不再把同一设计选择作为等待确认事项。
 
