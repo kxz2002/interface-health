@@ -98,7 +98,7 @@ def validate_temporal_config(config):
                 for source in ["normal_fit_per_service", "normal_fit_global"]
             ]
         )
-        or config["context_windows"] != 4
+        or config["context_windows"] not in {4, 8}
         or config["window_ms"] != 15000
         or config["value_transform"] != "asinh_prepared_normal_fit_z"
         or config["score"] != "masked_value_mse_plus_modality_bce"
