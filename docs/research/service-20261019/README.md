@@ -1,5 +1,6 @@
 # Service研究交接 — 2026-10-19
 
+- [路线A最终分析](route-a-final-analysis.md)：两轮机制消融及21组统一复核，保留原先验GRU；BERT保留为负向消融，按停止规则结束扩大搜索。附[逐seed/分Case/服务表](route-a-result-tables.md)、[小型结果摘要](route-a-results.json)及[Normal诊断](route-a-normal-diagnostic.json)。
 - [两条 GRU 路线运行说明](temporal-model-running.md)：原先验 GRU 与可选冻结 BERT 共存、配置选择及产物保留。
 - [Normal-only 调参结果](temporal-tuning-protocol-20261023.md)：12 候选及选定配置三 seed 复核，未超过无 BERT 模型。
 - [服务先验 GRU 查新](service-prior-gru-novelty-20261023.md)：谨慎推进，说明最近邻、可辩护差异与必要消融。
