@@ -1,0 +1,62 @@
+# 路线 A：机制消融与有界迭代
+
+基点：PR #37 合入 commit `bd3e441`。用户目标为当前先验 GRU 与可选冻结 BERT 的证据驱动探索，完整交付包括统一三 seed 表、消融、分服务/故障/误差分量诊断、BERT结论和后续建议。
+
+## 执行与选择边界
+
+使用 `exp/service-model-improvement` 独立 worktree。所有数据实验在 gpu-b 运行，按明确 commit 部署至独立目录，使用新 run_id；原始数据和旧运行只读。原无 BERT 模型是固定锚点，三 seed 为 1、2、42。
+
+Normal-only、整 Case 隔离、独立 Normal 校准、selected17、主评价 ID 和 Unknown 规则不变。已查看过 Fault 测试，所有结果只能称探索性结果。Fault 分组结果用于解释已冻结方法，不能据其选择下一轮特征、权重、超参数或 seed。
+
+单 seed 阶段仅验证实现、有限损失、身份和产物完整性；通过后预定消融全部扩展三 seed，不按 seed42 Fault AP 决定是否扩展。优化候选仅依据原 outer fit 内整 Normal Case 留出验证，内层重拟合全部预处理。Normal 验证损失改善不保证异常检测改善。
+
+## 预定顺序
+
+1. 复核九个历史运行：无 BERT、默认 BERT、调参 BERT各三 seed；校验声明文件大小/hash、prepared父链、fit/cal/test/main ID、数据版本及正式 main 指标。
+2. 第一轮机制消融：无服务先验 GRU 与全局 Normal 可用率先验 GRU。前者已有独立配置；后者需明确配置语义和测试。保持其他结构、50轮末轮、优化器和评分一致。先 seed42 验收，再全部三 seed。与固定服务先验锚点比较，回答服务条件参考是否有贡献。
+3. 第二轮 BERT 消融：同参数结构的零语义、打乱语义两个对照。打乱规则只允许同 Case/Service/split 的过去历史，不能向窗口引入未来内容；采用可复现的历史位置打乱，长度不足时保留。先检查实际可打乱比例，避免把无效扰动称有效消融。Normal 验证决定是否值得开展新的融合优化。
+4. 第三轮最多两个有机制依据的优化候选，以 Normal 验证诊断选择历史长度或残差/目标方案。若前两轮没有稳定改善，则按用户停止条件结束扩大搜索，整理负向发现；不为满足轮数硬跑。
+
+三 seed报告AUROC/AP均值、样本标准差、逐seed值、q99正常误报率/召回、分服务和分故障覆盖。单类分组AUROC/AP不作完整二分类性能解释。分量报告value MSE、availability BCE；当前BERT只有输入增量，没有独立语义评分分量。
+
+## 验收与状态
+
+每轮保留假设、配置、commit、环境、时间、训练/校准/评价ID、checkpoint、分数、manifest和完整负向结果。小摘要入Git，大产物留远端。最终逐项核对用户八项交付。
+
+|阶段|状态|证据|
+|历史基线复核|已完成|九组check_run递归通过，声明产物分别13/15/15项；fit/cal/test/main ID与版本、prepared父引用一致|
+|第一轮机制消融|三seed均已完成并核验|无先验和全局先验各seed1/2/42均已发布，统一身份校验通过|
+|第二轮BERT消融|三seed均已完成并核验|zero与reverse_past各三seed已发布，统一身份校验通过|
+|后续优化与终审|停止扩大搜索，终审完成|两轮未改善；Normal诊断、分组报告、history与21组复核已完成，最终组合回归66项通过；见route-a-final-analysis.md|
+
+之前重复询问路线选择没有推进实验；本协议按用户授权自主执行，不再把同一设计选择作为等待确认事项。
+
+## 本轮核验记录
+
+九组运行名沿用历史文档：`temporal-multiseed-a7e7794-gru-seed{1,2,42}-20261023-a`、`temporal-bert-bf5fdfd-gru-seed{1,2,42}-20261023-a`、`temporal-bert-tuned-a89bd1f-gru-seed{1,2,42}-20261023-a`，均位于gpu-b原仓库outputs/service。正式指标来自evaluation/report.json的main字段；完整测试12598、主集3297、校准2853。将fit IDs、排序test/cal/main IDs、versions、prepared父引用以sort_keys JSON组合后SHA256为`115dd3418cb648e7b5ac85ceb32908ba1ef269dd9d49dfec920c609fc6533871`，九组一致。临时校验脚本及日志：`/tmp/route_a_baseline_audit.py`、`/tmp/route_a_baseline_audit.log`；原始manifest和报告是长期证据。
+
+无先验新运行使用独立干净部署`~/Code/Repos/interface-health-runs/route-a-8bb258c`，HEAD为`8bb258c89b8ada0af6fd0a80dc9f60d8669fbadf`。输出`route-a-no-prior-8bb258c-seed{42,1,2}-20261023-a`，独立tracking为`route-a-20261023-mlflow.db`。seed42首次发布check_run通过12项声明产物，50轮训练18.99秒；其AUROC/AP复现历史无先验seed42的0.6269788991/0.4671827008。不据其Fault结果改变预定补齐另两seed的决定。
+
+### 消融实现与解释边界
+
+全局先验部署commit为`3ad36753f05e727998a5e20cf1a5833a35b7a5ff`，使用`tt_temporal_global_prior_gpu_b_v1.json`；仅汇总冻结Normal fit服务计数，对总计数做一次Beta(1,1)平滑。无先验、全局先验均已完成三seed。相关时序、可用性及smoke测试63项通过。
+
+文本控制部署commit为`a8e9e30d1bd676c4790e3c4b5d2b7314804e6220`，配置为`tt_temporal_prior_bert_zero_gpu_b_v1.json`和`tt_temporal_prior_bert_reverse_gpu_b_v1.json`。zero保留BERT投影和GRU参数结构，因此不能等同原无BERT模型；reverse_past仅逆序同Case/Service/split过去历史中的日志有效位置，数值历史不变，不是随机语义打乱。原始冻结BERT向量缓存可复用，控制施加在时序输入阶段。每次发布记录`text_control_summary`，最终分析需报告实际变化窗口数及多日志历史覆盖率，避免将无效扰动解释成语义无价值。
+
+文本控制的时序与BERT入口测试48项通过（12项未选中）；补充配置与训练评分检查后的时序测试28项通过。独立子代理源码审查未发现阻断性缺陷；该审查不代表远端运行或三seed结果已验收。原默认per_service和actual路径保留，未覆盖旧配置或checkpoint。
+
+### 统一结果初步回收
+
+`/tmp/route_a_collect.py`已在gpu-b完成21组运行的递归check_run及精确fit/cal/test/main ID、版本、prepared父引用比较。可维护脚本为`scripts/analyze_service_route_a.py`；完整临时摘要位于gpu-b `/tmp/route-a-comparison-20261023-a.json`，长期复现输入仍为各运行目录。下表为三seed均值±样本标准差，不是独立事件置信区间。
+
+|模型|AUROC|AP|
+|---|---|---|
+|原服务先验GRU|0.823970 ± 0.001862|0.680061 ± 0.010999|
+|默认BERT|0.813235 ± 0.005908|0.667020 ± 0.006683|
+|Normal调参BERT|0.812421 ± 0.001519|0.670064 ± 0.001516|
+|无先验|0.641188 ± 0.012886|0.481034 ± 0.012120|
+|全局先验|0.647154 ± 0.005047|0.488636 ± 0.018655|
+|BERT零输入|0.823583 ± 0.000380|0.674574 ± 0.006983|
+|BERT过去历史逆序|0.813585 ± 0.004974|0.666777 ± 0.006795|
+
+原先验GRU仍为当前最佳已验证模型。服务条件先验比无先验及全局先验明显更强；这不单独证明时序建模的贡献。BERT零输入更接近原模型，而逆序与实际历史输入接近；在检查扰动有效性、Normal诊断及分组误差前，不将其解释为所有语义路线无效。完整逐seed、分组分量报告与最终停止判断尚待整理。

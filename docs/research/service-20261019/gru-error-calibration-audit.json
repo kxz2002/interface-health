@@ -1,0 +1,2224 @@
+{
+  "audit_script_sha256": "b503a219f9600749e5bb6a3691d8e53ca55102abfbe931eaffd5a5b0d457876e",
+  "summary": {
+    "auroc": {
+      "mean": 0.8214678181025471,
+      "std": 0.007750328085350226,
+      "paired_delta": [
+        -0.0013016688466207516,
+        -0.008917061947460558,
+        0.002711284807034864
+      ]
+    },
+    "ap": {
+      "mean": 0.6886166751700301,
+      "std": 0.007582638365004693,
+      "paired_delta": [
+        0.005017455883611244,
+        -0.0006898080816710728,
+        0.021340607362736685
+      ]
+    }
+  },
+  "runs": [
+    {
+      "seed": 1,
+      "run_id": "gru-error-calibration-d9f84b3-seed1-20261024-a",
+      "commit": "d9f84b35c1a281207d98889297e1bf042e5b29d2",
+      "git_dirty": [],
+      "mlflow_run_id": "0e993585878c4b51b855df23bbc77e9c",
+      "state_sha256": "6daed4b21018787b11b7ebb6a3f7c9f2d7614e809c1b63ad769cf50e34752788",
+      "normal_reference_count": 2857,
+      "normal_preprocessor_hash": "acdff409ca8febef6bd7bd0919175ac0e4c8503c480f5996f3924cd7602297f2",
+      "auroc": 0.8233803993255274,
+      "ap": 0.6954819024092949,
+      "baseline_auroc": 0.8246820681721482,
+      "baseline_ap": 0.6904644465256836,
+      "classification_q99": {
+        "alert_count": 335,
+        "alert_rate": 0.10160752198968759,
+        "f1": 0.7230769230769231,
+        "fn": 163,
+        "fp": 53,
+        "negative_count": 2852,
+        "normal_alert_rate": 0.01858345021037868,
+        "positive_count": 445,
+        "precision": 0.8417910447761194,
+        "recall": 0.6337078651685393,
+        "tn": 2799,
+        "tp": 282
+      },
+      "baseline_classification_q99": {
+        "alert_count": 281,
+        "alert_rate": 0.08522899605702154,
+        "f1": 0.6914600550964187,
+        "fn": 194,
+        "fp": 30,
+        "negative_count": 2852,
+        "normal_alert_rate": 0.010518934081346423,
+        "positive_count": 445,
+        "precision": 0.8932384341637011,
+        "recall": 0.5640449438202247,
+        "tn": 2822,
+        "tp": 251
+      },
+      "groups": {
+        "by_case": {
+          "Lv_D_CONNECTION_POOL_exhaustion_20261017T102058Z_7b28ab23f0694e7f_em": {
+            "rows": 117,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.008547008547008548,
+              "f1": 0.01694915254237288,
+              "fn": 116,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 117,
+              "precision": 1.0,
+              "recall": 0.008547008547008548,
+              "tn": 0,
+              "tp": 1
+            }
+          },
+          "Lv_D_TRANSACTION_timeout_20261017T042021Z_3fe5039544954db2_em": {
+            "rows": 138,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 137,
+              "alert_rate": 0.9927536231884058,
+              "f1": 0.9963636363636363,
+              "fn": 1,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 138,
+              "precision": 1.0,
+              "recall": 0.9927536231884058,
+              "tn": 0,
+              "tp": 137
+            }
+          },
+          "Lv_P_CPU_preserve_20261017T154808Z_021eaa51bbcb4b60_em": {
+            "rows": 39,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 34,
+              "alert_rate": 0.8717948717948718,
+              "f1": 0.9315068493150684,
+              "fn": 5,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 39,
+              "precision": 1.0,
+              "recall": 0.8717948717948718,
+              "tn": 0,
+              "tp": 34
+            }
+          },
+          "Lv_P_DISKIO_preserve_20261018T013644Z_707c577ddacf4703_em": {
+            "rows": 38,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 36,
+              "alert_rate": 0.9473684210526315,
+              "f1": 0.972972972972973,
+              "fn": 2,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 38,
+              "precision": 1.0,
+              "recall": 0.9473684210526315,
+              "tn": 0,
+              "tp": 36
+            }
+          },
+          "Lv_P_NETLOSS_preserve_20261017T145542Z_8a5e5b4c67c64664_em": {
+            "rows": 34,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 34,
+              "alert_rate": 1.0,
+              "f1": 1.0,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 34,
+              "precision": 1.0,
+              "recall": 1.0,
+              "tn": 0,
+              "tp": 34
+            }
+          },
+          "Lv_S_DNSFAIL_preserve_no_order_20261018T140118Z_81f642e966444fe0_em": {
+            "rows": 39,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 0,
+              "alert_rate": 0.0,
+              "f1": 0.0,
+              "fn": 39,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 39,
+              "precision": null,
+              "recall": 0.0,
+              "tn": 0,
+              "tp": 0
+            }
+          },
+          "Lv_S_HTTPABORT_preserve_20261017T072058Z_daa34643ee434ee4_em": {
+            "rows": 34,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 34,
+              "alert_rate": 1.0,
+              "f1": 1.0,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 34,
+              "precision": 1.0,
+              "recall": 1.0,
+              "tn": 0,
+              "tp": 34
+            }
+          },
+          "Lv_S_KILLPOD_gateway_20261017T093533Z_94814e0f78844917_em": {
+            "rows": 1,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 1.0,
+              "f1": 1.0,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 1,
+              "precision": 1.0,
+              "recall": 1.0,
+              "tn": 0,
+              "tp": 1
+            }
+          },
+          "Lv_S_KILLPOD_order_20261018T144636Z_74933cf4bb0d48cc_em": {
+            "rows": 3,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 3,
+              "alert_rate": 1.0,
+              "f1": 1.0,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 3,
+              "precision": 1.0,
+              "recall": 1.0,
+              "tn": 0,
+              "tp": 3
+            }
+          },
+          "Lv_S_KILLPOD_preserve_20261018T022220Z_aa928eae7af646e3_em": {
+            "rows": 2,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 2,
+              "alert_rate": 1.0,
+              "f1": 1.0,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 2,
+              "precision": 1.0,
+              "recall": 1.0,
+              "tn": 0,
+              "tp": 2
+            }
+          },
+          "Normal_20261018T153211Z_e448a74ed7104ebd": {
+            "rows": 2852,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 53,
+              "alert_rate": 0.01858345021037868,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 53,
+              "negative_count": 2852,
+              "normal_alert_rate": 0.01858345021037868,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 2799,
+              "tp": 0
+            }
+          }
+        },
+        "by_service": {
+          "ts-assurance-service": {
+            "rows": 118,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 2,
+              "alert_rate": 0.01694915254237288,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 2,
+              "negative_count": 118,
+              "normal_alert_rate": 0.01694915254237288,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 116,
+              "tp": 0
+            }
+          },
+          "ts-auth-service": {
+            "rows": 105,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 5,
+              "alert_rate": 0.047619047619047616,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 5,
+              "negative_count": 105,
+              "normal_alert_rate": 0.047619047619047616,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 100,
+              "tp": 0
+            }
+          },
+          "ts-basic-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.008403361344537815,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 119,
+              "normal_alert_rate": 0.008403361344537815,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 118,
+              "tp": 0
+            }
+          },
+          "ts-cancel-service": {
+            "rows": 99,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.010101010101010102,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 99,
+              "normal_alert_rate": 0.010101010101010102,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 98,
+              "tp": 0
+            }
+          },
+          "ts-config-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 2,
+              "alert_rate": 0.01680672268907563,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 2,
+              "negative_count": 119,
+              "normal_alert_rate": 0.01680672268907563,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 117,
+              "tp": 0
+            }
+          },
+          "ts-contacts-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 0,
+              "alert_rate": 0.0,
+              "f1": null,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 119,
+              "normal_alert_rate": 0.0,
+              "positive_count": 0,
+              "precision": null,
+              "recall": null,
+              "tn": 119,
+              "tp": 0
+            }
+          },
+          "ts-execute-service": {
+            "rows": 95,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.010526315789473684,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 95,
+              "normal_alert_rate": 0.010526315789473684,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 94,
+              "tp": 0
+            }
+          },
+          "ts-gateway-service": {
+            "rows": 120,
+            "auroc": 1.0,
+            "ap": 1.0,
+            "classification_q99": {
+              "alert_count": 6,
+              "alert_rate": 0.05,
+              "f1": 0.2857142857142857,
+              "fn": 0,
+              "fp": 5,
+              "negative_count": 119,
+              "normal_alert_rate": 0.04201680672268908,
+              "positive_count": 1,
+              "precision": 0.16666666666666666,
+              "recall": 1.0,
+              "tn": 114,
+              "tp": 1
+            }
+          },
+          "ts-inside-payment-service": {
+            "rows": 118,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 3,
+              "alert_rate": 0.025423728813559324,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 3,
+              "negative_count": 118,
+              "normal_alert_rate": 0.025423728813559324,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 115,
+              "tp": 0
+            }
+          },
+          "ts-notification-service": {
+            "rows": 96,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 0,
+              "alert_rate": 0.0,
+              "f1": null,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 96,
+              "normal_alert_rate": 0.0,
+              "positive_count": 0,
+              "precision": null,
+              "recall": null,
+              "tn": 96,
+              "tp": 0
+            }
+          },
+          "ts-order-other-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 6,
+              "alert_rate": 0.05042016806722689,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 6,
+              "negative_count": 119,
+              "normal_alert_rate": 0.05042016806722689,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 113,
+              "tp": 0
+            }
+          },
+          "ts-order-service": {
+            "rows": 197,
+            "auroc": 0.6634346046110752,
+            "ap": 0.7259441904010479,
+            "classification_q99": {
+              "alert_count": 42,
+              "alert_rate": 0.2131979695431472,
+              "f1": 0.65,
+              "fn": 39,
+              "fp": 3,
+              "negative_count": 119,
+              "normal_alert_rate": 0.025210084033613446,
+              "positive_count": 78,
+              "precision": 0.9285714285714286,
+              "recall": 0.5,
+              "tn": 116,
+              "tp": 39
+            }
+          },
+          "ts-payment-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 3,
+              "alert_rate": 0.025210084033613446,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 3,
+              "negative_count": 119,
+              "normal_alert_rate": 0.025210084033613446,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 116,
+              "tp": 0
+            }
+          },
+          "ts-preserve-other-service": {
+            "rows": 98,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 0,
+              "alert_rate": 0.0,
+              "f1": null,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 98,
+              "normal_alert_rate": 0.0,
+              "positive_count": 0,
+              "precision": null,
+              "recall": null,
+              "tn": 98,
+              "tp": 0
+            }
+          },
+          "ts-preserve-service": {
+            "rows": 376,
+            "auroc": 0.7958996828303306,
+            "ap": 0.9221114866192989,
+            "classification_q99": {
+              "alert_count": 172,
+              "alert_rate": 0.4574468085106383,
+              "f1": 0.8018648018648019,
+              "fn": 85,
+              "fp": 0,
+              "negative_count": 119,
+              "normal_alert_rate": 0.0,
+              "positive_count": 257,
+              "precision": 1.0,
+              "recall": 0.669260700389105,
+              "tn": 119,
+              "tp": 172
+            }
+          },
+          "ts-price-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 3,
+              "alert_rate": 0.025210084033613446,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 3,
+              "negative_count": 119,
+              "normal_alert_rate": 0.025210084033613446,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 116,
+              "tp": 0
+            }
+          },
+          "ts-rebook-service": {
+            "rows": 101,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 0,
+              "alert_rate": 0.0,
+              "f1": null,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 101,
+              "normal_alert_rate": 0.0,
+              "positive_count": 0,
+              "precision": null,
+              "recall": null,
+              "tn": 101,
+              "tp": 0
+            }
+          },
+          "ts-route-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 2,
+              "alert_rate": 0.01680672268907563,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 2,
+              "negative_count": 119,
+              "normal_alert_rate": 0.01680672268907563,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 117,
+              "tp": 0
+            }
+          },
+          "ts-seat-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.008403361344537815,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 119,
+              "normal_alert_rate": 0.008403361344537815,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 118,
+              "tp": 0
+            }
+          },
+          "ts-security-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 2,
+              "alert_rate": 0.01680672268907563,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 2,
+              "negative_count": 119,
+              "normal_alert_rate": 0.01680672268907563,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 117,
+              "tp": 0
+            }
+          },
+          "ts-station-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 6,
+              "alert_rate": 0.05042016806722689,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 6,
+              "negative_count": 119,
+              "normal_alert_rate": 0.05042016806722689,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 113,
+              "tp": 0
+            }
+          },
+          "ts-train-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.008403361344537815,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 119,
+              "normal_alert_rate": 0.008403361344537815,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 118,
+              "tp": 0
+            }
+          },
+          "ts-travel-service": {
+            "rows": 156,
+            "auroc": 0.997047467635703,
+            "ap": 0.9888663828231932,
+            "classification_q99": {
+              "alert_count": 40,
+              "alert_rate": 0.2564102564102564,
+              "f1": 0.961038961038961,
+              "fn": 0,
+              "fp": 3,
+              "negative_count": 119,
+              "normal_alert_rate": 0.025210084033613446,
+              "positive_count": 37,
+              "precision": 0.925,
+              "recall": 1.0,
+              "tn": 116,
+              "tp": 37
+            }
+          },
+          "ts-travel2-service": {
+            "rows": 118,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.00847457627118644,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 118,
+              "normal_alert_rate": 0.00847457627118644,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 117,
+              "tp": 0
+            }
+          },
+          "ts-user-service": {
+            "rows": 191,
+            "auroc": 0.7054154995331465,
+            "ap": 0.6943901732302497,
+            "classification_q99": {
+              "alert_count": 35,
+              "alert_rate": 0.18324607329842932,
+              "f1": 0.616822429906542,
+              "fn": 39,
+              "fp": 2,
+              "negative_count": 119,
+              "normal_alert_rate": 0.01680672268907563,
+              "positive_count": 72,
+              "precision": 0.9428571428571428,
+              "recall": 0.4583333333333333,
+              "tn": 117,
+              "tp": 33
+            }
+          }
+        }
+      }
+    },
+    {
+      "seed": 2,
+      "run_id": "gru-error-calibration-d9f84b3-seed2-20261024-a",
+      "commit": "d9f84b35c1a281207d98889297e1bf042e5b29d2",
+      "git_dirty": [],
+      "mlflow_run_id": "d9045d11869448b3b21045b50aeff0ee",
+      "state_sha256": "d806a5e70f386f6ad4fc2576857c82d428c7289db95de79897220f29604a8c73",
+      "normal_reference_count": 2857,
+      "normal_preprocessor_hash": "acdff409ca8febef6bd7bd0919175ac0e4c8503c480f5996f3924cd7602297f2",
+      "auroc": 0.812940258757899,
+      "ap": 0.6804779064542089,
+      "baseline_auroc": 0.8218573207053596,
+      "baseline_ap": 0.68116771453588,
+      "classification_q99": {
+        "alert_count": 249,
+        "alert_rate": 0.07552320291173795,
+        "f1": 0.579250720461095,
+        "fn": 244,
+        "fp": 48,
+        "negative_count": 2852,
+        "normal_alert_rate": 0.016830294530154277,
+        "positive_count": 445,
+        "precision": 0.8072289156626506,
+        "recall": 0.451685393258427,
+        "tn": 2804,
+        "tp": 201
+      },
+      "baseline_classification_q99": {
+        "alert_count": 261,
+        "alert_rate": 0.0791628753412193,
+        "f1": 0.6430594900849859,
+        "fn": 218,
+        "fp": 34,
+        "negative_count": 2852,
+        "normal_alert_rate": 0.011921458625525946,
+        "positive_count": 445,
+        "precision": 0.8697318007662835,
+        "recall": 0.5101123595505618,
+        "tn": 2818,
+        "tp": 227
+      },
+      "groups": {
+        "by_case": {
+          "Lv_D_CONNECTION_POOL_exhaustion_20261017T102058Z_7b28ab23f0694e7f_em": {
+            "rows": 117,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.008547008547008548,
+              "f1": 0.01694915254237288,
+              "fn": 116,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 117,
+              "precision": 1.0,
+              "recall": 0.008547008547008548,
+              "tn": 0,
+              "tp": 1
+            }
+          },
+          "Lv_D_TRANSACTION_timeout_20261017T042021Z_3fe5039544954db2_em": {
+            "rows": 138,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 90,
+              "alert_rate": 0.6521739130434783,
+              "f1": 0.7894736842105263,
+              "fn": 48,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 138,
+              "precision": 1.0,
+              "recall": 0.6521739130434783,
+              "tn": 0,
+              "tp": 90
+            }
+          },
+          "Lv_P_CPU_preserve_20261017T154808Z_021eaa51bbcb4b60_em": {
+            "rows": 39,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 34,
+              "alert_rate": 0.8717948717948718,
+              "f1": 0.9315068493150684,
+              "fn": 5,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 39,
+              "precision": 1.0,
+              "recall": 0.8717948717948718,
+              "tn": 0,
+              "tp": 34
+            }
+          },
+          "Lv_P_DISKIO_preserve_20261018T013644Z_707c577ddacf4703_em": {
+            "rows": 38,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 35,
+              "alert_rate": 0.9210526315789473,
+              "f1": 0.958904109589041,
+              "fn": 3,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 38,
+              "precision": 1.0,
+              "recall": 0.9210526315789473,
+              "tn": 0,
+              "tp": 35
+            }
+          },
+          "Lv_P_NETLOSS_preserve_20261017T145542Z_8a5e5b4c67c64664_em": {
+            "rows": 34,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 34,
+              "alert_rate": 1.0,
+              "f1": 1.0,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 34,
+              "precision": 1.0,
+              "recall": 1.0,
+              "tn": 0,
+              "tp": 34
+            }
+          },
+          "Lv_S_DNSFAIL_preserve_no_order_20261018T140118Z_81f642e966444fe0_em": {
+            "rows": 39,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 0,
+              "alert_rate": 0.0,
+              "f1": 0.0,
+              "fn": 39,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 39,
+              "precision": null,
+              "recall": 0.0,
+              "tn": 0,
+              "tp": 0
+            }
+          },
+          "Lv_S_HTTPABORT_preserve_20261017T072058Z_daa34643ee434ee4_em": {
+            "rows": 34,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.029411764705882353,
+              "f1": 0.05714285714285714,
+              "fn": 33,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 34,
+              "precision": 1.0,
+              "recall": 0.029411764705882353,
+              "tn": 0,
+              "tp": 1
+            }
+          },
+          "Lv_S_KILLPOD_gateway_20261017T093533Z_94814e0f78844917_em": {
+            "rows": 1,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 1.0,
+              "f1": 1.0,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 1,
+              "precision": 1.0,
+              "recall": 1.0,
+              "tn": 0,
+              "tp": 1
+            }
+          },
+          "Lv_S_KILLPOD_order_20261018T144636Z_74933cf4bb0d48cc_em": {
+            "rows": 3,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 3,
+              "alert_rate": 1.0,
+              "f1": 1.0,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 3,
+              "precision": 1.0,
+              "recall": 1.0,
+              "tn": 0,
+              "tp": 3
+            }
+          },
+          "Lv_S_KILLPOD_preserve_20261018T022220Z_aa928eae7af646e3_em": {
+            "rows": 2,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 2,
+              "alert_rate": 1.0,
+              "f1": 1.0,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 2,
+              "precision": 1.0,
+              "recall": 1.0,
+              "tn": 0,
+              "tp": 2
+            }
+          },
+          "Normal_20261018T153211Z_e448a74ed7104ebd": {
+            "rows": 2852,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 48,
+              "alert_rate": 0.016830294530154277,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 48,
+              "negative_count": 2852,
+              "normal_alert_rate": 0.016830294530154277,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 2804,
+              "tp": 0
+            }
+          }
+        },
+        "by_service": {
+          "ts-assurance-service": {
+            "rows": 118,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 3,
+              "alert_rate": 0.025423728813559324,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 3,
+              "negative_count": 118,
+              "normal_alert_rate": 0.025423728813559324,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 115,
+              "tp": 0
+            }
+          },
+          "ts-auth-service": {
+            "rows": 105,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 2,
+              "alert_rate": 0.01904761904761905,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 2,
+              "negative_count": 105,
+              "normal_alert_rate": 0.01904761904761905,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 103,
+              "tp": 0
+            }
+          },
+          "ts-basic-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.008403361344537815,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 119,
+              "normal_alert_rate": 0.008403361344537815,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 118,
+              "tp": 0
+            }
+          },
+          "ts-cancel-service": {
+            "rows": 99,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 2,
+              "alert_rate": 0.020202020202020204,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 2,
+              "negative_count": 99,
+              "normal_alert_rate": 0.020202020202020204,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 97,
+              "tp": 0
+            }
+          },
+          "ts-config-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.008403361344537815,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 119,
+              "normal_alert_rate": 0.008403361344537815,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 118,
+              "tp": 0
+            }
+          },
+          "ts-contacts-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 0,
+              "alert_rate": 0.0,
+              "f1": null,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 119,
+              "normal_alert_rate": 0.0,
+              "positive_count": 0,
+              "precision": null,
+              "recall": null,
+              "tn": 119,
+              "tp": 0
+            }
+          },
+          "ts-execute-service": {
+            "rows": 95,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.010526315789473684,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 95,
+              "normal_alert_rate": 0.010526315789473684,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 94,
+              "tp": 0
+            }
+          },
+          "ts-gateway-service": {
+            "rows": 120,
+            "auroc": 1.0,
+            "ap": 1.0,
+            "classification_q99": {
+              "alert_count": 5,
+              "alert_rate": 0.041666666666666664,
+              "f1": 0.3333333333333333,
+              "fn": 0,
+              "fp": 4,
+              "negative_count": 119,
+              "normal_alert_rate": 0.03361344537815126,
+              "positive_count": 1,
+              "precision": 0.2,
+              "recall": 1.0,
+              "tn": 115,
+              "tp": 1
+            }
+          },
+          "ts-inside-payment-service": {
+            "rows": 118,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 5,
+              "alert_rate": 0.0423728813559322,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 5,
+              "negative_count": 118,
+              "normal_alert_rate": 0.0423728813559322,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 113,
+              "tp": 0
+            }
+          },
+          "ts-notification-service": {
+            "rows": 96,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 0,
+              "alert_rate": 0.0,
+              "f1": null,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 96,
+              "normal_alert_rate": 0.0,
+              "positive_count": 0,
+              "precision": null,
+              "recall": null,
+              "tn": 96,
+              "tp": 0
+            }
+          },
+          "ts-order-other-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 5,
+              "alert_rate": 0.04201680672268908,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 5,
+              "negative_count": 119,
+              "normal_alert_rate": 0.04201680672268908,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 114,
+              "tp": 0
+            }
+          },
+          "ts-order-service": {
+            "rows": 197,
+            "auroc": 0.6618185735832793,
+            "ap": 0.7245016603620985,
+            "classification_q99": {
+              "alert_count": 41,
+              "alert_rate": 0.20812182741116753,
+              "f1": 0.6554621848739496,
+              "fn": 39,
+              "fp": 2,
+              "negative_count": 119,
+              "normal_alert_rate": 0.01680672268907563,
+              "positive_count": 78,
+              "precision": 0.9512195121951219,
+              "recall": 0.5,
+              "tn": 117,
+              "tp": 39
+            }
+          },
+          "ts-payment-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 3,
+              "alert_rate": 0.025210084033613446,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 3,
+              "negative_count": 119,
+              "normal_alert_rate": 0.025210084033613446,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 116,
+              "tp": 0
+            }
+          },
+          "ts-preserve-other-service": {
+            "rows": 98,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 0,
+              "alert_rate": 0.0,
+              "f1": null,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 98,
+              "normal_alert_rate": 0.0,
+              "positive_count": 0,
+              "precision": null,
+              "recall": null,
+              "tn": 98,
+              "tp": 0
+            }
+          },
+          "ts-preserve-service": {
+            "rows": 376,
+            "auroc": 0.7958015891181376,
+            "ap": 0.9216217535175837,
+            "classification_q99": {
+              "alert_count": 112,
+              "alert_rate": 0.2978723404255319,
+              "f1": 0.6070460704607046,
+              "fn": 145,
+              "fp": 0,
+              "negative_count": 119,
+              "normal_alert_rate": 0.0,
+              "positive_count": 257,
+              "precision": 1.0,
+              "recall": 0.4357976653696498,
+              "tn": 119,
+              "tp": 112
+            }
+          },
+          "ts-price-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 3,
+              "alert_rate": 0.025210084033613446,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 3,
+              "negative_count": 119,
+              "normal_alert_rate": 0.025210084033613446,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 116,
+              "tp": 0
+            }
+          },
+          "ts-rebook-service": {
+            "rows": 101,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 0,
+              "alert_rate": 0.0,
+              "f1": null,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 101,
+              "normal_alert_rate": 0.0,
+              "positive_count": 0,
+              "precision": null,
+              "recall": null,
+              "tn": 101,
+              "tp": 0
+            }
+          },
+          "ts-route-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.008403361344537815,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 119,
+              "normal_alert_rate": 0.008403361344537815,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 118,
+              "tp": 0
+            }
+          },
+          "ts-seat-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.008403361344537815,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 119,
+              "normal_alert_rate": 0.008403361344537815,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 118,
+              "tp": 0
+            }
+          },
+          "ts-security-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 2,
+              "alert_rate": 0.01680672268907563,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 2,
+              "negative_count": 119,
+              "normal_alert_rate": 0.01680672268907563,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 117,
+              "tp": 0
+            }
+          },
+          "ts-station-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 3,
+              "alert_rate": 0.025210084033613446,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 3,
+              "negative_count": 119,
+              "normal_alert_rate": 0.025210084033613446,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 116,
+              "tp": 0
+            }
+          },
+          "ts-train-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.008403361344537815,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 119,
+              "normal_alert_rate": 0.008403361344537815,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 118,
+              "tp": 0
+            }
+          },
+          "ts-travel-service": {
+            "rows": 156,
+            "auroc": 0.9965932318873495,
+            "ap": 0.987550593349509,
+            "classification_q99": {
+              "alert_count": 42,
+              "alert_rate": 0.2692307692307692,
+              "f1": 0.9367088607594937,
+              "fn": 0,
+              "fp": 5,
+              "negative_count": 119,
+              "normal_alert_rate": 0.04201680672268908,
+              "positive_count": 37,
+              "precision": 0.8809523809523809,
+              "recall": 1.0,
+              "tn": 114,
+              "tp": 37
+            }
+          },
+          "ts-travel2-service": {
+            "rows": 118,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.00847457627118644,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 118,
+              "normal_alert_rate": 0.00847457627118644,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 117,
+              "tp": 0
+            }
+          },
+          "ts-user-service": {
+            "rows": 191,
+            "auroc": 0.7166199813258637,
+            "ap": 0.683719414337504,
+            "classification_q99": {
+              "alert_count": 14,
+              "alert_rate": 0.07329842931937172,
+              "f1": 0.27906976744186046,
+              "fn": 60,
+              "fp": 2,
+              "negative_count": 119,
+              "normal_alert_rate": 0.01680672268907563,
+              "positive_count": 72,
+              "precision": 0.8571428571428571,
+              "recall": 0.16666666666666666,
+              "tn": 117,
+              "tp": 12
+            }
+          }
+        }
+      }
+    },
+    {
+      "seed": 42,
+      "run_id": "gru-error-calibration-d9f84b3-seed42-20261024-a",
+      "commit": "d9f84b35c1a281207d98889297e1bf042e5b29d2",
+      "git_dirty": [],
+      "mlflow_run_id": "4d8aec4d25824e5482dfda9934c24887",
+      "state_sha256": "f391a08b8eba8dd37022e11af762aca7dd4005ed9cb1c6e7714f4de22d33ec41",
+      "normal_reference_count": 2857,
+      "normal_preprocessor_hash": "acdff409ca8febef6bd7bd0919175ac0e4c8503c480f5996f3924cd7602297f2",
+      "auroc": 0.828082796224215,
+      "ap": 0.6898902166465866,
+      "baseline_auroc": 0.8253715114171801,
+      "baseline_ap": 0.6685496092838499,
+      "classification_q99": {
+        "alert_count": 249,
+        "alert_rate": 0.07552320291173795,
+        "f1": 0.5878962536023055,
+        "fn": 241,
+        "fp": 45,
+        "negative_count": 2852,
+        "normal_alert_rate": 0.015778401122019635,
+        "positive_count": 445,
+        "precision": 0.8192771084337349,
+        "recall": 0.4584269662921348,
+        "tn": 2807,
+        "tp": 204
+      },
+      "baseline_classification_q99": {
+        "alert_count": 262,
+        "alert_rate": 0.0794661813770094,
+        "f1": 0.6223479490806223,
+        "fn": 225,
+        "fp": 42,
+        "negative_count": 2852,
+        "normal_alert_rate": 0.014726507713884993,
+        "positive_count": 445,
+        "precision": 0.8396946564885496,
+        "recall": 0.4943820224719101,
+        "tn": 2810,
+        "tp": 220
+      },
+      "groups": {
+        "by_case": {
+          "Lv_D_CONNECTION_POOL_exhaustion_20261017T102058Z_7b28ab23f0694e7f_em": {
+            "rows": 117,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.008547008547008548,
+              "f1": 0.01694915254237288,
+              "fn": 116,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 117,
+              "precision": 1.0,
+              "recall": 0.008547008547008548,
+              "tn": 0,
+              "tp": 1
+            }
+          },
+          "Lv_D_TRANSACTION_timeout_20261017T042021Z_3fe5039544954db2_em": {
+            "rows": 138,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 91,
+              "alert_rate": 0.6594202898550725,
+              "f1": 0.7947598253275109,
+              "fn": 47,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 138,
+              "precision": 1.0,
+              "recall": 0.6594202898550725,
+              "tn": 0,
+              "tp": 91
+            }
+          },
+          "Lv_P_CPU_preserve_20261017T154808Z_021eaa51bbcb4b60_em": {
+            "rows": 39,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 34,
+              "alert_rate": 0.8717948717948718,
+              "f1": 0.9315068493150684,
+              "fn": 5,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 39,
+              "precision": 1.0,
+              "recall": 0.8717948717948718,
+              "tn": 0,
+              "tp": 34
+            }
+          },
+          "Lv_P_DISKIO_preserve_20261018T013644Z_707c577ddacf4703_em": {
+            "rows": 38,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 36,
+              "alert_rate": 0.9473684210526315,
+              "f1": 0.972972972972973,
+              "fn": 2,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 38,
+              "precision": 1.0,
+              "recall": 0.9473684210526315,
+              "tn": 0,
+              "tp": 36
+            }
+          },
+          "Lv_P_NETLOSS_preserve_20261017T145542Z_8a5e5b4c67c64664_em": {
+            "rows": 34,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 34,
+              "alert_rate": 1.0,
+              "f1": 1.0,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 34,
+              "precision": 1.0,
+              "recall": 1.0,
+              "tn": 0,
+              "tp": 34
+            }
+          },
+          "Lv_S_DNSFAIL_preserve_no_order_20261018T140118Z_81f642e966444fe0_em": {
+            "rows": 39,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 0,
+              "alert_rate": 0.0,
+              "f1": 0.0,
+              "fn": 39,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 39,
+              "precision": null,
+              "recall": 0.0,
+              "tn": 0,
+              "tp": 0
+            }
+          },
+          "Lv_S_HTTPABORT_preserve_20261017T072058Z_daa34643ee434ee4_em": {
+            "rows": 34,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 2,
+              "alert_rate": 0.058823529411764705,
+              "f1": 0.1111111111111111,
+              "fn": 32,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 34,
+              "precision": 1.0,
+              "recall": 0.058823529411764705,
+              "tn": 0,
+              "tp": 2
+            }
+          },
+          "Lv_S_KILLPOD_gateway_20261017T093533Z_94814e0f78844917_em": {
+            "rows": 1,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 1.0,
+              "f1": 1.0,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 1,
+              "precision": 1.0,
+              "recall": 1.0,
+              "tn": 0,
+              "tp": 1
+            }
+          },
+          "Lv_S_KILLPOD_order_20261018T144636Z_74933cf4bb0d48cc_em": {
+            "rows": 3,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 3,
+              "alert_rate": 1.0,
+              "f1": 1.0,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 3,
+              "precision": 1.0,
+              "recall": 1.0,
+              "tn": 0,
+              "tp": 3
+            }
+          },
+          "Lv_S_KILLPOD_preserve_20261018T022220Z_aa928eae7af646e3_em": {
+            "rows": 2,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 2,
+              "alert_rate": 1.0,
+              "f1": 1.0,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 0,
+              "normal_alert_rate": null,
+              "positive_count": 2,
+              "precision": 1.0,
+              "recall": 1.0,
+              "tn": 0,
+              "tp": 2
+            }
+          },
+          "Normal_20261018T153211Z_e448a74ed7104ebd": {
+            "rows": 2852,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 45,
+              "alert_rate": 0.015778401122019635,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 45,
+              "negative_count": 2852,
+              "normal_alert_rate": 0.015778401122019635,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 2807,
+              "tp": 0
+            }
+          }
+        },
+        "by_service": {
+          "ts-assurance-service": {
+            "rows": 118,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 3,
+              "alert_rate": 0.025423728813559324,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 3,
+              "negative_count": 118,
+              "normal_alert_rate": 0.025423728813559324,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 115,
+              "tp": 0
+            }
+          },
+          "ts-auth-service": {
+            "rows": 105,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 3,
+              "alert_rate": 0.02857142857142857,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 3,
+              "negative_count": 105,
+              "normal_alert_rate": 0.02857142857142857,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 102,
+              "tp": 0
+            }
+          },
+          "ts-basic-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.008403361344537815,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 119,
+              "normal_alert_rate": 0.008403361344537815,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 118,
+              "tp": 0
+            }
+          },
+          "ts-cancel-service": {
+            "rows": 99,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.010101010101010102,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 99,
+              "normal_alert_rate": 0.010101010101010102,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 98,
+              "tp": 0
+            }
+          },
+          "ts-config-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 2,
+              "alert_rate": 0.01680672268907563,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 2,
+              "negative_count": 119,
+              "normal_alert_rate": 0.01680672268907563,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 117,
+              "tp": 0
+            }
+          },
+          "ts-contacts-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 0,
+              "alert_rate": 0.0,
+              "f1": null,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 119,
+              "normal_alert_rate": 0.0,
+              "positive_count": 0,
+              "precision": null,
+              "recall": null,
+              "tn": 119,
+              "tp": 0
+            }
+          },
+          "ts-execute-service": {
+            "rows": 95,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.010526315789473684,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 95,
+              "normal_alert_rate": 0.010526315789473684,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 94,
+              "tp": 0
+            }
+          },
+          "ts-gateway-service": {
+            "rows": 120,
+            "auroc": 1.0,
+            "ap": 1.0,
+            "classification_q99": {
+              "alert_count": 5,
+              "alert_rate": 0.041666666666666664,
+              "f1": 0.3333333333333333,
+              "fn": 0,
+              "fp": 4,
+              "negative_count": 119,
+              "normal_alert_rate": 0.03361344537815126,
+              "positive_count": 1,
+              "precision": 0.2,
+              "recall": 1.0,
+              "tn": 115,
+              "tp": 1
+            }
+          },
+          "ts-inside-payment-service": {
+            "rows": 118,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 4,
+              "alert_rate": 0.03389830508474576,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 4,
+              "negative_count": 118,
+              "normal_alert_rate": 0.03389830508474576,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 114,
+              "tp": 0
+            }
+          },
+          "ts-notification-service": {
+            "rows": 96,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 0,
+              "alert_rate": 0.0,
+              "f1": null,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 96,
+              "normal_alert_rate": 0.0,
+              "positive_count": 0,
+              "precision": null,
+              "recall": null,
+              "tn": 96,
+              "tp": 0
+            }
+          },
+          "ts-order-other-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 5,
+              "alert_rate": 0.04201680672268908,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 5,
+              "negative_count": 119,
+              "normal_alert_rate": 0.04201680672268908,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 114,
+              "tp": 0
+            }
+          },
+          "ts-order-service": {
+            "rows": 197,
+            "auroc": 0.6414565826330532,
+            "ap": 0.7165769925990583,
+            "classification_q99": {
+              "alert_count": 40,
+              "alert_rate": 0.20304568527918782,
+              "f1": 0.6610169491525424,
+              "fn": 39,
+              "fp": 1,
+              "negative_count": 119,
+              "normal_alert_rate": 0.008403361344537815,
+              "positive_count": 78,
+              "precision": 0.975,
+              "recall": 0.5,
+              "tn": 118,
+              "tp": 39
+            }
+          },
+          "ts-payment-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 3,
+              "alert_rate": 0.025210084033613446,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 3,
+              "negative_count": 119,
+              "normal_alert_rate": 0.025210084033613446,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 116,
+              "tp": 0
+            }
+          },
+          "ts-preserve-other-service": {
+            "rows": 98,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 0,
+              "alert_rate": 0.0,
+              "f1": null,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 98,
+              "normal_alert_rate": 0.0,
+              "positive_count": 0,
+              "precision": null,
+              "recall": null,
+              "tn": 98,
+              "tp": 0
+            }
+          },
+          "ts-preserve-service": {
+            "rows": 376,
+            "auroc": 0.8011313474806265,
+            "ap": 0.9224888207372743,
+            "classification_q99": {
+              "alert_count": 115,
+              "alert_rate": 0.3058510638297872,
+              "f1": 0.6182795698924731,
+              "fn": 142,
+              "fp": 0,
+              "negative_count": 119,
+              "normal_alert_rate": 0.0,
+              "positive_count": 257,
+              "precision": 1.0,
+              "recall": 0.4474708171206226,
+              "tn": 119,
+              "tp": 115
+            }
+          },
+          "ts-price-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 3,
+              "alert_rate": 0.025210084033613446,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 3,
+              "negative_count": 119,
+              "normal_alert_rate": 0.025210084033613446,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 116,
+              "tp": 0
+            }
+          },
+          "ts-rebook-service": {
+            "rows": 101,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 0,
+              "alert_rate": 0.0,
+              "f1": null,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 101,
+              "normal_alert_rate": 0.0,
+              "positive_count": 0,
+              "precision": null,
+              "recall": null,
+              "tn": 101,
+              "tp": 0
+            }
+          },
+          "ts-route-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.008403361344537815,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 119,
+              "normal_alert_rate": 0.008403361344537815,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 118,
+              "tp": 0
+            }
+          },
+          "ts-seat-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 0,
+              "alert_rate": 0.0,
+              "f1": null,
+              "fn": 0,
+              "fp": 0,
+              "negative_count": 119,
+              "normal_alert_rate": 0.0,
+              "positive_count": 0,
+              "precision": null,
+              "recall": null,
+              "tn": 119,
+              "tp": 0
+            }
+          },
+          "ts-security-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 2,
+              "alert_rate": 0.01680672268907563,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 2,
+              "negative_count": 119,
+              "normal_alert_rate": 0.01680672268907563,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 117,
+              "tp": 0
+            }
+          },
+          "ts-station-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 4,
+              "alert_rate": 0.03361344537815126,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 4,
+              "negative_count": 119,
+              "normal_alert_rate": 0.03361344537815126,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 115,
+              "tp": 0
+            }
+          },
+          "ts-train-service": {
+            "rows": 119,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 2,
+              "alert_rate": 0.01680672268907563,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 2,
+              "negative_count": 119,
+              "normal_alert_rate": 0.01680672268907563,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 117,
+              "tp": 0
+            }
+          },
+          "ts-travel-service": {
+            "rows": 156,
+            "auroc": 0.9968203497615262,
+            "ap": 0.9881916189905346,
+            "classification_q99": {
+              "alert_count": 39,
+              "alert_rate": 0.25,
+              "f1": 0.9736842105263158,
+              "fn": 0,
+              "fp": 2,
+              "negative_count": 119,
+              "normal_alert_rate": 0.01680672268907563,
+              "positive_count": 37,
+              "precision": 0.9487179487179487,
+              "recall": 1.0,
+              "tn": 117,
+              "tp": 37
+            }
+          },
+          "ts-travel2-service": {
+            "rows": 118,
+            "auroc": null,
+            "ap": null,
+            "classification_q99": {
+              "alert_count": 1,
+              "alert_rate": 0.00847457627118644,
+              "f1": 0.0,
+              "fn": 0,
+              "fp": 1,
+              "negative_count": 118,
+              "normal_alert_rate": 0.00847457627118644,
+              "positive_count": 0,
+              "precision": 0.0,
+              "recall": null,
+              "tn": 117,
+              "tp": 0
+            }
+          },
+          "ts-user-service": {
+            "rows": 191,
+            "auroc": 0.7327264239028946,
+            "ap": 0.6972878550827762,
+            "classification_q99": {
+              "alert_count": 14,
+              "alert_rate": 0.07329842931937172,
+              "f1": 0.27906976744186046,
+              "fn": 60,
+              "fp": 2,
+              "negative_count": 119,
+              "normal_alert_rate": 0.01680672268907563,
+              "positive_count": 72,
+              "precision": 0.8571428571428571,
+              "recall": 0.16666666666666666,
+              "tn": 117,
+              "tp": 12
+            }
+          }
+        }
+      }
+    }
+  ],
+  "paired_metric_gate": false,
+  "exploratory": true,
+  "protocol_check": "same fit/cal/test/main IDs and versions; original scores and availability reproduced; held-out reference excludes outer cal/test"
+}

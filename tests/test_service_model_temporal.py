@@ -12,6 +12,7 @@ from src.service.modeling.availability import availability_prior_logits, fit_ava
 from src.service.modeling.temporal import (
     TemporalPredictor,
     lag_features,
+    latest_observed_values,
     score_temporal,
     temporal_inputs,
     temporal_loss,
@@ -28,26 +29,84 @@ def fixture():
     return prepared, config
 
 
-def test_temporal_context_is_past_only_and_lag_if_has_identical_information():
-    prepared, _ = fixture()
+def test_residual_reference_uses_only_latest_observed_valid_history():
+    context = torch.zeros(2, 4, 28)
+    context[0, 0, :2] = torch.tensor([2.0, 5.0])
+    context[0, 0, 12:14] = 1
+    context[0, 0, -1] = 1
+    context[0, 2, 0] = 3
+    context[0, 2, 12] = 1
+    context[0, 2, -1] = 1
+    context[0, 3, :12] = 999
+    context[0, 3, 12:24] = 1
+    reference = latest_observed_values(context)
+    torch.testing.assert_close(reference[0, :2], torch.tensor([3.0, 5.0]))
+    assert torch.count_nonzero(reference[0, 2:]) == 0
+    assert torch.count_nonzero(reference[1]) == 0
+    model = TemporalPredictor(value_prediction="past_observed_residual")
+    with torch.no_grad():
+        for parameter in model.parameters():
+            parameter.zero_()
+    prior = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+    prediction, logits = model(context, prior)
+    torch.testing.assert_close(prediction, reference)
+    torch.testing.assert_close(logits, prior)
+
+
+@pytest.mark.parametrize("seed", [1, 2, 42])
+def test_residual_training_is_normal_only_and_checkpoint_roundtrips(seed):
+    torch.set_num_threads(1)
+    prepared, config = fixture()
+    settings = {**config["training"], "seed": seed, "value_prediction": "past_observed_residual"}
     inputs = temporal_inputs(prepared)
+    model, _ = train_temporal(prepared, inputs, settings)
+    changed = copy.deepcopy(prepared)
+    changed.numeric["values"].loc[6, "cpu_cores"] = 9999
+    repeat, _ = train_temporal(changed, temporal_inputs(changed), settings)
+    for name, parameter in model.state_dict().items():
+        assert torch.equal(parameter, repeat.state_dict()[name])
+    restored = TemporalPredictor(hidden_dim=4, value_prediction="past_observed_residual")
+    restored.load_state_dict(model.state_dict())
+    np.testing.assert_array_equal(
+        score_temporal(restored, inputs, {"test"}).score,
+        score_temporal(model, inputs, {"test"}).score,
+    )
+
+
+def test_residual_config_is_independent_and_old_default_is_absolute():
+    path = Path("configs/service/tt_temporal_prior_gru_residual_gpu_b_v1.json")
+    config = json.loads(path.read_text())
+    validate_temporal_config(config)
+    assert TemporalPredictor().value_prediction == "absolute"
+    config["schema_version"] = "service-temporal-prior-v1"
+    with pytest.raises(ValueError, match="configuration keys"):
+        validate_temporal_config(config)
+    with pytest.raises(ValueError, match="numeric/log-statistics"):
+        TemporalPredictor(text_dim=3, value_prediction="past_observed_residual")
+
+
+@pytest.mark.parametrize("length", [4, 8])
+def test_temporal_context_is_past_only_and_lag_if_has_identical_information(length):
+    prepared, _ = fixture()
+    inputs = temporal_inputs(prepared, length)
     assert inputs["history_ids"]["fit-003"] == ["fit-000", "fit-001", "fit-002"]
     assert inputs["history_ids"]["test"] == []
     assert inputs["history_ids"]["calibration"] == []
-    assert lag_features(inputs).shape == (8, 139)
+    assert lag_features(inputs).shape == (8, length * 28 + 27)
     changed = copy.deepcopy(prepared)
     changed.numeric["values"].loc[4, "cpu_cores"] = 9999
     changed.logs["masks"]["fit-004"] = False
-    other = temporal_inputs(changed)
+    other = temporal_inputs(changed, length)
     index = inputs["ids"].index("fit-003")
     np.testing.assert_array_equal(inputs["context"][index], other["context"][index])
     np.testing.assert_array_equal(inputs["values"][index], other["values"][index])
 
 
+@pytest.mark.parametrize("length", [4, 8])
 @pytest.mark.parametrize(
     "boundary", ["case_id", "canonical_service_id", "split", "gap", "unknown_fit"]
 )
-def test_temporal_context_stops_at_case_service_partition_gap_and_fit_exclusion(boundary):
+def test_temporal_context_stops_at_case_service_partition_gap_and_fit_exclusion(boundary, length):
     prepared, _ = fixture()
     if boundary in {"case_id", "canonical_service_id"}:
         prepared.identity.loc[2, boundary] = "other"
@@ -60,7 +119,7 @@ def test_temporal_context_stops_at_case_service_partition_gap_and_fit_exclusion(
             sample_id for sample_id in prepared.lists.fit if sample_id != "fit-002"
         )
         prepared.labels.loc[2, "label"] = None
-    inputs = temporal_inputs(prepared)
+    inputs = temporal_inputs(prepared, length)
     assert inputs["history_ids"]["fit-003"] == []
 
 
@@ -189,6 +248,67 @@ def test_temporal_service_prior_is_normal_only_and_survives_missing_context():
     prepared.identity.loc[6, "canonical_service_id"] = "unseen"
     with pytest.raises(ValueError, match="Missing service"):
         availability_prior_logits(state, prepared, ["test"])
+
+
+def test_global_prior_pools_normal_counts_once_and_ignores_test_masks():
+    prepared, _ = fixture()
+    prepared.identity.loc[0:1, "canonical_service_id"] = "other"
+    for index in range(2):
+        prepared.logs["masks"][f"fit-{index:03}"] = False
+    state = fit_availability(prepared, prepared.lists.fit)
+    inputs = temporal_inputs(prepared, availability_prior=state, availability_prior_scope="global")
+    expected = np.array([np.log(7), np.log(7), np.log(5 / 3)], dtype=np.float32)
+    np.testing.assert_allclose(inputs["prior_logits"], np.tile(expected, (8, 1)), rtol=1e-6)
+    prepared.logs["masks"]["test"] = False
+    np.testing.assert_allclose(
+        availability_prior_logits(state, prepared, ["test"], scope="global")[0], expected
+    )
+    broken = copy.deepcopy(state)
+    broken["counts"]["other"][0] += 1
+    with pytest.raises(ValueError, match="count mismatch"):
+        availability_prior_logits(broken, prepared, ["test"], scope="global")
+    with pytest.raises(ValueError, match="scope"):
+        availability_prior_logits(state, prepared, ["test"], scope="unknown")
+
+
+def test_text_controls_keep_only_past_within_original_case_service_split():
+    prepared, _ = fixture()
+    vectors = np.arange(len(prepared.sample_ids) * 3, dtype=np.float32).reshape(-1, 3)
+    original = temporal_inputs(prepared, text_embeddings=vectors)
+    zero = temporal_inputs(prepared, text_embeddings=vectors, text_control="zero")
+    reverse = temporal_inputs(prepared, text_embeddings=vectors, text_control="reverse_past")
+    assert not zero["text_context"].any()
+    index = original["ids"].index("fit-003")
+    past = [original["ids"].index(sample_id) for sample_id in ["fit-002", "fit-001", "fit-000"]]
+    np.testing.assert_array_equal(reverse["text_context"][index, 1:], vectors[past])
+    np.testing.assert_array_equal(reverse["context"], original["context"])
+    assert reverse["history_ids"] == original["history_ids"]
+    assert reverse["text_control_summary"]["changed_windows"] > 0
+    changed = vectors.copy()
+    changed[index:] += 100000
+    other = temporal_inputs(prepared, text_embeddings=changed, text_control="reverse_past")
+    np.testing.assert_array_equal(reverse["text_context"][index], other["text_context"][index])
+    with pytest.raises(ValueError, match="requires"):
+        temporal_inputs(prepared, text_control="zero")
+    with pytest.raises(ValueError, match="control"):
+        temporal_inputs(prepared, text_embeddings=vectors, text_control="unknown")
+
+
+@pytest.mark.parametrize("control", ["zero", "reverse_past"])
+def test_text_control_config_training_and_scoring(control):
+    filename = "zero" if control == "zero" else "reverse"
+    config = json.loads(
+        Path(f"configs/service/tt_temporal_prior_bert_{filename}_gpu_b_v1.json").read_text()
+    )
+    validate_temporal_config(config)
+    prepared, _ = fixture()
+    vectors = np.arange(len(prepared.sample_ids) * 3, dtype=np.float32).reshape(-1, 3)
+    inputs = temporal_inputs(prepared, text_embeddings=vectors, text_control=control)
+    config["training"].update(device="cpu", epochs=2, hidden_dim=4)
+    model, history = train_temporal(prepared, inputs, config["training"])
+    scores = score_temporal(model, inputs, ["test"])
+    assert len(history) == 2
+    assert np.isfinite(scores.score).all()
 
 
 def test_temporal_text_context_uses_only_past_cached_embeddings():

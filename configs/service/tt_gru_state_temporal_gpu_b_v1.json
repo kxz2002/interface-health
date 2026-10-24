@@ -1,0 +1,10 @@
+{
+  "schema_version": "service-gru-state-temporal-v1",
+  "minimum_count": 32,
+  "state_scale_floor": 0.05,
+  "state_reference": "normal_fit_service_median_mad",
+  "fusion_reference": "latest_outer_fit_normal_case_heldout",
+  "score": "robust_reference_max_state_and_original_gru",
+  "device": "cuda",
+  "quantiles": [0.95, 0.975, 0.99, 0.995]
+}

@@ -157,7 +157,7 @@ def test_normal_fit_tail_fusion_end_to_end(tmp_path, offline, value_method):
 
 
 @pytest.mark.parametrize("method", ["gru", "lag_IF", "service_lag_IF"])
-@pytest.mark.parametrize("with_prior", [False, True, "bert"])
+@pytest.mark.parametrize("with_prior", [False, True, "bert", "global"])
 def test_temporal_model_end_to_end(tmp_path, offline, method, with_prior, monkeypatch):
     from scripts.service_temporal_model import main as temporal
 
@@ -196,6 +196,8 @@ def test_temporal_model_end_to_end(tmp_path, offline, method, with_prior, monkey
         )
     )
     config = json.loads((Path("configs/service") / config_name).read_text())
+    if with_prior == "global":
+        config["availability_prior"]["source"] = "normal_fit_global"
     config["training"].update(device="cpu", epochs=2)
     if with_prior == "bert":
         from scripts import service_temporal_model

@@ -1,5 +1,13 @@
 # Service研究交接 — 2026-10-19
 
+- [模型探索阶段收尾](model-exploration-closeout.md)：本分支完整结果表、保留原GRU的依据、各报告入口、gpu-b旧目录差异及最终隔离副本同步说明。
+
+- [原GRU四方向独立验证](gru-four-directions-results.md)：按[冻结协议](gru-four-directions-protocol.md)完成误差校准、状态融合、服务条件化及短长历史GRU各三seed。短长历史均值略升但seed不稳定，四方向均未达到稳定替代门槛，保留原GRU；实际checkpoint、字典、外层context及MLflow已核验。
+
+- [原GRU三个有界改进候选](gru-improvement-analysis.md)：8窗、hidden64、因果残差均完成三seed；Normal验证及750轮MLflow核对。残差改善Normal预测但损害检测，三个候选均未稳定整体胜出，保留原GRU。附[最终审计](gru-improvement-final-audit.json)。
+
+- [路线A最终分析](route-a-final-analysis.md)：两轮机制消融及21组统一复核，保留原先验GRU；BERT保留为负向消融，按停止规则结束扩大搜索。附[逐seed/分Case/服务表](route-a-result-tables.md)、[小型结果摘要](route-a-results.json)及[Normal诊断](route-a-normal-diagnostic.json)。
+- [当前窗口 BERT 语义评分](current-window-semantic-results.md)：独立语义-only与GRU融合均未超过原先验GRU，当前分支停止继续搜索。
 - [两条 GRU 路线运行说明](temporal-model-running.md)：原先验 GRU 与可选冻结 BERT 共存、配置选择及产物保留。
 - [Normal-only 调参结果](temporal-tuning-protocol-20261023.md)：12 候选及选定配置三 seed 复核，未超过无 BERT 模型。
 - [服务先验 GRU 查新](service-prior-gru-novelty-20261023.md)：谨慎推进，说明最近邻、可辩护差异与必要消融。

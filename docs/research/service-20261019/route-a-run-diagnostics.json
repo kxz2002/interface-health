@@ -1,0 +1,405 @@
+{
+  "identity_sha256": "115dd3418cb648e7b5ac85ceb32908ba1ef269dd9d49dfec920c609fc6533871",
+  "analysis_commit": "2d71a39ee52b97e5ac4e2ef56dd601432e30616f",
+  "runs": [
+    {
+      "run_id": "temporal-multiseed-a7e7794-gru-seed1-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.46372738915209605,
+        "last_loss": 0.3451400906916533,
+        "minimum_loss": 0.3451400906916533,
+        "elapsed_seconds": 16.776170467957854
+      },
+      "environment_sha256": "4292316adb01e6a536fb266e360e5040d46456bd693e3c758b10f17817435f6e",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "a7e77943084f67bc88bd87510ecf3b85cfa17bbe",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "temporal-multiseed-a7e7794-gru-seed2-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.47603027647670254,
+        "last_loss": 0.34534725314244824,
+        "minimum_loss": 0.34534725314244824,
+        "elapsed_seconds": 17.757907139137387
+      },
+      "environment_sha256": "4292316adb01e6a536fb266e360e5040d46456bd693e3c758b10f17817435f6e",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "a7e77943084f67bc88bd87510ecf3b85cfa17bbe",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "temporal-multiseed-a7e7794-gru-seed42-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.47389532494695347,
+        "last_loss": 0.3463486678190573,
+        "minimum_loss": 0.3463486678190573,
+        "elapsed_seconds": 18.786581257358193
+      },
+      "environment_sha256": "4292316adb01e6a536fb266e360e5040d46456bd693e3c758b10f17817435f6e",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "a7e77943084f67bc88bd87510ecf3b85cfa17bbe",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "temporal-bert-bf5fdfd-gru-seed1-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.47319613646746717,
+        "last_loss": 0.3343767819204432,
+        "minimum_loss": 0.3343767819204432,
+        "elapsed_seconds": 21.073988458141685
+      },
+      "environment_sha256": "6d28cffd405adc7ad9c08a73301f4fa72a105cb86787a3a64749ef34080c53c4",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "bf5fdfd63008421934f0eda667086f18f087cbd9",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "temporal-bert-bf5fdfd-gru-seed2-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.4705354793362134,
+        "last_loss": 0.3335071529254793,
+        "minimum_loss": 0.3335071529254793,
+        "elapsed_seconds": 20.9089148119092
+      },
+      "environment_sha256": "6d28cffd405adc7ad9c08a73301f4fa72a105cb86787a3a64749ef34080c53c4",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "bf5fdfd63008421934f0eda667086f18f087cbd9",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "temporal-bert-bf5fdfd-gru-seed42-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.46081088156177624,
+        "last_loss": 0.3339043691912927,
+        "minimum_loss": 0.3339043691912927,
+        "elapsed_seconds": 18.42005847208202
+      },
+      "environment_sha256": "6d28cffd405adc7ad9c08a73301f4fa72a105cb86787a3a64749ef34080c53c4",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "bf5fdfd63008421934f0eda667086f18f087cbd9",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "temporal-bert-tuned-a89bd1f-gru-seed1-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.49974439175381735,
+        "last_loss": 0.35795018713587984,
+        "minimum_loss": 0.35795018713587984,
+        "elapsed_seconds": 23.163823729380965
+      },
+      "environment_sha256": "e08c3af2c3b0c3f9fcb4bb3f62990124eeaee6a0655f124de45c6b298cfd05a9",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "a89bd1f3deec7e2c62d8c2e848a5f83af2954020",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "temporal-bert-tuned-a89bd1f-gru-seed2-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.4936284387633234,
+        "last_loss": 0.35552238766067273,
+        "minimum_loss": 0.35552238766067273,
+        "elapsed_seconds": 19.274704130366445
+      },
+      "environment_sha256": "e08c3af2c3b0c3f9fcb4bb3f62990124eeaee6a0655f124de45c6b298cfd05a9",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "a89bd1f3deec7e2c62d8c2e848a5f83af2954020",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "temporal-bert-tuned-a89bd1f-gru-seed42-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.48349331761609393,
+        "last_loss": 0.3538668852506494,
+        "minimum_loss": 0.3538668852506494,
+        "elapsed_seconds": 25.49867732450366
+      },
+      "environment_sha256": "e08c3af2c3b0c3f9fcb4bb3f62990124eeaee6a0655f124de45c6b298cfd05a9",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "a89bd1f3deec7e2c62d8c2e848a5f83af2954020",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "route-a-no-prior-8bb258c-seed1-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.8077557258451835,
+        "last_loss": 0.3948561161180909,
+        "minimum_loss": 0.3948561161180909,
+        "elapsed_seconds": 17.256113721057773
+      },
+      "environment_sha256": "e7b2c03f7167bf0c3c8915c586c32432a85bc7e5af4c514da7ef56bfbe05c794",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "8bb258c89b8ada0af6fd0a80dc9f60d8669fbadf",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "route-a-no-prior-8bb258c-seed2-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.849696119728171,
+        "last_loss": 0.3952601303793945,
+        "minimum_loss": 0.3952601303793945,
+        "elapsed_seconds": 18.596557397395372
+      },
+      "environment_sha256": "e7b2c03f7167bf0c3c8915c586c32432a85bc7e5af4c514da7ef56bfbe05c794",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "8bb258c89b8ada0af6fd0a80dc9f60d8669fbadf",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "route-a-no-prior-8bb258c-seed42-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.8097859121327519,
+        "last_loss": 0.3961494447069465,
+        "minimum_loss": 0.3961494447069465,
+        "elapsed_seconds": 18.988141272217035
+      },
+      "environment_sha256": "e7b2c03f7167bf0c3c8915c586c32432a85bc7e5af4c514da7ef56bfbe05c794",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "8bb258c89b8ada0af6fd0a80dc9f60d8669fbadf",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "route-a-global-prior-3ad3675-seed1-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.7480033467170241,
+        "last_loss": 0.39308005182537264,
+        "minimum_loss": 0.39308005182537264,
+        "elapsed_seconds": 19.101808147504926
+      },
+      "environment_sha256": "88c851399ae27fd65279232fd3517281dbcbe8bfb1f233b4fdaa0b8526f8617a",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "3ad36753f05e727998a5e20cf1a5833a35b7a5ff",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "route-a-global-prior-3ad3675-seed2-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.7884327532693444,
+        "last_loss": 0.39209670214893594,
+        "minimum_loss": 0.39209670214893594,
+        "elapsed_seconds": 17.193298852071166
+      },
+      "environment_sha256": "88c851399ae27fd65279232fd3517281dbcbe8bfb1f233b4fdaa0b8526f8617a",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "3ad36753f05e727998a5e20cf1a5833a35b7a5ff",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "route-a-global-prior-3ad3675-seed42-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.7474676059323312,
+        "last_loss": 0.39317521200341693,
+        "minimum_loss": 0.39317521200341693,
+        "elapsed_seconds": 19.01631037145853
+      },
+      "environment_sha256": "88c851399ae27fd65279232fd3517281dbcbe8bfb1f233b4fdaa0b8526f8617a",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "3ad36753f05e727998a5e20cf1a5833a35b7a5ff",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "route-a-bert-zero-a8e9e30-seed1-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.472803114775743,
+        "last_loss": 0.3452935891330923,
+        "minimum_loss": 0.3452935891330923,
+        "elapsed_seconds": 20.66028176061809
+      },
+      "environment_sha256": "6f5da9a39c63540fd6ce4cf88978fe6067a1ebf89b19d7ebec87caa49649fa04",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "a8e9e30d1bd676c4790e3c4b5d2b7314804e6220",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "route-a-bert-zero-a8e9e30-seed2-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.4702861543288135,
+        "last_loss": 0.34476524291895577,
+        "minimum_loss": 0.34476524291895577,
+        "elapsed_seconds": 21.40178983658552
+      },
+      "environment_sha256": "6f5da9a39c63540fd6ce4cf88978fe6067a1ebf89b19d7ebec87caa49649fa04",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "a8e9e30d1bd676c4790e3c4b5d2b7314804e6220",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "route-a-bert-zero-a8e9e30-seed42-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.4606691587849964,
+        "last_loss": 0.3437282701952043,
+        "minimum_loss": 0.3437282701952043,
+        "elapsed_seconds": 19.76333668269217
+      },
+      "environment_sha256": "6f5da9a39c63540fd6ce4cf88978fe6067a1ebf89b19d7ebec87caa49649fa04",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "a8e9e30d1bd676c4790e3c4b5d2b7314804e6220",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "route-a-bert-reverse-a8e9e30-seed1-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.4731678673024717,
+        "last_loss": 0.334216775906382,
+        "minimum_loss": 0.334216775906382,
+        "elapsed_seconds": 22.752737993374467
+      },
+      "environment_sha256": "6f5da9a39c63540fd6ce4cf88978fe6067a1ebf89b19d7ebec87caa49649fa04",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "a8e9e30d1bd676c4790e3c4b5d2b7314804e6220",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "route-a-bert-reverse-a8e9e30-seed2-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.470508701849698,
+        "last_loss": 0.3335641393240484,
+        "minimum_loss": 0.33356217430903773,
+        "elapsed_seconds": 21.994159502908587
+      },
+      "environment_sha256": "6f5da9a39c63540fd6ce4cf88978fe6067a1ebf89b19d7ebec87caa49649fa04",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "a8e9e30d1bd676c4790e3c4b5d2b7314804e6220",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    },
+    {
+      "run_id": "route-a-bert-reverse-a8e9e30-seed42-20261023-a",
+      "training_summary": {
+        "epochs": 50,
+        "first_loss": 0.46078757771977674,
+        "last_loss": 0.33372033052337324,
+        "minimum_loss": 0.33372033052337324,
+        "elapsed_seconds": 19.769259572029114
+      },
+      "environment_sha256": "6f5da9a39c63540fd6ce4cf88978fe6067a1ebf89b19d7ebec87caa49649fa04",
+      "environment": {
+        "cuda_available": true,
+        "cuda_version": "12.6",
+        "git_commit": "a8e9e30d1bd676c4790e3c4b5d2b7314804e6220",
+        "git_dirty": [],
+        "platform": "Linux-5.15.0-156-generic-x86_64-with-glibc2.39",
+        "python": "3.12.15 | packaged by Anaconda, Inc. | (main, Oct  1 2026, 20:20:25) [GCC 14.3.0]"
+      }
+    }
+  ]
+}
