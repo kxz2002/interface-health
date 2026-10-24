@@ -149,9 +149,30 @@ def temporal_inputs(
     )
 
 
+def latest_observed_values(context):
+    if context.ndim != 3 or context.shape[-1] != 28:
+        raise ValueError("Residual reference requires the fixed 28-field temporal context")
+    reference = context.new_zeros((context.shape[0], 12))
+    for position in range(context.shape[1]):
+        valid = (context[:, position, 12:24] > 0) & (context[:, position, -1:] > 0)
+        reference = torch.where(valid, context[:, position, :12], reference)
+    return reference
+
+
 class TemporalPredictor(nn.Module):
-    def __init__(self, input_dim: int = 28, hidden_dim: int = 32, text_dim: int = 0):
+    def __init__(
+        self,
+        input_dim: int = 28,
+        hidden_dim: int = 32,
+        text_dim: int = 0,
+        value_prediction: str = "absolute",
+    ):
         super().__init__()
+        if value_prediction not in {"absolute", "past_observed_residual"}:
+            raise ValueError("Unsupported temporal value prediction")
+        if value_prediction == "past_observed_residual" and (input_dim != 28 or text_dim):
+            raise ValueError("Residual candidate requires numeric/log-statistics context only")
+        self.value_prediction = value_prediction
         if type(text_dim) is not int or text_dim < 0:
             raise ValueError("Temporal text dimension must be a nonnegative integer")
         self.text_dim = text_dim
@@ -160,6 +181,11 @@ class TemporalPredictor(nn.Module):
         self.output = nn.Linear(hidden_dim, 15)
 
     def forward(self, context, prior_logits=None, text_context=None):
+        reference = (
+            latest_observed_values(context)
+            if self.value_prediction == "past_observed_residual"
+            else None
+        )
         if self.text_projection is not None:
             if (
                 text_context is None
@@ -181,7 +207,10 @@ class TemporalPredictor(nn.Module):
             if prior_logits.shape != logits.shape:
                 raise ValueError("Temporal prior logits must match batch and modalities")
             logits = logits + prior_logits
-        return result[:, :12], logits
+        prediction = result[:, :12]
+        if reference is not None:
+            prediction = prediction + reference
+        return prediction, logits
 
 
 def temporal_loss(prediction, logits, values, observed, availability):
@@ -214,7 +243,10 @@ def train_temporal(prepared, inputs, settings, progress=None):
     set_seed(settings["seed"])
     device = torch.device(settings["device"])
     model = TemporalPredictor(
-        inputs["context"].shape[-1], settings["hidden_dim"], inputs.get("text_embedding_dim", 0)
+        inputs["context"].shape[-1],
+        settings["hidden_dim"],
+        inputs.get("text_embedding_dim", 0),
+        value_prediction=settings.get("value_prediction", "absolute"),
     ).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=settings["lr"], weight_decay=settings["weight_decay"]

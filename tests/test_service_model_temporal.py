@@ -12,6 +12,7 @@ from src.service.modeling.availability import availability_prior_logits, fit_ava
 from src.service.modeling.temporal import (
     TemporalPredictor,
     lag_features,
+    latest_observed_values,
     score_temporal,
     temporal_inputs,
     temporal_loss,
@@ -26,6 +27,62 @@ def fixture():
     config = json.loads(Path("configs/service/tt_temporal_predictor_gpu_b_v1.json").read_text())
     config["training"].update(device="cpu", epochs=2, hidden_dim=4, batch_size=3)
     return prepared, config
+
+
+def test_residual_reference_uses_only_latest_observed_valid_history():
+    context = torch.zeros(2, 4, 28)
+    context[0, 0, :2] = torch.tensor([2.0, 5.0])
+    context[0, 0, 12:14] = 1
+    context[0, 0, -1] = 1
+    context[0, 2, 0] = 3
+    context[0, 2, 12] = 1
+    context[0, 2, -1] = 1
+    context[0, 3, :12] = 999
+    context[0, 3, 12:24] = 1
+    reference = latest_observed_values(context)
+    torch.testing.assert_close(reference[0, :2], torch.tensor([3.0, 5.0]))
+    assert torch.count_nonzero(reference[0, 2:]) == 0
+    assert torch.count_nonzero(reference[1]) == 0
+    model = TemporalPredictor(value_prediction="past_observed_residual")
+    with torch.no_grad():
+        for parameter in model.parameters():
+            parameter.zero_()
+    prior = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+    prediction, logits = model(context, prior)
+    torch.testing.assert_close(prediction, reference)
+    torch.testing.assert_close(logits, prior)
+
+
+@pytest.mark.parametrize("seed", [1, 2, 42])
+def test_residual_training_is_normal_only_and_checkpoint_roundtrips(seed):
+    torch.set_num_threads(1)
+    prepared, config = fixture()
+    settings = {**config["training"], "seed": seed, "value_prediction": "past_observed_residual"}
+    inputs = temporal_inputs(prepared)
+    model, _ = train_temporal(prepared, inputs, settings)
+    changed = copy.deepcopy(prepared)
+    changed.numeric["values"].loc[6, "cpu_cores"] = 9999
+    repeat, _ = train_temporal(changed, temporal_inputs(changed), settings)
+    for name, parameter in model.state_dict().items():
+        assert torch.equal(parameter, repeat.state_dict()[name])
+    restored = TemporalPredictor(hidden_dim=4, value_prediction="past_observed_residual")
+    restored.load_state_dict(model.state_dict())
+    np.testing.assert_array_equal(
+        score_temporal(restored, inputs, {"test"}).score,
+        score_temporal(model, inputs, {"test"}).score,
+    )
+
+
+def test_residual_config_is_independent_and_old_default_is_absolute():
+    path = Path("configs/service/tt_temporal_prior_gru_residual_gpu_b_v1.json")
+    config = json.loads(path.read_text())
+    validate_temporal_config(config)
+    assert TemporalPredictor().value_prediction == "absolute"
+    config["schema_version"] = "service-temporal-prior-v1"
+    with pytest.raises(ValueError, match="configuration keys"):
+        validate_temporal_config(config)
+    with pytest.raises(ValueError, match="numeric/log-statistics"):
+        TemporalPredictor(text_dim=3, value_prediction="past_observed_residual")
 
 
 @pytest.mark.parametrize("length", [4, 8])

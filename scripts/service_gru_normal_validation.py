@@ -26,6 +26,7 @@ def main(argv=None):
     for name in ["prepared", "preparation", "label-bundle", "output"]:
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--tracking-uri", required=True)
+    parser.add_argument("--residual-only", action="store_true")
     args = parser.parse_args(argv)
     if args.output.exists():
         raise FileExistsError(args.output)
@@ -34,6 +35,8 @@ def main(argv=None):
         "context8": "configs/service/tt_temporal_prior_gru_context8_gpu_b_v1.json",
         "hidden64": "configs/service/tt_temporal_prior_gru_hidden64_gpu_b_v1.json",
     }
+    if args.residual_only:
+        paths = {"residual": "configs/service/tt_temporal_prior_gru_residual_gpu_b_v1.json"}
     configs = {name: json.loads(Path(path).read_text()) for name, path in paths.items()}
     for config in configs.values():
         validate_temporal_config(config)
@@ -59,7 +62,15 @@ def main(argv=None):
             for seed in [1, 2, 42]:
                 settings = copy.deepcopy(config["training"])
                 settings["seed"] = seed
-                model, history = train_temporal(inner, inputs, settings)
+                model, history = train_temporal(
+                    inner,
+                    inputs,
+                    settings,
+                    progress=lambda record: recorder.log_epoch(
+                        {f"{name}_seed{seed}_fit_loss": record["mean_loss"]},
+                        step=record["epoch"],
+                    ),
+                )
                 scores = score_temporal(model, inputs, audit["validation_ids"])
                 checkpoint = recorder.output / f"run/{name}-seed{seed}.pt"
                 torch.save(

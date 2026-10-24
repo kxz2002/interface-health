@@ -54,6 +54,7 @@ def validate_temporal_config(config):
     prior_enabled = isinstance(config, dict) and config.get("schema_version") in {
         "service-temporal-prior-v1",
         "service-temporal-prior-bert-v1",
+        "service-temporal-prior-residual-v1",
     }
     bert_enabled = (
         isinstance(config, dict)
@@ -65,22 +66,28 @@ def validate_temporal_config(config):
         expected_keys.add("text_embedding")
         if "text_control" in config:
             expected_keys.add("text_control")
+    residual_enabled = (
+        isinstance(config, dict)
+        and config.get("schema_version") == "service-temporal-prior-residual-v1"
+    )
+    training_keys = {
+        "seed",
+        "device",
+        "hidden_dim",
+        "epochs",
+        "batch_size",
+        "lr",
+        "weight_decay",
+        "gradient_clip",
+        "checkpoint",
+    }
+    if residual_enabled:
+        training_keys.add("value_prediction")
     if (
         not isinstance(config, dict)
         or set(config) != expected_keys
         or not isinstance(config["training"], dict)
-        or set(config["training"])
-        != {
-            "seed",
-            "device",
-            "hidden_dim",
-            "epochs",
-            "batch_size",
-            "lr",
-            "weight_decay",
-            "gradient_clip",
-            "checkpoint",
-        }
+        or set(config["training"]) != training_keys
     ):
         raise ValueError("Incomplete or unknown temporal configuration keys")
     if (
@@ -89,6 +96,7 @@ def validate_temporal_config(config):
             "service-temporal-predictor-v1",
             "service-temporal-prior-v1",
             "service-temporal-prior-bert-v1",
+            "service-temporal-prior-residual-v1",
         }
         or (
             prior_enabled
@@ -108,6 +116,13 @@ def validate_temporal_config(config):
         or config["isolation_forest"]
         != dict(n_estimators=100, n_jobs=1, random_state=config["training"]["seed"])
         or config["quantiles"] != [0.95, 0.975, 0.99, 0.995]
+        or (
+            residual_enabled
+            and (
+                config["training"]["value_prediction"] != "past_observed_residual"
+                or config["context_windows"] != 4
+            )
+        )
         or (
             bert_enabled
             and config["text_embedding"]

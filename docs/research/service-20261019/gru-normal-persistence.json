@@ -1,0 +1,61 @@
+{
+  "selection_scope": "outer_fit_normal_only",
+  "preprocessor_hash": "acdff409ca8febef6bd7bd0919175ac0e4c8503c480f5996f3924cd7602297f2",
+  "validation_case": "Normal_20261018T030819Z_9adec05d73684fb6",
+  "persistence": {
+    "validation_count": 2857,
+    "value_loss": 0.4495219606340398,
+    "observed_without_history": 311,
+    "observed_cells": 26490,
+    "per_feature": {
+      "cpu_cores": {
+        "observed": 2455,
+        "mse": 0.7040022156631873
+      },
+      "memory_usage_ratio": {
+        "observed": 2455,
+        "mse": 0.10122351248249746
+      },
+      "process_count": {
+        "observed": 2455,
+        "mse": 8.535282197528768e-35
+      },
+      "observation_count": {
+        "observed": 2265,
+        "mse": 1.0353625569122518
+      },
+      "duration_mean_ms": {
+        "observed": 2265,
+        "mse": 0.6679379764245309
+      },
+      "duration_p95_ms": {
+        "observed": 2265,
+        "mse": 0.7171781224130794
+      },
+      "duration_max_ms": {
+        "observed": 2265,
+        "mse": 0.9866525679497793
+      },
+      "error_rate": {
+        "observed": 2265,
+        "mse": 0.0
+      },
+      "event_count": {
+        "observed": 1950,
+        "mse": 0.9854443359375
+      },
+      "matched_template_count": {
+        "observed": 1950,
+        "mse": 0.01654222146058694
+      },
+      "max_matched_fraction": {
+        "observed": 1950,
+        "mse": 0.47705729166666666
+      },
+      "unmatched_count": {
+        "observed": 1950,
+        "mse": 0.028830445118439504
+      }
+    }
+  }
+}
