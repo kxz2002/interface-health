@@ -9,6 +9,8 @@
 
 承接042结束后的新授权goal，独立实施服务×特征误差校准、正常状态与时序融合、服务条件化GRU、4/8窗双分支GRU。协议和实验结果分别保存在 `gru-four-directions-protocol.md` 与 `gru-four-directions-results.md`，原配置与产物保持独立。
 
+PR阶段收尾追加 `model-exploration-closeout.md`，统一串起history040–043的报告与结果；逐项比对gpu-b历史dirty目录，保留旧文件，使用最终隔离worktree承载本分支同步副本。不重复为同一迭代新建history条目。
+
 ## 关键决策
 
 - 四方向分别验证，不将上一方向设置叠加下一方向，不根据Fault评价反调参数。所有外层三seed预声明为1、2、42，不依单seed结果取消后续seed。

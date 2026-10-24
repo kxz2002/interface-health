@@ -1,5 +1,7 @@
 # Service研究交接 — 2026-10-19
 
+- [模型探索阶段收尾](model-exploration-closeout.md)：本分支完整结果表、保留原GRU的依据、各报告入口、gpu-b旧目录差异及最终隔离副本同步说明。
+
 - [原GRU四方向独立验证](gru-four-directions-results.md)：按[冻结协议](gru-four-directions-protocol.md)完成误差校准、状态融合、服务条件化及短长历史GRU各三seed。短长历史均值略升但seed不稳定，四方向均未达到稳定替代门槛，保留原GRU；实际checkpoint、字典、外层context及MLflow已核验。
 
 - [原GRU三个有界改进候选](gru-improvement-analysis.md)：8窗、hidden64、因果残差均完成三seed；Normal验证及750轮MLflow核对。残差改善Normal预测但损害检测，三个候选均未稳定整体胜出，保留原GRU。附[最终审计](gru-improvement-final-audit.json)。
