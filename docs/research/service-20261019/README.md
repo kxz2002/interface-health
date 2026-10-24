@@ -1,5 +1,7 @@
 # Service研究交接 — 2026-10-19
 
+- [原GRU四方向独立验证](gru-four-directions-results.md)：新的授权goal，按[冻结协议](gru-four-directions-protocol.md)执行误差校准、状态融合、服务条件化及短长历史GRU。前两方向已完成三seed且未稳定胜出，后两方向执行中。
+
 - [原GRU三个有界改进候选](gru-improvement-analysis.md)：8窗、hidden64、因果残差均完成三seed；Normal验证及750轮MLflow核对。残差改善Normal预测但损害检测，三个候选均未稳定整体胜出，保留原GRU。附[最终审计](gru-improvement-final-audit.json)。
 
 - [路线A最终分析](route-a-final-analysis.md)：两轮机制消融及21组统一复核，保留原先验GRU；BERT保留为负向消融，按停止规则结束扩大搜索。附[逐seed/分Case/服务表](route-a-result-tables.md)、[小型结果摘要](route-a-results.json)及[Normal诊断](route-a-normal-diagnostic.json)。

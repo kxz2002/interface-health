@@ -202,7 +202,11 @@ def audit(root, prefix, normal_run, candidate):
         )
         check_checkpoint(checkpoint, expected, fit, identity, inputs, seed=seed)
         run_config = json.loads((run / "run/config.json").read_text())
-        if run_config != checkpoint["config"]:
+        if run_config != {
+            **checkpoint["config"],
+            "tracking_uri": manifest["tracking_uri"],
+            "experiment_name": "service-model-infrastructure",
+        }:
             raise ValueError("Published configuration differs from its checkpoint")
         if manifest["provenance"]["parents"]["prepared"] != prepared_reference:
             raise ValueError("Inner and outer prepared bindings differ")
@@ -253,7 +257,13 @@ def audit(root, prefix, normal_run, candidate):
                 baseline_auroc=previous["main"]["auroc"],
                 baseline_ap=previous["main"]["ap"],
                 classification_q99=report["main"]["classification"]["0.99"],
-                groups={name: report["main"][name] for name in ["by_case", "by_service"]},
+                groups={
+                    scope: {
+                        name: {key: group[key] for key in ["rows", "auroc", "ap", "classification"]}
+                        for name, group in report["main"][scope].items()
+                    }
+                    for scope in ["by_case", "by_service"]
+                },
                 fit_summary=json.loads(artifact(run, manifest, "fit_summary").read_text()),
                 training_history=history,
             )
