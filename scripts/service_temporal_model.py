@@ -35,6 +35,7 @@ from src.service.modeling.temporal import (
     lag_features,
     score_temporal,
     temporal_inputs,
+    temporal_model_metadata,
     train_temporal,
 )
 from src.service.modeling.text_embeddings import build_frozen_text_embeddings
@@ -55,6 +56,8 @@ def validate_temporal_config(config):
         "service-temporal-prior-v1",
         "service-temporal-prior-bert-v1",
         "service-temporal-prior-residual-v1",
+        "service-temporal-prior-service-bias-v1",
+        "service-temporal-prior-short-long-v1",
     }
     bert_enabled = (
         isinstance(config, dict)
@@ -83,6 +86,16 @@ def validate_temporal_config(config):
     }
     if residual_enabled:
         training_keys.add("value_prediction")
+    architecture = (
+        {
+            "service-temporal-prior-service-bias-v1": "service_bias_gru",
+            "service-temporal-prior-short-long-v1": "short_long_gru",
+        }.get(config.get("schema_version"))
+        if isinstance(config, dict)
+        else None
+    )
+    if architecture:
+        training_keys.add("architecture")
     if (
         not isinstance(config, dict)
         or set(config) != expected_keys
@@ -97,6 +110,8 @@ def validate_temporal_config(config):
             "service-temporal-prior-v1",
             "service-temporal-prior-bert-v1",
             "service-temporal-prior-residual-v1",
+            "service-temporal-prior-service-bias-v1",
+            "service-temporal-prior-short-long-v1",
         }
         or (
             prior_enabled
@@ -116,6 +131,15 @@ def validate_temporal_config(config):
         or config["isolation_forest"]
         != dict(n_estimators=100, n_jobs=1, random_state=config["training"]["seed"])
         or config["quantiles"] != [0.95, 0.975, 0.99, 0.995]
+        or (
+            architecture
+            and (
+                config["training"]["architecture"] != architecture
+                or config["context_windows"] != (8 if architecture == "short_long_gru" else 4)
+                or config["training"]["hidden_dim"]
+                != (16 if architecture == "short_long_gru" else 32)
+            )
+        )
         or (
             residual_enabled
             and (
@@ -206,6 +230,8 @@ def main(argv=None):
         raise FileExistsError(args.output)
     config = json.loads(args.config.read_text())
     validate_temporal_config(config)
+    if "architecture" in config["training"] and args.method != "gru":
+        raise ValueError("Independent GRU architectures require method gru")
     if args.text_cache_run is not None and "text_embedding" not in config:
         raise ValueError("Text cache requires the BERT architecture")
     if args.seed is not None:
@@ -304,6 +330,7 @@ def main(argv=None):
                     model_state=model.state_dict(),
                     config=config,
                     fit_ids=sorted(prepared.lists.fit),
+                    architecture_metadata=temporal_model_metadata(model),
                     **(dict(availability_prior=prior) if prior is not None else {}),
                     **(
                         dict(text_embedding=config["text_embedding"])
@@ -407,6 +434,11 @@ def main(argv=None):
                     fit_windows=len(indices),
                     seed=config["training"]["seed"],
                     checkpoint="last",
+                    **(
+                        dict(architecture_metadata=temporal_model_metadata(model))
+                        if args.method == "gru"
+                        else {}
+                    ),
                     **(
                         dict(text_embedding_elapsed_seconds=text_embedding_elapsed)
                         if text_metadata is not None

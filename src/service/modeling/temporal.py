@@ -223,6 +223,120 @@ def temporal_loss(prediction, logits, values, observed, availability):
     return value_loss + availability_loss, value_loss, availability_loss
 
 
+class ServiceConditionedPredictor(TemporalPredictor):
+    def __init__(self, service_vocabulary, hidden_dim=32):
+        super().__init__(hidden_dim=hidden_dim)
+        self.service_vocabulary = list(service_vocabulary)
+        if self.service_vocabulary != sorted(set(self.service_vocabulary)):
+            raise ValueError("Service vocabulary must be sorted and unique")
+        self.service_bias = nn.Parameter(torch.zeros(len(self.service_vocabulary), 12))
+
+    def forward(self, context, prior_logits=None, text_context=None, service_indices=None):
+        prediction, logits = super().forward(context, prior_logits, text_context)
+        if service_indices is None or service_indices.shape != (len(context),):
+            raise ValueError("Service-conditioned predictor requires batch service indices")
+        known = service_indices >= 0
+        if known.any():
+            prediction = prediction.clone()
+            prediction[known] += self.service_bias[service_indices[known]]
+        return prediction, logits
+
+
+class ShortLongPredictor(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.short_recurrent = nn.GRU(28, 16, batch_first=True)
+        self.long_recurrent = nn.GRU(28, 16, batch_first=True)
+        self.output = nn.Linear(32, 15)
+
+    def forward(self, context, prior_logits=None, text_context=None):
+        if context.shape[1:] != (8, 28) or text_context is not None:
+            raise ValueError("Short-long predictor requires eight numeric history windows")
+        _, short = self.short_recurrent(context[:, -4:])
+        _, long = self.long_recurrent(context)
+        result = self.output(torch.cat([short[-1], long[-1]], dim=-1))
+        logits = result[:, 12:]
+        if prior_logits is not None:
+            if prior_logits.shape != logits.shape:
+                raise ValueError("Temporal prior logits must match batch and modalities")
+            logits = logits + prior_logits
+        return result[:, :12], logits
+
+
+def build_temporal_model(inputs, settings, service_vocabulary=None):
+    architecture = settings.get("architecture", "shared_gru")
+    if architecture == "service_bias_gru":
+        if service_vocabulary is None:
+            raise ValueError("Service-conditioned model requires a fit-only vocabulary")
+        return ServiceConditionedPredictor(service_vocabulary, settings["hidden_dim"])
+    if architecture == "short_long_gru":
+        if inputs["context"].shape[1:] != (8, 28) or settings["hidden_dim"] != 16:
+            raise ValueError("Short-long architecture requires eight windows and hidden16")
+        return ShortLongPredictor()
+    if architecture != "shared_gru":
+        raise ValueError("Unsupported temporal architecture")
+    return TemporalPredictor(
+        inputs["context"].shape[-1],
+        settings["hidden_dim"],
+        inputs.get("text_embedding_dim", 0),
+        value_prediction=settings.get("value_prediction", "absolute"),
+    )
+
+
+def temporal_model_metadata(model):
+    return dict(
+        architecture=(
+            "service_bias_gru"
+            if isinstance(model, ServiceConditionedPredictor)
+            else "short_long_gru" if isinstance(model, ShortLongPredictor) else "shared_gru"
+        ),
+        service_vocabulary=getattr(model, "service_vocabulary", []),
+        parameter_count=sum(parameter.numel() for parameter in model.parameters()),
+        service_bias_norm=(
+            float(model.service_bias.detach().norm().cpu())
+            if isinstance(model, ServiceConditionedPredictor)
+            else None
+        ),
+        service_bias_norms=(
+            dict(
+                zip(
+                    model.service_vocabulary, model.service_bias.detach().norm(dim=1).cpu().tolist()
+                )
+            )
+            if isinstance(model, ServiceConditionedPredictor)
+            else {}
+        ),
+    )
+
+
+def restore_temporal_model(checkpoint, inputs, device="cpu"):
+    settings = checkpoint.get("settings", checkpoint["config"]["training"])
+    metadata = checkpoint.get("architecture_metadata")
+    architecture = settings.get("architecture", "shared_gru")
+    if architecture != "shared_gru" and (
+        metadata is None or metadata.get("architecture") != architecture
+    ):
+        raise ValueError("Independent architecture checkpoint metadata mismatch")
+    model = build_temporal_model(
+        inputs, settings, metadata.get("service_vocabulary", []) if metadata else None
+    ).to(device)
+    model.load_state_dict(checkpoint["model_state"])
+    return model
+
+
+def _model_forward(model, inputs, tensors, selected):
+    extra = {}
+    if isinstance(model, ServiceConditionedPredictor):
+        lookup = {service: index for index, service in enumerate(model.service_vocabulary)}
+        services = inputs["identity"].canonical_service_id.astype(str).to_numpy()
+        extra["service_indices"] = torch.tensor(
+            [lookup.get(services[index], -1) for index in selected],
+            device=tensors["context"].device,
+            dtype=torch.long,
+        )
+    return model(tensors["context"], tensors["prior_logits"], tensors.get("text_context"), **extra)
+
+
 def _fit_indices(prepared, inputs):
     ids = sorted(prepared.lists.fit)
     labels = prepared.labels.set_index("sample_id").label.reindex(ids)
@@ -242,12 +356,8 @@ def train_temporal(prepared, inputs, settings, progress=None):
     indices = _fit_indices(prepared, inputs)
     set_seed(settings["seed"])
     device = torch.device(settings["device"])
-    model = TemporalPredictor(
-        inputs["context"].shape[-1],
-        settings["hidden_dim"],
-        inputs.get("text_embedding_dim", 0),
-        value_prediction=settings.get("value_prediction", "absolute"),
-    ).to(device)
+    vocabulary = sorted(set(inputs["identity"].iloc[indices].canonical_service_id.astype(str)))
+    model = build_temporal_model(inputs, settings, vocabulary).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=settings["lr"], weight_decay=settings["weight_decay"]
     )
@@ -265,10 +375,9 @@ def train_temporal(prepared, inputs, settings, progress=None):
         order = torch.randperm(len(indices), device=device)
         for start in range(0, len(order), settings["batch_size"]):
             selected = order[start : start + settings["batch_size"]]
-            prediction, logits = model(
-                tensors["context"][selected],
-                tensors["prior_logits"][selected],
-                tensors.get("text_context", None)[selected] if "text_context" in tensors else None,
+            batch = {name: tensor[selected] for name, tensor in tensors.items()}
+            prediction, logits = _model_forward(
+                model, inputs, batch, indices[selected.cpu().numpy()]
             )
             loss, _, _ = temporal_loss(
                 prediction,
@@ -323,9 +432,7 @@ def score_temporal(model, inputs, ids, batch_size=256):
                 tensors["text_context"] = torch.as_tensor(
                     inputs["text_context"][selected], device=device
                 )
-            prediction, logits = model(
-                tensors["context"], tensors["prior_logits"], tensors.get("text_context")
-            )
+            prediction, logits = _model_forward(model, inputs, tensors, selected)
             components = temporal_loss(
                 prediction, logits, tensors["values"], tensors["observed"], tensors["availability"]
             )
@@ -335,6 +442,10 @@ def score_temporal(model, inputs, ids, batch_size=256):
         raise ValueError("Nonfinite temporal scores")
     frame = inputs["identity"].set_index("sample_id").loc[ids].reset_index()
     frame[["score", "value_loss", "availability_loss"]] = scores
+    if isinstance(model, ServiceConditionedPredictor):
+        frame["service_conditioning_known"] = frame.canonical_service_id.astype(str).isin(
+            model.service_vocabulary
+        )
     return frame
 
 

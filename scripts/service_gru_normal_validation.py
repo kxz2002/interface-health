@@ -17,7 +17,12 @@ from scripts.service_model import LocalRuntime, _publish, _record, _reference, r
 from scripts.service_temporal_model import validate_temporal_config
 from src.service.modeling.availability import fit_availability
 from src.service.modeling.data import load_inputs
-from src.service.modeling.temporal import score_temporal, temporal_inputs, train_temporal
+from src.service.modeling.temporal import (
+    score_temporal,
+    temporal_inputs,
+    temporal_model_metadata,
+    train_temporal,
+)
 from src.service.modeling.temporal_tuning import prepare_inner
 
 
@@ -27,6 +32,7 @@ def main(argv=None):
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--tracking-uri", required=True)
     parser.add_argument("--residual-only", action="store_true")
+    parser.add_argument("--architecture", choices=["service_bias", "short_long"])
     args = parser.parse_args(argv)
     if args.output.exists():
         raise FileExistsError(args.output)
@@ -37,6 +43,12 @@ def main(argv=None):
     }
     if args.residual_only:
         paths = {"residual": "configs/service/tt_temporal_prior_gru_residual_gpu_b_v1.json"}
+    if args.architecture:
+        if args.residual_only:
+            raise ValueError("Choose one independent architecture")
+        paths = {
+            args.architecture: f"configs/service/tt_temporal_prior_gru_{args.architecture}_gpu_b_v1.json"
+        }
     configs = {name: json.loads(Path(path).read_text()) for name, path in paths.items()}
     for config in configs.values():
         validate_temporal_config(config)
@@ -79,6 +91,7 @@ def main(argv=None):
                         config=config,
                         settings=settings,
                         fit_ids=sorted(inner.lists.fit),
+                        architecture_metadata=temporal_model_metadata(model),
                         availability_prior=prior,
                     ),
                     checkpoint,
@@ -94,6 +107,12 @@ def main(argv=None):
                     validation_loss=float(scores.score.mean()),
                     value_loss=float(scores.value_loss.mean()),
                     availability_loss=float(scores.availability_loss.mean()),
+                    architecture_metadata=temporal_model_metadata(model),
+                    unknown_service_windows=(
+                        int((~scores.service_conditioning_known).sum())
+                        if "service_conditioning_known" in scores
+                        else 0
+                    ),
                     training_history=history,
                 )
                 results.append(row)
