@@ -26,11 +26,14 @@ def temporal_inputs(
     text_embeddings=None,
     availability_prior_scope="per_service",
     text_control="actual",
+    feature_mode="base",
 ):
     if text_control not in {"actual", "zero", "reverse_past"}:
         raise ValueError("Unsupported temporal text control")
     if text_control != "actual" and text_embeddings is None:
         raise ValueError("Temporal text control requires text embeddings")
+    if feature_mode not in {"base", "multiscale"}:
+        raise ValueError("Unsupported temporal feature mode")
     if type(context_windows) is not int or context_windows < 1:
         raise ValueError("Temporal context must have a positive integer length")
     ids = sorted(prepared.sample_ids)
@@ -90,6 +93,24 @@ def temporal_inputs(
     lookup = {key: index for index, key in enumerate(keys)}
     if len(lookup) != len(ids):
         raise ValueError("Duplicate temporal case/service/partition/window key")
+    if feature_mode == "multiscale":
+        deltas = np.zeros_like(values)
+        slopes = np.zeros_like(values)
+        for index, key in enumerate(keys):
+            previous = lookup.get((key[0], key[1], key[2], key[3] - 15000))
+            previous2 = lookup.get((key[0], key[1], key[2], key[3] - 30000))
+            if previous is not None:
+                valid = observed[index] & observed[previous]
+                deltas[index, :12] = np.where(
+                    valid[:12], values[index, :12] - values[previous, :12], 0
+                )
+                deltas[index, 12:] = np.where(
+                    valid[12:], values[index, 12:] - values[previous, 12:], 0
+                )
+            if previous is not None and previous2 is not None:
+                valid = observed[index] & observed[previous] & observed[previous2]
+                slopes[index] = np.where(valid, (values[index] - values[previous2]) / 2.0, 0)
+        features = np.concatenate([features, deltas, slopes], axis=1)
     fit_ids = set(prepared.lists.fit)
     context = np.zeros((len(ids), context_windows, features.shape[1] + 1), dtype=np.float32)
     text_context = (
@@ -263,6 +284,30 @@ class ShortLongPredictor(nn.Module):
         return result[:, :12], logits
 
 
+class GroupedPredictor(nn.Module):
+    def __init__(self, input_dim, hidden_dim=16):
+        super().__init__()
+        self.branches = nn.ModuleList(
+            [nn.GRU(input_dim, hidden_dim, batch_first=True) for _ in range(3)]
+        )
+        self.gate = nn.Sequential(nn.Linear(hidden_dim * 3, hidden_dim * 3), nn.Sigmoid())
+        self.output = nn.Linear(hidden_dim * 3, 15)
+
+    def forward(self, context, prior_logits=None, text_context=None):
+        if text_context is not None:
+            raise ValueError("Grouped predictor does not support text context")
+        states = []
+        for branch in self.branches:
+            _, hidden = branch(context)
+            states.append(hidden[-1])
+        joined = torch.cat(states, dim=-1)
+        result = self.output(joined * self.gate(joined))
+        logits = result[:, 12:]
+        if prior_logits is not None:
+            logits = logits + prior_logits
+        return result[:, :12], logits
+
+
 def build_temporal_model(inputs, settings, service_vocabulary=None):
     architecture = settings.get("architecture", "shared_gru")
     if architecture == "service_bias_gru":
@@ -273,6 +318,10 @@ def build_temporal_model(inputs, settings, service_vocabulary=None):
         if inputs["context"].shape[1:] != (8, 28) or settings["hidden_dim"] != 16:
             raise ValueError("Short-long architecture requires eight windows and hidden16")
         return ShortLongPredictor()
+    if architecture == "grouped_gru":
+        if inputs.get("text_embedding_dim", 0):
+            raise ValueError("Grouped predictor does not support text context")
+        return GroupedPredictor(inputs["context"].shape[-1], settings["hidden_dim"])
     if architecture != "shared_gru":
         raise ValueError("Unsupported temporal architecture")
     return TemporalPredictor(
@@ -288,7 +337,11 @@ def temporal_model_metadata(model):
         architecture=(
             "service_bias_gru"
             if isinstance(model, ServiceConditionedPredictor)
-            else "short_long_gru" if isinstance(model, ShortLongPredictor) else "shared_gru"
+            else (
+                "short_long_gru"
+                if isinstance(model, ShortLongPredictor)
+                else "grouped_gru" if isinstance(model, GroupedPredictor) else "shared_gru"
+            )
         ),
         service_vocabulary=getattr(model, "service_vocabulary", []),
         parameter_count=sum(parameter.numel() for parameter in model.parameters()),
