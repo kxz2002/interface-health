@@ -1,0 +1,124 @@
+{
+  "audit_script_sha256": "56a4cd5bbac805c2ffa2fa976d7b711dcedd74135fbef13a66978e1829d8fd5b",
+  "residual_normal_gate": {
+    "passed": true,
+    "deltas": [
+      {
+        "seed": 1,
+        "validation_loss": -0.22419953274911897,
+        "value_loss": -0.21944826646927135
+      },
+      {
+        "seed": 2,
+        "validation_loss": -0.14149381347896395,
+        "value_loss": -0.13480043035946881
+      },
+      {
+        "seed": 42,
+        "validation_loss": -0.19172858971059925,
+        "value_loss": -0.1850336113086754
+      }
+    ]
+  },
+  "normal_audit": {
+    "fit_cases": [
+      "Normal_20261017T020706Z_95064d21e8204018",
+      "Normal_20261017T110632Z_4c14d1c71d664ca9",
+      "Normal_20261017T115148Z_cc9a6da5e99a4263"
+    ],
+    "validation_case": "Normal_20261018T030819Z_9adec05d73684fb6",
+    "fit_count": 7291,
+    "validation_count": 2857,
+    "preprocessor_hash": "acdff409ca8febef6bd7bd0919175ac0e4c8503c480f5996f3924cd7602297f2",
+    "runs": [
+      {
+        "run_id": "gru-normal-validation-0e495c0-20261023-a",
+        "mlflow_run_id": "09fdee2775334d07abe6ed0382a49430",
+        "commit": "0e495c0f00d41d82ded6419007d6ad99f0e29417"
+      },
+      {
+        "run_id": "gru-normal-residual-50400a7-20261024-a",
+        "mlflow_run_id": "1286a7a5bf114f46aaee01ca1249fbf9",
+        "commit": "50400a7a7cb31e03a927fda9966c586f9c1300b8"
+      }
+    ]
+  },
+  "summary": {
+    "baseline": {
+      "auroc": {
+        "mean": 0.8239703000982294,
+        "std": 0.0018620806730776077,
+        "paired_delta": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "ap": {
+        "mean": 0.6800605901151379,
+        "std": 0.010999287076727678,
+        "paired_delta": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "validation_loss": {
+        "mean": 0.7975929976387071,
+        "std": 0.04852726987997947,
+        "paired_delta": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "value_loss": {
+        "mean": 0.6486063384005304,
+        "std": 0.04730608066023523,
+        "paired_delta": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "availability_loss": {
+        "mean": 0.14898665941197792,
+        "std": 0.0012346231650971326,
+        "paired_delta": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "residual": {
+      "validation_loss": {
+        "mean": 0.6117856856591464,
+        "std": 0.016322693376157108,
+        "paired_delta": [
+          -0.22419953274911897,
+          -0.14149381347896395,
+          -0.19172858971059925
+        ]
+      },
+      "value_loss": {
+        "mean": 0.4688455690213919,
+        "std": 0.01603304714036181,
+        "paired_delta": [
+          -0.21944826646927135,
+          -0.13480043035946881,
+          -0.1850336113086754
+        ]
+      },
+      "availability_loss": {
+        "mean": 0.14294011700808384,
+        "std": 0.0019946178897384376,
+        "paired_delta": [
+          -0.0047512663604357686,
+          -0.0066933827730606965,
+          -0.006694978078185726
+        ]
+      }
+    }
+  }
+}
