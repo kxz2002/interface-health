@@ -27,6 +27,12 @@ from src.service.modeling.availability import fit_availability
 from src.service.modeling.config import content_hash
 from src.service.modeling.data import load_inputs
 from src.service.modeling.evaluation import annotate_calibration, calibrate, evaluate_run
+from src.service.modeling.normal_state import (
+    fit_fusion_reference,
+    fit_normal_state,
+    fuse_state_temporal,
+    score_normal_state,
+)
 from src.service.modeling.residual_scaling import fit_residual_scales, scaled_value_loss
 from src.service.modeling.temporal import TemporalPredictor, score_temporal, temporal_inputs
 from src.service.modeling.temporal_tuning import prepare_inner
@@ -65,7 +71,17 @@ def restore(path, device):
     return model, checkpoint
 
 
-def main():
+def state_values(inputs, ids):
+    lookup = {sample_id: index for index, sample_id in enumerate(inputs["ids"])}
+    ordered = sorted(ids)
+    selected = [lookup[sample_id] for sample_id in ordered]
+    services = (
+        inputs["identity"].set_index("sample_id").loc[ordered, "canonical_service_id"].to_numpy()
+    )
+    return inputs["values"][selected], inputs["observed"][selected], services
+
+
+def main(required_schema="service-gru-error-calibration-v1"):
     parser = argparse.ArgumentParser(description=__doc__)
     for name in [
         "prepared",
@@ -83,7 +99,7 @@ def main():
     if args.output.exists():
         raise FileExistsError(args.output)
     config = json.loads(args.config.read_text())
-    if config != dict(
+    expected = dict(
         schema_version="service-gru-error-calibration-v1",
         shrinkage_count=32,
         relative_floor=0.1,
@@ -93,7 +109,20 @@ def main():
         score="scaled_masked_value_mse_plus_original_modality_bce",
         device="cuda",
         quantiles=[0.95, 0.975, 0.99, 0.995],
-    ):
+    )
+    state_enabled = required_schema == "service-gru-state-temporal-v1"
+    if state_enabled:
+        expected = dict(
+            schema_version=required_schema,
+            minimum_count=32,
+            state_scale_floor=0.05,
+            state_reference="normal_fit_service_median_mad",
+            fusion_reference="latest_outer_fit_normal_case_heldout",
+            score="robust_reference_max_state_and_original_gru",
+            device="cuda",
+            quantiles=[0.95, 0.975, 0.99, 0.995],
+        )
+    if config != expected or config["schema_version"] != required_schema:
         raise ValueError("Unsupported frozen error calibration protocol")
     config = {**config, "seed": args.seed}
     check_run(args.baseline_run)
@@ -106,8 +135,16 @@ def main():
     tables = load_inputs(args.preparation, args.label_bundle, outer_tables.config)
     if tables.hashes != outer_tables.hashes or tables.versions != outer_tables.versions:
         raise ValueError("Normal input binding mismatch")
+    fit_labels = outer.labels.set_index("sample_id").loc[sorted(outer.lists.fit)]
+    fit_splits = outer.splits.set_index("sample_id").loc[sorted(outer.lists.fit), "split"]
+    if (
+        not fit_labels.label.eq(0).all()
+        or not fit_labels.label_source.eq("normal_run_reference").all()
+        or not fit_splits.eq("fit").all()
+    ):
+        raise ValueError("Postprocessing reference requires confirmed Normal fit membership")
     provenance = dict(
-        stage="gru_error_calibration",
+        stage="gru_state_temporal" if state_enabled else "gru_error_calibration",
         exploratory=True,
         selection_scope="outer_fit_normal_only",
         versions=outer.versions,
@@ -142,9 +179,23 @@ def main():
         ] != sorted(inner.lists.fit):
             raise ValueError("Inner checkpoint seed or fit membership mismatch")
         prior = fit_availability(inner, inner.lists.fit)
+        if prior != inner_checkpoint["availability_prior"]:
+            raise ValueError("Inner checkpoint availability prior mismatch")
         inner_inputs = temporal_inputs(inner, 4, availability_prior=prior)
-        errors, observed, services = squared_residuals(inner_model, inner_inputs, ids)
-        state = fit_residual_scales(errors, observed, services, sorted(ids), set(ids))
+        if state_enabled:
+            fit_ids = sorted(inner.lists.fit)
+            inner_state = fit_normal_state(
+                *state_values(inner_inputs, fit_ids), fit_ids, set(fit_ids)
+            )
+            inner_state_scores = score_normal_state(inner_state, *state_values(inner_inputs, ids))
+            inner_gru_scores = score_temporal(inner_model, inner_inputs, ids).score.to_numpy()
+            state = fit_fusion_reference(
+                np.column_stack([inner_gru_scores, inner_state_scores]), sorted(ids), set(ids)
+            )
+            state["inner_state_reference"] = inner_state
+        else:
+            errors, observed, services = squared_residuals(inner_model, inner_inputs, ids)
+            state = fit_residual_scales(errors, observed, services, sorted(ids), set(ids))
         state["preprocessor_hash"] = inner_audit["preprocessor_hash"]
         model, checkpoint = restore(
             artifact(args.baseline_run, baseline_manifest, "model"), config["device"]
@@ -154,16 +205,29 @@ def main():
         ):
             raise ValueError("Outer checkpoint seed or fit membership mismatch")
         inputs = temporal_inputs(outer, 4, availability_prior=checkpoint["availability_prior"])
+        if state_enabled:
+            fit_ids = sorted(outer.lists.fit)
+            state["outer_state_reference"] = fit_normal_state(
+                *state_values(inputs, fit_ids), fit_ids, set(fit_ids)
+            )
         scored = {}
         binding = content_hash(dict(config=config, state=state, parents=provenance["parents"]))
         for scope in ["calibration", "test"]:
             selected_ids = sorted(score_ids(outer.lists, scope))
             frame = score_temporal(model, inputs, selected_ids)
-            errors, observed, services = squared_residuals(model, inputs, selected_ids)
             frame["original_score"] = frame.score
             frame["original_value_loss"] = frame.value_loss
-            frame["value_loss"] = scaled_value_loss(state, errors, observed, services)
-            frame["score"] = frame.value_loss + frame.availability_loss
+            if state_enabled:
+                frame["state_score"] = score_normal_state(
+                    state["outer_state_reference"], *state_values(inputs, selected_ids)
+                )
+                frame["score"] = fuse_state_temporal(
+                    state, frame[["original_score", "state_score"]].to_numpy()
+                )
+            else:
+                errors, observed, services = squared_residuals(model, inputs, selected_ids)
+                frame["value_loss"] = scaled_value_loss(state, errors, observed, services)
+                frame["score"] = frame.value_loss + frame.availability_loss
             frame["model_version"] = config["schema_version"]
             frame["config_sha256"] = binding
             frame["lists_hash"] = outer.lists.lists_hash
@@ -182,6 +246,21 @@ def main():
         calibration_path = recorder.output / "run/calibration_scores.parquet"
         scored["test"].to_parquet(score_path, index=False)
         calibration.to_parquet(calibration_path, index=False)
+        auxiliary = {}
+        if state_enabled:
+            state_calibration = calibration.copy()
+            state_calibration["score"] = state_calibration.state_score
+            state_test = scored["test"].copy()
+            state_test["score"] = state_test.state_score
+            state_thresholds = calibrate(
+                state_calibration, set(outer.lists.calibration), config["quantiles"]
+            )
+            auxiliary = dict(
+                state_only_thresholds=state_thresholds,
+                state_only_evaluation_report=evaluate_run(
+                    tables, outer.lists, state_test, state_thresholds, score_scope="test"
+                ),
+            )
         _publish(
             recorder,
             dict(
@@ -192,6 +271,7 @@ def main():
                 scores=score_path,
                 calibration_scores=calibration_path,
                 fit_ids=sorted(outer.lists.fit),
+                **auxiliary,
             ),
         )
     print(json.dumps(check_run(args.output)))
