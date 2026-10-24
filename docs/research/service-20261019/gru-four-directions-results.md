@@ -44,12 +44,34 @@ AUROC均值/样本标准差0.821220/0.001827，AP为0.678095/0.010140，三seed�
 
 ## 方向4：短长历史GRU
 
-同在 `72f33dc` 独立实现，远端Normal验证和三seed实验执行中，尚无检测结论。
+独立实现提交 `72f33dc`，内部Normal验证与外层三seed已完成；架构/字典、实际外层因果上下文、固定样本/版本及内外各150轮MLflow历史核验通过，见 `gru-short-long-audit.json`。
+
+| seed | AUROC | AP | q99召回 | q99误报数 |
+|---|---:|---:|---:|---:|
+| 1 | 0.821050 | 0.688501 | 0.507865 | 31 |
+| 2 | 0.825550 | 0.693177 | 0.561798 | 37 |
+| 42 | 0.827392 | 0.677731 | 0.492135 | 31 |
+
+AUROC均值/样本标准差0.824664/0.003263，AP为0.686470/0.007921。相对原GRU，均值分别增加0.000693与0.006409，但seed1两指标均下降，未通过三seed稳定改善门槛。内部Normal总损失[0.832736,0.778281,0.835387]均高于原GRU，没有Normal泛化改善证据。模型4911参数，少于原GRU的6447；本方案同时改变分支结构与参数量，不能将结果单独归因为长历史。外层每seed训练约30–33秒，包含训练设置/落盘的fit计时；首次内部预处理耗时另计。
+
+## 最终保留决策
+
+| 方案 | 三seed平均AUROC | 三seed平均AP | 相对原GRU |
+|---|---:|---:|---|
+| 原先验GRU | 0.823970 | 0.680061 | 固定基线 |
+| 服务×特征误差校准 | 0.821468 | 0.688617 | AP均值升，AUROC均值降，seed不稳定 |
+| 状态/时序max融合 | 0.760610 | 0.548412 | 三seed均下降 |
+| 服务条件化GRU | 0.821220 | 0.678095 | 三seed均略降 |
+| 短长历史GRU | 0.824664 | 0.686470 | 两seed改善、seed1下降 |
+
+四方向预声明实验完成，均未满足稳定替代要求，继续保留原GRU作为默认模型。短长历史是本轮均值双指标改善的候选，但只能保留为待新增独立数据复核的探索配置，不能宣称已胜出或挑选seed2/42。停止本轮四方向搜索，不追加第五方向或按历史Fault结果调权重。所有旧模型和新候选均可独立运行。
 
 ## 运行与验证
 
-实现子代理相关59项测试通过；主代理联合复验85项通过（测试集合有重叠，不能累加覆盖数）。
+最终联合验证96项通过：原temporal、新架构、架构审计、状态参考、残差尺度及Normal tuning测试。此前子代理59项和主代理85项集合有重叠，不能累加覆盖数。四个已记录后台启动PID均退出，GPU释放至1MiB；没有遗留训练任务。
 
 方向3配置为 `configs/service/tt_temporal_prior_gru_service_bias_gpu_b_v1.json`，方向4为 `configs/service/tt_temporal_prior_gru_short_long_gpu_b_v1.json`。Normal验证入口使用 `scripts/service_gru_normal_validation.py --architecture service_bias` 或 `--architecture short_long`，每个入口固定三seed；外层仍使用 `scripts/service_temporal_model.py --method gru --config ... --seed ...`。
 
 原始 `tt_temporal_prior_gpu_b_v1.json` 及checkpoint不变。新增checkpoint保存 `architecture_metadata`，`restore_temporal_model`同时支持新旧模型。服务字典仅由fit服务建立，未知服务回退零偏置，并在分数表记录已知服务标志。
+
+远端模型代码提交分别为 `d9f84b3`、`f34bf34`、`72f33dc`，均在独立clean worktree运行。完整产物位于 `~/Code/Repos/interface-health/outputs/service/`，方向1前缀 `gru-error-calibration-d9f84b3`，方向2为 `gru-state-temporal-f34bf34`，方向3/4为 `gru-service_bias-72f33dc` / `gru-short_long-72f33dc`，各自后缀 `-seed{1,2,42}-20261024-a`。方向3/4内部Normal运行名为 `gru-{service_bias,short_long}-normal-72f33dc-20261024-a`。最终文档/审计提交另同步至新隔离worktree，不改运行时的原提交。
