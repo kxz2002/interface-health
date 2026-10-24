@@ -102,10 +102,12 @@ def audit(root, residual_normal_run=None, residual_prefix=None):
                     classification_q99=report["main"]["classification"]["0.99"],
                     groups={
                         scope: {
-                            name: {
-                                key: group.get(key)
-                                for key in ["rows", "auroc", "ap", "classification"]
-                            }
+                            name: dict(
+                                rows=group.get("rows"),
+                                auroc=group.get("auroc"),
+                                ap=group.get("ap"),
+                                classification_q99=group.get("classification", {}).get("0.99"),
+                            )
                             for name, group in report["main"].get(scope, {}).items()
                         }
                         for scope in ["by_case", "by_service"]
@@ -180,6 +182,14 @@ def audit(root, residual_normal_run=None, residual_prefix=None):
                 mean=float(np.mean(selected)),
                 std=float(np.std(selected, ddof=1)),
                 paired_delta=list(np.subtract(selected, baseline)),
+            )
+        if candidate != "baseline" and all(
+            metric in summary[candidate] for metric in ["auroc", "ap"]
+        ):
+            summary[candidate]["paired_metric_gate"] = all(
+                delta > 0
+                for metric in ["auroc", "ap"]
+                for delta in summary[candidate][metric]["paired_delta"]
             )
     return dict(
         audit_script_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),

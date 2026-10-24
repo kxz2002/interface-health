@@ -8,7 +8,7 @@
 |冻结 BERT + 服务先验 GRU|`configs/service/tt_temporal_prior_bert_gpu_b_v1.json`|28 + 64 维|可选语义消融，当前未改善|
 |8窗服务先验GRU|`configs/service/tt_temporal_prior_gru_context8_gpu_b_v1.json`|28维，历史8窗|独立探索，尚无稳定整体改善|
 |hidden64服务先验GRU|`configs/service/tt_temporal_prior_gru_hidden64_gpu_b_v1.json`|28维，隐藏维度64|独立探索，尚无稳定整体改善|
-|因果残差服务先验GRU|`configs/service/tt_temporal_prior_gru_residual_gpu_b_v1.json`|28维，原4窗/hidden32|第三候选，按Normal验证闸门推进|
+|因果残差服务先验GRU|`configs/service/tt_temporal_prior_gru_residual_gpu_b_v1.json`|28维，原4窗/hidden32|三seed负向结果；仅保留探索记录|
 
 在 gpu-b 对应源码目录执行，选择配置并使用尚不存在的输出目录：
 
