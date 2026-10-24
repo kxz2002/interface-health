@@ -64,4 +64,5 @@ selected17、整Case隔离、Normal-only拟合、Unknown排除不变。主评价
 
 - 原GRU及默认BERT配置相对PR基线 `bd3e441` 无diff。
 - 本分支23个变更Python文件逐文件Black检查与isort检查通过；此前四方向联合96项测试通过。
-- gpu-b完整回归需要 `PYTHONPATH` 指向隔离源码根目录；未设置时子进程导入 `src` 失败。首次错误环境检查已停止，不能将它记为通过。完整回归最终状态在本节补充，不把历史定向测试冒称本轮全量通过。
+- gpu-b完整回归需要 `PYTHONPATH` 指向隔离源码根目录；未设置时子进程导入 `src` 失败。首次错误环境检查已停止，不能将它记为通过。补充 `PYTHONPATH="$PWD"`、固定线程与离线环境后，`python -m pytest tests/ -x -q` 在 `de5a31d` 隔离代码上完成：950 passed、5 skipped、14条第三方弃用警告，耗时667.48秒。之后仅修改阶段文档，未改变被测Python源码。日志留gpu-b `/tmp/service-closeout-pytest-fixed.log`。
+- `6cafe95` 收尾副本本机/gpu-b均clean，924个Git跟踪文件的路径及内容SHA256聚合一致：`dbec144dbfec63805cd627ebf36d38380d421a67a530f84e89113b2ed8f30290`。追加测试记录后再次同步至最终收尾提交，保留所有旧隔离副本。
