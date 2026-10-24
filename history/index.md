@@ -4,7 +4,7 @@
 
 详细文档放 [`entries/`](./entries/)。
 
-最新研究记录：[040 · Service 路线 A 有界机制探索](entries/040-service-route-a-bounded-exploration.md)。前轮模型见 [039](entries/039-service-temporal-prior-experiments.md)，前置基础设施见 [038](entries/038-service-model-infrastructure.md)。
+最新收尾记录：[041 · 当前窗语义评分](entries/041-current-window-semantic-score.md)。原GRU新一轮有界改进进行中，见[第一轮分析](../docs/research/service-20261019/gru-improvement-analysis.md)。前轮机制探索见[040](entries/040-service-route-a-bounded-exploration.md)，基础设施见[038](entries/038-service-model-infrastructure.md)。
 
 ## 使用约定
 
@@ -29,6 +29,7 @@
 
 | # | 日期 | 类型 | 标题 | 影响域 |
 |---|------|------|------|--------|
+| [041](./entries/041-current-window-semantic-score.md) | 2026-10-23 | Experiment / Model | 当前窗BERT独立评分及融合的负向结果；停止该路线，转向原GRU有界改进 | scripts/service_current_semantic_model.py, configs/service/, tests/test_service_current_semantic.py, docs/research/service-20261019/ |
 | [040](./entries/040-service-route-a-bounded-exploration.md) | 2026-10-23 | Experiment / Model / Docs | 两轮机制消融与21组统一复核；保留原GRU，BERT作为负向对照并停止扩大搜索 | src/service/modeling/, scripts/service_temporal_model.py, scripts/analyze_service_route_a.py, configs/service/, tests/test_service_model_*, docs/research/service-20261019/ |
 | [039](./entries/039-service-temporal-prior-experiments.md) | 2026-10-23 | Model / Experiment | 服务先验 GRU、可选 BERT 与严格 Normal-only 搜索，保留双配置和负向发现 | src/service/modeling/, scripts/service_temporal*, configs/service/, tests/test_service*, docs/research/service-20261019/ |
 | [001](./entries/001-project-init.md) | 2026-05-10 | Feature | 初始化项目结构与基础设施 | 仓库骨架, CLAUDE.md, scripts/lo2-scripts/ |

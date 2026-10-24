@@ -1,5 +1,7 @@
 # Service研究交接 — 2026-10-19
 
+- [原GRU改进第一轮](gru-improvement-analysis.md)：8窗与hidden64各三seed、完整Normal验证与450轮MLflow核对；尚无稳定整体胜出的替代模型，第三候选等待Normal机制诊断。
+
 - [路线A最终分析](route-a-final-analysis.md)：两轮机制消融及21组统一复核，保留原先验GRU；BERT保留为负向消融，按停止规则结束扩大搜索。附[逐seed/分Case/服务表](route-a-result-tables.md)、[小型结果摘要](route-a-results.json)及[Normal诊断](route-a-normal-diagnostic.json)。
 - [当前窗口 BERT 语义评分](current-window-semantic-results.md)：独立语义-only与GRU融合均未超过原先验GRU，当前分支停止继续搜索。
 - [两条 GRU 路线运行说明](temporal-model-running.md)：原先验 GRU 与可选冻结 BERT 共存、配置选择及产物保留。
