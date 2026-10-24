@@ -120,6 +120,8 @@ def validate_temporal_config(config):
             "service-temporal-prior-residual-v1",
             "service-temporal-prior-service-bias-v1",
             "service-temporal-prior-short-long-v1",
+            "service-temporal-prior-multiscale-v1",
+            "service-temporal-prior-grouped-v1",
         }
         or (
             prior_enabled
