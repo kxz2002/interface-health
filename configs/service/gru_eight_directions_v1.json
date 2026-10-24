@@ -1,0 +1,19 @@
+{
+  "schema_version": "service-gru-eight-directions-v1",
+  "directions": ["dual_head", "multiscale", "grouped", "prototype", "mechanism", "heteroscedastic", "tcn_gru", "masked_pretraining"],
+  "seeds": [1, 2, 42],
+  "context_windows": 4,
+  "training": {"device": "cuda", "hidden_dim": 32, "epochs": 50, "batch_size": 128, "lr": 0.001, "weight_decay": 0.0001, "gradient_clip": 1.0, "checkpoint": "last"},
+  "group_hidden_dim": 16,
+  "prototype_count": 2,
+  "prototype_scale_floor": 0.05,
+  "fusion_auxiliary_weight": 0.2,
+  "fusion_scale_floor": 0.001,
+  "log_variance_bound": 4.0,
+  "tcn_channels": 16,
+  "tcn_kernel": 2,
+  "tcn_dilations": [1, 2],
+  "mask_probability": 0.1,
+  "pretraining_epochs": 10,
+  "quantiles": [0.95, 0.975, 0.99, 0.995]
+}

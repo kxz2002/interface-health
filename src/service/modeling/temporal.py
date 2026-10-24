@@ -93,24 +93,6 @@ def temporal_inputs(
     lookup = {key: index for index, key in enumerate(keys)}
     if len(lookup) != len(ids):
         raise ValueError("Duplicate temporal case/service/partition/window key")
-    if feature_mode == "multiscale":
-        deltas = np.zeros_like(values)
-        slopes = np.zeros_like(values)
-        for index, key in enumerate(keys):
-            previous = lookup.get((key[0], key[1], key[2], key[3] - 15000))
-            previous2 = lookup.get((key[0], key[1], key[2], key[3] - 30000))
-            if previous is not None:
-                valid = observed[index] & observed[previous]
-                deltas[index, :12] = np.where(
-                    valid[:12], values[index, :12] - values[previous, :12], 0
-                )
-                deltas[index, 12:] = np.where(
-                    valid[12:], values[index, 12:] - values[previous, 12:], 0
-                )
-            if previous is not None and previous2 is not None:
-                valid = observed[index] & observed[previous] & observed[previous2]
-                slopes[index] = np.where(valid, (values[index] - values[previous2]) / 2.0, 0)
-        features = np.concatenate([features, deltas, slopes], axis=1)
     fit_ids = set(prepared.lists.fit)
     context = np.zeros((len(ids), context_windows, features.shape[1] + 1), dtype=np.float32)
     text_context = (
@@ -130,6 +112,11 @@ def temporal_inputs(
                 text_context[index, context_windows - lag] = text_lookup[ids[previous]]
             history.append(ids[previous])
         history_ids[sample_id] = list(reversed(history))
+    if feature_mode == "multiscale":
+        if text_embeddings is not None:
+            raise ValueError("Multiscale context requires numeric history only")
+        base = torch.from_numpy(context)
+        context = multiscale_context(base).numpy()
     text_control_summary = None
     if text_context is not None:
         original = text_context.copy()
@@ -178,6 +165,23 @@ def latest_observed_values(context):
         valid = (context[:, position, 12:24] > 0) & (context[:, position, -1:] > 0)
         reference = torch.where(valid, context[:, position, :12], reference)
     return reference
+
+
+def multiscale_context(context):
+    if context.ndim != 3 or context.shape[-1] != 28:
+        raise ValueError("Multiscale context requires 28 fields")
+    values = context[..., :12]
+    valid = (context[..., 12:24] > 0) & (context[..., -1:] > 0)
+    additions = []
+    for lag in [1, 2]:
+        change = torch.zeros_like(values)
+        paired = torch.zeros_like(valid)
+        paired[:, lag:] = valid[:, lag:] & valid[:, :-lag]
+        change[:, lag:] = ((values[:, lag:] - values[:, :-lag]) / lag).masked_fill(
+            ~paired[:, lag:], 0
+        )
+        additions.extend([change, paired.to(context.dtype)])
+    return torch.cat([context[..., :-1], *additions, context[..., -1:]], dim=-1)
 
 
 class TemporalPredictor(nn.Module):
@@ -287,8 +291,14 @@ class ShortLongPredictor(nn.Module):
 class GroupedPredictor(nn.Module):
     def __init__(self, input_dim, hidden_dim=16):
         super().__init__()
+        if input_dim != 28:
+            raise ValueError("Grouped predictor requires 28 numeric history fields")
+        self.groups = [(0, 3), (3, 8), (8, 12)]
         self.branches = nn.ModuleList(
-            [nn.GRU(input_dim, hidden_dim, batch_first=True) for _ in range(3)]
+            [
+                nn.GRU(2 * (end - start) + 2, hidden_dim, batch_first=True)
+                for start, end in self.groups
+            ]
         )
         self.gate = nn.Sequential(nn.Linear(hidden_dim * 3, hidden_dim * 3), nn.Sigmoid())
         self.output = nn.Linear(hidden_dim * 3, 15)
@@ -297,8 +307,17 @@ class GroupedPredictor(nn.Module):
         if text_context is not None:
             raise ValueError("Grouped predictor does not support text context")
         states = []
-        for branch in self.branches:
-            _, hidden = branch(context)
+        for modality, (branch, (start, end)) in enumerate(zip(self.branches, self.groups)):
+            grouped = torch.cat(
+                [
+                    context[..., start:end],
+                    context[..., 12 + start : 12 + end],
+                    context[..., 24 + modality : 25 + modality],
+                    context[..., -1:],
+                ],
+                dim=-1,
+            )
+            _, hidden = branch(grouped)
             states.append(hidden[-1])
         joined = torch.cat(states, dim=-1)
         result = self.output(joined * self.gate(joined))

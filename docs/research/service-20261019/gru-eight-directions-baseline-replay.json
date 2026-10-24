@@ -1,0 +1,32 @@
+{
+  "comparisons": [
+    {
+      "bitwise_identical": true,
+      "calibration_rows": 2853,
+      "historical_run": "/home/u2024110110/Code/Repos/interface-health/outputs/service/temporal-multiseed-a7e7794-gru-seed1-20261023-a",
+      "maximum_score_difference": 0.0,
+      "seed": 1,
+      "suite_run": "/home/u2024110110/Code/Repos/interface-health-runs/service-improvement-session/outputs/service/eight-directions-20261024-a/baseline-seed1",
+      "test_rows": 12598
+    },
+    {
+      "bitwise_identical": true,
+      "calibration_rows": 2853,
+      "historical_run": "/home/u2024110110/Code/Repos/interface-health/outputs/service/temporal-multiseed-a7e7794-gru-seed2-20261023-a",
+      "maximum_score_difference": 0.0,
+      "seed": 2,
+      "suite_run": "/home/u2024110110/Code/Repos/interface-health-runs/service-improvement-session/outputs/service/eight-directions-20261024-a/baseline-seed2",
+      "test_rows": 12598
+    },
+    {
+      "bitwise_identical": true,
+      "calibration_rows": 2853,
+      "historical_run": "/home/u2024110110/Code/Repos/interface-health/outputs/service/temporal-multiseed-a7e7794-gru-seed42-20261023-a",
+      "maximum_score_difference": 0.0,
+      "seed": 42,
+      "suite_run": "/home/u2024110110/Code/Repos/interface-health-runs/service-improvement-session/outputs/service/eight-directions-20261024-a/baseline-seed42",
+      "test_rows": 12598
+    }
+  ],
+  "status": "success"
+}
