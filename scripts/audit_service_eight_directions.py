@@ -55,6 +55,26 @@ def canonical_json_value(value):
 
 def verify_tracking(connection, manifest, histories, config, report):
     run_id = manifest["mlflow_run_id"]
+    direction = manifest["run_id"].rsplit("-seed", 1)[0]
+    if direction not in {"baseline", *DIRECTIONS}:
+        raise ValueError("Unknown training direction")
+    expected_schedule = []
+    if direction not in {"prototype", "mechanism"}:
+        if direction == "masked_pretraining":
+            expected_schedule.extend(
+                ("pretraining", epoch) for epoch in range(1, config["pretraining_epochs"] + 1)
+            )
+        expected_schedule.extend(
+            ("prediction", epoch) for epoch in range(1, config["training"]["epochs"] + 1)
+        )
+    if set(histories) != {"inner", "outer"}:
+        raise ValueError("Training history scopes differ from the frozen schedule")
+    for records in histories.values():
+        if (
+            any(type(record["epoch"]) is not int for record in records)
+            or [(record["phase"], record["epoch"]) for record in records] != expected_schedule
+        ):
+            raise ValueError("Training history phase/epoch sequence differs from frozen schedule")
     status = connection.execute("SELECT status FROM runs WHERE run_uuid=?", (run_id,)).fetchone()
     if status != ("FINISHED",):
         raise ValueError("MLflow run is not finished")
@@ -62,10 +82,7 @@ def verify_tracking(connection, manifest, histories, config, report):
     for scope, records in histories.items():
         for record in records:
             step = record["epoch"]
-            if (
-                manifest["run_id"].startswith("masked_pretraining")
-                and record["phase"] == "prediction"
-            ):
+            if direction == "masked_pretraining" and record["phase"] == "prediction":
                 step += config["pretraining_epochs"]
             if scope == "outer":
                 step += 100
@@ -78,13 +95,18 @@ def verify_tracking(connection, manifest, histories, config, report):
                 raise ValueError("MLflow epoch is missing or duplicated")
             assert_close(rows[0][0], record["mean_loss"])
             count += 1
+    tracked_count = connection.execute(
+        "SELECT COUNT(*) FROM metrics WHERE run_uuid=? AND key GLOB '*_fit_loss'", (run_id,)
+    ).fetchone()[0]
+    if tracked_count != count:
+        raise ValueError("MLflow training epoch count differs from the frozen schedule")
     for key, value in [("main_auroc", report["main"]["auroc"]), ("main_ap", report["main"]["ap"])]:
-        row = connection.execute(
+        rows = connection.execute(
             "SELECT value FROM metrics WHERE run_uuid=? AND key=? AND step=250", (run_id, key)
-        ).fetchone()
-        if row is None:
-            raise ValueError("MLflow main metric is missing")
-        assert_close(row[0], value)
+        ).fetchall()
+        if len(rows) != 1:
+            raise ValueError("MLflow main metric is missing or duplicated")
+        assert_close(rows[0][0], value)
     return count
 
 

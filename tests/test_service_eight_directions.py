@@ -194,29 +194,114 @@ def test_tcn_encoding_is_causal():
     torch.testing.assert_close(original[:, :3], model.encode(context)[0][:, :3])
 
 
-def test_tracking_audit_rejects_missing_epochs_and_metric_drift():
+def tracking_fixture(direction="baseline"):
     connection = sqlite3.connect(":memory:")
     connection.execute("CREATE TABLE runs (run_uuid TEXT, status TEXT)")
     connection.execute("CREATE TABLE metrics (run_uuid TEXT, key TEXT, step INTEGER, value REAL)")
     connection.execute("INSERT INTO runs VALUES ('example', 'FINISHED')")
+    config = configuration()
+    phases = (
+        [("pretraining", config["pretraining_epochs"])] if direction == "masked_pretraining" else []
+    ) + [("prediction", config["training"]["epochs"])]
+    records = (
+        []
+        if direction in {"prototype", "mechanism"}
+        else [
+            dict(epoch=epoch, phase=phase, mean_loss=0.25)
+            for phase, epochs in phases
+            for epoch in range(1, epochs + 1)
+        ]
+    )
+    histories = {scope: copy.deepcopy(records) for scope in ["inner", "outer"]}
+    metrics = [
+        ("example", f"{scope}_{record['phase']}_fit_loss", record["epoch"] + offset, 0.25)
+        for scope, entries in histories.items()
+        for record in entries
+        for offset in [
+            (100 if scope == "outer" else 0)
+            + (
+                config["pretraining_epochs"]
+                if direction == "masked_pretraining" and record["phase"] == "prediction"
+                else 0
+            )
+        ]
+    ]
     connection.executemany(
         "INSERT INTO metrics VALUES (?, ?, ?, ?)",
-        [
-            ("example", "inner_prediction_fit_loss", 1, 0.25),
+        metrics
+        + [
             ("example", "main_auroc", 250, 0.8),
             ("example", "main_ap", 250, 0.6),
         ],
     )
-    manifest = dict(mlflow_run_id="example", run_id="baseline-seed1")
-    histories = dict(inner=[dict(epoch=1, phase="prediction", mean_loss=0.25)], outer=[])
+    manifest = dict(mlflow_run_id="example", run_id=f"{direction}-seed1")
     report = dict(main=dict(auroc=0.8, ap=0.6))
-    assert verify_tracking(connection, manifest, histories, configuration(), report) == 1
+    return connection, manifest, histories, config, report
+
+
+def test_tracking_audit_rejects_missing_epochs_and_metric_drift():
+    connection, manifest, histories, config, report = tracking_fixture()
+    assert verify_tracking(connection, manifest, histories, config, report) == 4
     connection.execute("UPDATE metrics SET value=0.1 WHERE key='main_ap'")
     with pytest.raises(AssertionError):
-        verify_tracking(connection, manifest, histories, configuration(), report)
+        verify_tracking(connection, manifest, histories, config, report)
     connection.execute("DELETE FROM metrics WHERE key='inner_prediction_fit_loss'")
     with pytest.raises(ValueError, match="epoch"):
-        verify_tracking(connection, manifest, histories, configuration(), report)
+        verify_tracking(connection, manifest, histories, config, report)
+    connection.close()
+
+
+@pytest.mark.parametrize("direction", ["baseline", "masked_pretraining", "prototype", "mechanism"])
+def test_tracking_audit_accepts_only_complete_frozen_schedules(direction):
+    connection, manifest, histories, config, report = tracking_fixture(direction)
+    expected = (
+        0
+        if direction in {"prototype", "mechanism"}
+        else 6 if direction == "masked_pretraining" else 4
+    )
+    assert verify_tracking(connection, manifest, histories, config, report) == expected
+    connection.close()
+
+
+@pytest.mark.parametrize(
+    "mutation", ["truncate", "missing_scope", "empty_scope", "duplicate", "wrong_phase", "reorder"]
+)
+def test_tracking_audit_rejects_incomplete_or_invalid_histories(mutation):
+    connection, manifest, histories, config, report = tracking_fixture("masked_pretraining")
+    if mutation == "truncate":
+        histories["inner"].pop()
+        connection.execute("DELETE FROM metrics WHERE key='inner_prediction_fit_loss' AND step=3")
+    elif mutation == "missing_scope":
+        del histories["outer"]
+    elif mutation == "empty_scope":
+        histories["outer"] = []
+    elif mutation == "duplicate":
+        histories["inner"].append(copy.deepcopy(histories["inner"][-1]))
+    elif mutation == "wrong_phase":
+        histories["inner"][0]["phase"] = "prediction"
+    else:
+        histories["inner"].reverse()
+    with pytest.raises(ValueError, match="schedule"):
+        verify_tracking(connection, manifest, histories, config, report)
+    connection.close()
+
+
+@pytest.mark.parametrize("direction", ["baseline", "prototype"])
+def test_tracking_audit_rejects_unexpected_mlflow_training_records(direction):
+    connection, manifest, histories, config, report = tracking_fixture(direction)
+    connection.execute(
+        "INSERT INTO metrics VALUES ('example', 'outer_prediction_fit_loss', 999, 0.25)"
+    )
+    with pytest.raises(ValueError, match="epoch count"):
+        verify_tracking(connection, manifest, histories, config, report)
+    connection.close()
+
+
+def test_tracking_audit_rejects_duplicate_main_metrics():
+    connection, manifest, histories, config, report = tracking_fixture()
+    connection.execute("INSERT INTO metrics VALUES ('example', 'main_ap', 250, 0.6)")
+    with pytest.raises(ValueError, match="duplicated"):
+        verify_tracking(connection, manifest, histories, config, report)
     connection.close()
 
 

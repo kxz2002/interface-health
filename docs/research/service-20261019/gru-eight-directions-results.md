@@ -99,3 +99,9 @@ conda run -n interface python scripts/audit_service_eight_directions.py \
 2026-10-24按用户授权，核对本机与gpu-b隔离副本的16个相关文件，收尾前SHA256全部一致；统一提交代码、配置、测试、报告和history044，再推送分支向master提出PR。远端隔离副本先保留限定路径的overlay stash备份，再快进到最终提交；原仓库历史dirty文件、完整实验输出及运行时源码快照均保留。上文的f3bacdc和overlay描述是实验启动时的真实provenance，最终Git提交不反写历史manifest。
 
 收尾重新执行112项相关测试并通过；全仓 `black --check src/ scripts/ tests/`（208文件）、`isort --check-only src/ scripts/ tests/` 和 `git diff --check` 均通过。未重新训练模型。
+
+## PR独立审查
+
+PR #39审查发现原MLflow核验仅遍历history已有记录，若history和数据库同时截断会漏报训练不完整。修复后要求inner/outer均完整遵循冻结阶段及epoch顺序：普通模型各50轮、遮蔽模型各10轮预训练再50轮预测、原型/机制复用分支无训练记录；同时拒绝额外MLflow训练记录和重复最终指标。新增回归覆盖后，相关测试由112项增至125项，格式检查通过。冻结模型、训练入口与配置未改动，原检测结果和逐样本分数保持原样。
+
+使用新检查对gpu-b实际27组manifest、完整训练history及只读MLflow数据库复核，全部通过，训练记录仍为2160轮；见[补充核验摘要](gru-eight-directions-tracking-review.json)。本次未再次运行模型分数重放，原54份checkpoint与分数重放证据仍见前述独立审计。
