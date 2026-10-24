@@ -1,0 +1,11 @@
+{
+  "schema_version": "service-gru-error-calibration-v1",
+  "shrinkage_count": 32,
+  "relative_floor": 0.1,
+  "absolute_floor": 0.0001,
+  "scale_source": "latest_outer_fit_normal_case_heldout",
+  "scale_transfer": "asinh_normalized_feature_coordinates",
+  "score": "scaled_masked_value_mse_plus_original_modality_bce",
+  "device": "cuda",
+  "quantiles": [0.95, 0.975, 0.99, 0.995]
+}
