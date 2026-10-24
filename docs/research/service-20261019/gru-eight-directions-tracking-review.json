@@ -1,0 +1,121 @@
+{
+  "audit_source_sha256": "2351c431c199a185857804c6c9e79ca75f1268cab979b1ac0d67b857f61c43f1",
+  "checks": [
+    "complete_frozen_phase_epoch_schedule",
+    "exact_mlflow_training_record_count",
+    "unique_final_metrics"
+  ],
+  "rows": [
+    {
+      "run_id": "baseline-seed1",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "baseline-seed2",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "baseline-seed42",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "dual_head-seed1",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "dual_head-seed2",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "dual_head-seed42",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "multiscale-seed1",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "multiscale-seed2",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "multiscale-seed42",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "grouped-seed1",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "grouped-seed2",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "grouped-seed42",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "prototype-seed1",
+      "verified_epochs": 0
+    },
+    {
+      "run_id": "prototype-seed2",
+      "verified_epochs": 0
+    },
+    {
+      "run_id": "prototype-seed42",
+      "verified_epochs": 0
+    },
+    {
+      "run_id": "mechanism-seed1",
+      "verified_epochs": 0
+    },
+    {
+      "run_id": "mechanism-seed2",
+      "verified_epochs": 0
+    },
+    {
+      "run_id": "mechanism-seed42",
+      "verified_epochs": 0
+    },
+    {
+      "run_id": "heteroscedastic-seed1",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "heteroscedastic-seed2",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "heteroscedastic-seed42",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "tcn_gru-seed1",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "tcn_gru-seed2",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "tcn_gru-seed42",
+      "verified_epochs": 100
+    },
+    {
+      "run_id": "masked_pretraining-seed1",
+      "verified_epochs": 120
+    },
+    {
+      "run_id": "masked_pretraining-seed2",
+      "verified_epochs": 120
+    },
+    {
+      "run_id": "masked_pretraining-seed42",
+      "verified_epochs": 120
+    }
+  ],
+  "runs": 27,
+  "status": "success",
+  "verified_epochs": 2160
+}

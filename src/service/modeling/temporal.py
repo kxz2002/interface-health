@@ -26,11 +26,14 @@ def temporal_inputs(
     text_embeddings=None,
     availability_prior_scope="per_service",
     text_control="actual",
+    feature_mode="base",
 ):
     if text_control not in {"actual", "zero", "reverse_past"}:
         raise ValueError("Unsupported temporal text control")
     if text_control != "actual" and text_embeddings is None:
         raise ValueError("Temporal text control requires text embeddings")
+    if feature_mode not in {"base", "multiscale"}:
+        raise ValueError("Unsupported temporal feature mode")
     if type(context_windows) is not int or context_windows < 1:
         raise ValueError("Temporal context must have a positive integer length")
     ids = sorted(prepared.sample_ids)
@@ -109,6 +112,11 @@ def temporal_inputs(
                 text_context[index, context_windows - lag] = text_lookup[ids[previous]]
             history.append(ids[previous])
         history_ids[sample_id] = list(reversed(history))
+    if feature_mode == "multiscale":
+        if text_embeddings is not None:
+            raise ValueError("Multiscale context requires numeric history only")
+        base = torch.from_numpy(context)
+        context = multiscale_context(base).numpy()
     text_control_summary = None
     if text_context is not None:
         original = text_context.copy()
@@ -157,6 +165,23 @@ def latest_observed_values(context):
         valid = (context[:, position, 12:24] > 0) & (context[:, position, -1:] > 0)
         reference = torch.where(valid, context[:, position, :12], reference)
     return reference
+
+
+def multiscale_context(context):
+    if context.ndim != 3 or context.shape[-1] != 28:
+        raise ValueError("Multiscale context requires 28 fields")
+    values = context[..., :12]
+    valid = (context[..., 12:24] > 0) & (context[..., -1:] > 0)
+    additions = []
+    for lag in [1, 2]:
+        change = torch.zeros_like(values)
+        paired = torch.zeros_like(valid)
+        paired[:, lag:] = valid[:, lag:] & valid[:, :-lag]
+        change[:, lag:] = ((values[:, lag:] - values[:, :-lag]) / lag).masked_fill(
+            ~paired[:, lag:], 0
+        )
+        additions.extend([change, paired.to(context.dtype)])
+    return torch.cat([context[..., :-1], *additions, context[..., -1:]], dim=-1)
 
 
 class TemporalPredictor(nn.Module):
@@ -263,6 +288,45 @@ class ShortLongPredictor(nn.Module):
         return result[:, :12], logits
 
 
+class GroupedPredictor(nn.Module):
+    def __init__(self, input_dim, hidden_dim=16):
+        super().__init__()
+        if input_dim != 28:
+            raise ValueError("Grouped predictor requires 28 numeric history fields")
+        self.groups = [(0, 3), (3, 8), (8, 12)]
+        self.branches = nn.ModuleList(
+            [
+                nn.GRU(2 * (end - start) + 2, hidden_dim, batch_first=True)
+                for start, end in self.groups
+            ]
+        )
+        self.gate = nn.Sequential(nn.Linear(hidden_dim * 3, hidden_dim * 3), nn.Sigmoid())
+        self.output = nn.Linear(hidden_dim * 3, 15)
+
+    def forward(self, context, prior_logits=None, text_context=None):
+        if text_context is not None:
+            raise ValueError("Grouped predictor does not support text context")
+        states = []
+        for modality, (branch, (start, end)) in enumerate(zip(self.branches, self.groups)):
+            grouped = torch.cat(
+                [
+                    context[..., start:end],
+                    context[..., 12 + start : 12 + end],
+                    context[..., 24 + modality : 25 + modality],
+                    context[..., -1:],
+                ],
+                dim=-1,
+            )
+            _, hidden = branch(grouped)
+            states.append(hidden[-1])
+        joined = torch.cat(states, dim=-1)
+        result = self.output(joined * self.gate(joined))
+        logits = result[:, 12:]
+        if prior_logits is not None:
+            logits = logits + prior_logits
+        return result[:, :12], logits
+
+
 def build_temporal_model(inputs, settings, service_vocabulary=None):
     architecture = settings.get("architecture", "shared_gru")
     if architecture == "service_bias_gru":
@@ -273,6 +337,10 @@ def build_temporal_model(inputs, settings, service_vocabulary=None):
         if inputs["context"].shape[1:] != (8, 28) or settings["hidden_dim"] != 16:
             raise ValueError("Short-long architecture requires eight windows and hidden16")
         return ShortLongPredictor()
+    if architecture == "grouped_gru":
+        if inputs.get("text_embedding_dim", 0):
+            raise ValueError("Grouped predictor does not support text context")
+        return GroupedPredictor(inputs["context"].shape[-1], settings["hidden_dim"])
     if architecture != "shared_gru":
         raise ValueError("Unsupported temporal architecture")
     return TemporalPredictor(
@@ -288,7 +356,11 @@ def temporal_model_metadata(model):
         architecture=(
             "service_bias_gru"
             if isinstance(model, ServiceConditionedPredictor)
-            else "short_long_gru" if isinstance(model, ShortLongPredictor) else "shared_gru"
+            else (
+                "short_long_gru"
+                if isinstance(model, ShortLongPredictor)
+                else "grouped_gru" if isinstance(model, GroupedPredictor) else "shared_gru"
+            )
         ),
         service_vocabulary=getattr(model, "service_vocabulary", []),
         parameter_count=sum(parameter.numel() for parameter in model.parameters()),

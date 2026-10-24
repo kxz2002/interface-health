@@ -58,6 +58,8 @@ def validate_temporal_config(config):
         "service-temporal-prior-residual-v1",
         "service-temporal-prior-service-bias-v1",
         "service-temporal-prior-short-long-v1",
+        "service-temporal-prior-multiscale-v1",
+        "service-temporal-prior-grouped-v1",
     }
     bert_enabled = (
         isinstance(config, dict)
@@ -65,6 +67,11 @@ def validate_temporal_config(config):
     )
     if prior_enabled:
         expected_keys.add("availability_prior")
+    if (
+        isinstance(config, dict)
+        and config.get("schema_version") == "service-temporal-prior-multiscale-v1"
+    ):
+        expected_keys.add("feature_mode")
     if bert_enabled:
         expected_keys.add("text_embedding")
         if "text_control" in config:
@@ -90,6 +97,7 @@ def validate_temporal_config(config):
         {
             "service-temporal-prior-service-bias-v1": "service_bias_gru",
             "service-temporal-prior-short-long-v1": "short_long_gru",
+            "service-temporal-prior-grouped-v1": "grouped_gru",
         }.get(config.get("schema_version"))
         if isinstance(config, dict)
         else None
@@ -112,6 +120,8 @@ def validate_temporal_config(config):
             "service-temporal-prior-residual-v1",
             "service-temporal-prior-service-bias-v1",
             "service-temporal-prior-short-long-v1",
+            "service-temporal-prior-multiscale-v1",
+            "service-temporal-prior-grouped-v1",
         }
         or (
             prior_enabled
@@ -122,6 +132,7 @@ def validate_temporal_config(config):
             ]
         )
         or config["context_windows"] not in {4, 8}
+        or config.get("feature_mode", "base") not in {"base", "multiscale"}
         or config["window_ms"] != 15000
         or config["value_transform"] != "asinh_prepared_normal_fit_z"
         or config["score"] != "masked_value_mse_plus_modality_bce"
@@ -137,8 +148,16 @@ def validate_temporal_config(config):
                 config["training"]["architecture"] != architecture
                 or config["context_windows"] != (8 if architecture == "short_long_gru" else 4)
                 or config["training"]["hidden_dim"]
-                != (16 if architecture == "short_long_gru" else 32)
+                != (16 if architecture in {"short_long_gru", "grouped_gru"} else 32)
             )
+        )
+        or (
+            config["schema_version"] == "service-temporal-prior-multiscale-v1"
+            and config.get("feature_mode") != "multiscale"
+        )
+        or (
+            config["schema_version"] == "service-temporal-prior-grouped-v1"
+            and config["training"].get("architecture") != "grouped_gru"
         )
         or (
             residual_enabled
@@ -285,6 +304,7 @@ def main(argv=None):
             if config.get("availability_prior", {}).get("source") == "normal_fit_global"
             else "per_service"
         ),
+        feature_mode=config.get("feature_mode", "base"),
     )
     indices = _fit_indices(prepared, inputs)
     lookup = {sample_id: index for index, sample_id in enumerate(inputs["ids"])}
