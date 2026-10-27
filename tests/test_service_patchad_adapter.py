@@ -1,7 +1,17 @@
+import copy
+
+import numpy as np
 import pytest
 import torch
 
-from src.service.modeling.patchad_adapter import patchad_contrastive_loss, patchad_last_window_score
+from src.service.modeling.neural_baseline_data import closed_window_sequences
+from src.service.modeling.patchad_adapter import (
+    patchad_contrastive_loss,
+    patchad_last_window_score,
+    score_patchad,
+    train_patchad,
+)
+from tests.test_service_model_temporal import fixture
 
 
 def distributions():
@@ -44,3 +54,45 @@ def test_patchad_score_uses_upstream_patch_expansion_order():
     expected = torch.softmax(-(forward + reverse).sum(-1), dim=-1)[:, -1]
     output = ([first], [second], [], [], None)
     torch.testing.assert_close(patchad_last_window_score(output, 4), expected)
+
+
+class TinyPatchModel(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.first = torch.nn.Linear(27, 3)
+        self.second = torch.nn.Linear(27, 3)
+
+    def forward(self, sequence):
+        first = torch.softmax(self.first(sequence[:, :2]), dim=-1)
+        second = torch.softmax(self.second(sequence[:, 2:]), dim=-1)
+        return [first], [second], [first], [second], sequence
+
+
+def test_training_only_uses_full_known_normal_fit_sequences():
+    prepared, _ = fixture()
+    settings = dict(epochs=2, batch_size=2, lr=0.001, seed=42, device="cpu", patch_weight=0.1)
+    inputs = closed_window_sequences(prepared, 4)
+    model, evidence = train_patchad(prepared, inputs, settings, TinyPatchModel)
+    assert evidence["fit_ids"] == ["fit-003", "fit-004", "fit-005"]
+    assert evidence["excluded_incomplete_fit_ids"] == ["fit-000", "fit-001", "fit-002"]
+
+    changed = copy.deepcopy(prepared)
+    changed.numeric["values"].loc[6:, "cpu_cores"] = 99999
+    repeat, _ = train_patchad(
+        changed, closed_window_sequences(changed, 4), settings, TinyPatchModel
+    )
+    for name, parameter in model.state_dict().items():
+        torch.testing.assert_close(parameter, repeat.state_dict()[name], rtol=0, atol=0)
+
+    scores = score_patchad(model, inputs, ["test", "calibration"], batch_size=1)
+    assert scores.sample_id.tolist() == ["calibration", "test"]
+    assert np.isfinite(scores.score).all()
+    assert len(evidence["history"]) == 2
+
+
+def test_training_rejects_non_normal_fit():
+    prepared, _ = fixture()
+    prepared.labels.loc[0, "label"] = 1
+    settings = dict(epochs=1, batch_size=2, lr=0.001, seed=42, device="cpu", patch_weight=0.1)
+    with pytest.raises(ValueError, match="known-normal"):
+        train_patchad(prepared, closed_window_sequences(prepared, 4), settings, TinyPatchModel)
