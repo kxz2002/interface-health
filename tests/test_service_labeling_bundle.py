@@ -265,6 +265,26 @@ def test_derive_evaluation_bundle_rejects_changed_preparation(setup, tmp_path, m
     assert not (tmp_path / "derived").exists()
 
 
+def test_derive_evaluation_bundle_failed_write_leaves_no_output(setup, tmp_path, monkeypatch):
+    from src.service.labeling.bundle import derive_evaluation_bundle
+
+    build(setup, "source")
+    source = setup[0] / "source/labels"
+    protocol = json.loads((source / "protocol.json").read_text())
+    protocol["evaluation_version"] = "evaluation-v3"
+    protocol_path = tmp_path / "evaluation-v3.json"
+    protocol_path.write_text(json.dumps(protocol))
+    monkeypatch.setattr(
+        bundle,
+        "_write_derived_package",
+        lambda *args: (_ for _ in ()).throw(RuntimeError("failure")),
+    )
+    with pytest.raises(RuntimeError, match="failure"):
+        derive_evaluation_bundle(source, tmp_path / "prepared", protocol_path, tmp_path / "derived")
+    assert not (tmp_path / "derived").exists()
+    assert not list(tmp_path.glob(".evaluation-staging-*"))
+
+
 def test_derive_evaluation_bundle_rejects_label_rule_changes(setup, tmp_path):
     from src.service.labeling.bundle import derive_evaluation_bundle
 

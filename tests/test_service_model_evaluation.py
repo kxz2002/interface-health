@@ -102,6 +102,28 @@ def test_roundtrip_attrs_and_main_evaluation_join(monkeypatch):
         evaluate_run(tables, lists, bad, {"thresholds": {"0.99": 3.96}})
 
 
+def test_excluded_case_source_scores_do_not_enter_evaluation_output():
+    tables, lists, scores = evaluation_fixture()
+    tables.protocol = {**tables.protocol, "evaluation_excluded_cases": ["fault"]}
+    tables.evaluation = evaluation_table(tables.labels, tables.splits, tables.protocol)
+    lists = hashed(
+        replace(
+            lists,
+            common_main_test=("0",),
+            extended_main_test=("0",),
+            extended_inference=("0",),
+            diagnostic_pre=(),
+            diagnostic_positive=(),
+            diagnostic_groups={},
+        )
+    )
+    scores["lists_hash"] = lists.lists_hash
+    report = evaluate_run(tables, lists, scores, {"thresholds": {"0.99": 3.96}})
+    assert [row["sample_id"] for row in report["scores"]] == ["0"]
+    assert not report["within_case_diagnostic"]
+    assert report["unknown"]["rows"] == 0
+
+
 def test_single_class_main_cases_and_zero_metrics():
     tables, lists, scores = evaluation_fixture()
     report = evaluate_run(tables, lists, scores, {"thresholds": {"0.99": 10.0}})

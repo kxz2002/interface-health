@@ -1,5 +1,7 @@
 """Independent acceptance and explicit score eligibility regression tests."""
 
+import json
+
 import pandas as pd
 import pytest
 
@@ -42,6 +44,22 @@ def test_conservation_and_tamper(setup, monkeypatch):
     index.grid.drop(index=0, inplace=True)
     with pytest.raises(ValueError):
         acceptance.check_bundle(root / "run", root / "prepared")
+
+
+def test_derived_bundle_replays_with_historical_rule_identity(setup, monkeypatch):
+    root, _ = prepared(setup, monkeypatch)
+    source = root / "run/labels"
+    protocol = json.loads((source / "protocol.json").read_text())
+    protocol["evaluation_version"] = "evaluation-v3"
+    protocol["evaluation_excluded_cases"] = [next(iter(protocol["normal_splits"]))]
+    protocol_path = root / "v3.json"
+    protocol_path.write_text(json.dumps(protocol))
+    bundle.derive_evaluation_bundle(source, root / "prepared", protocol_path, root / "derived")
+    monkeypatch.setattr(bundle, "implementation_hash", lambda protocol: "different-current-hash")
+    assert acceptance.check_bundle(root / "derived", root / "prepared")["rows"] == 3
+    (source / "manifest.json").write_text("{}")
+    with pytest.raises(ValueError, match="source manifest mismatch"):
+        acceptance.check_bundle(root / "derived", root / "prepared")
 
 
 def test_source_hash_revalidation(setup, monkeypatch):

@@ -430,6 +430,9 @@ def derive_evaluation_bundle(
         source = source / "labels"
     output = _protect(output, [source, preparation, protocol_path])
     data = read_bundle(source)
+    output = _protect(
+        output, [source, preparation, protocol_path, Path(data["manifest"]["inputs"]["tt_root"])]
+    )
     protocol = json.loads(protocol_path.read_text())
     if not protocol.get("evaluation_version"):
         raise ValueError("Derived evaluation bundle requires evaluation_version")
@@ -454,8 +457,27 @@ def derive_evaluation_bundle(
         or _jsonable(index.cases) != _jsonable(data["evidence"]["cases"])
     ):
         raise ValueError("Preparation or source evidence differs from source bundle")
-    output.mkdir(parents=True)
-    shutil.copytree(source, output, dirs_exist_ok=True)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=".evaluation-staging-", dir=output.parent))
+    reserved = False
+    try:
+        package = staging / "labels"
+        manifest = _write_derived_package(source, package, protocol_path, protocol, data, index)
+        read_bundle(package)
+        output.mkdir()
+        reserved = True
+        package.rename(output / "labels")
+        return manifest
+    except BaseException:
+        if reserved:
+            shutil.rmtree(output)
+        raise
+    finally:
+        shutil.rmtree(staging)
+
+
+def _write_derived_package(source, output, protocol_path, protocol, data, index):
+    shutil.copytree(source, output)
     _write(output / "protocol.json", protocol)
     labels, splits = data["labels"].copy(), data["splits"].copy()
     evaluation = evaluation_table(labels, splits, protocol)
@@ -491,7 +513,7 @@ def derive_evaluation_bundle(
             "sha256": file_digest(output / name),
         }
     _write(output / "manifest.json", manifest)
-    return read_bundle(output)["manifest"]
+    return manifest
 
 
 def diff_bundles(old: Path, new: Path, output: Path) -> dict:
