@@ -3,9 +3,34 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 
-from scripts.service_revaluate_temporal import evaluate_source, rebind
+from scripts.service_revaluate_temporal import accepted_bundle, evaluate_source, rebind
 from src.service.modeling.data import InputTables, build_sample_lists
 from tests.test_service_model_membership import membership_fixture
+
+
+def test_accepted_bundle_requires_matching_acceptance(tmp_path, monkeypatch):
+    import json
+
+    from scripts import service_revaluate_temporal as module
+
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    manifest = bundle / "manifest.json"
+    manifest.write_text("{}")
+    acceptance = tmp_path / "acceptance.json"
+    record = {
+        "status": "success",
+        "bundle_manifest_sha256": module.file_digest(manifest),
+        "result": {"rows": 1},
+        "provenance": {"commit": "abc"},
+    }
+    acceptance.write_text(json.dumps(record))
+    monkeypatch.setattr(module, "read_bundle", lambda path: {"path": path})
+    assert accepted_bundle(bundle, acceptance) == ({"path": bundle}, manifest)
+    record["bundle_manifest_sha256"] = "wrong"
+    acceptance.write_text(json.dumps(record))
+    with pytest.raises(ValueError, match="acceptance"):
+        accepted_bundle(bundle, acceptance)
 
 
 def test_rebind_keeps_training_membership_and_excludes_case_everywhere():

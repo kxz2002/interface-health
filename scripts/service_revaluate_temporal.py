@@ -22,6 +22,21 @@ from src.service.modeling.evaluation import QUANTILES, calibrate, evaluate_run
 from src.service.preparation import file_digest
 
 
+def accepted_bundle(bundle_path, acceptance_path):
+    acceptance = json.loads(acceptance_path.read_text())
+    manifest = bundle_path / "manifest.json"
+    if not manifest.is_file():
+        manifest = bundle_path / "labels/manifest.json"
+    if (
+        acceptance.get("status") != "success"
+        or acceptance.get("bundle_manifest_sha256") != file_digest(manifest)
+        or not acceptance.get("result", {}).get("rows")
+        or not acceptance.get("provenance", {}).get("commit")
+    ):
+        raise ValueError("Missing acceptance bound to evaluation bundle")
+    return read_bundle(bundle_path), manifest
+
+
 def rebind(tables, prepared, bundle):
     derived = bundle["manifest"]
     if (
@@ -163,19 +178,8 @@ def main():
         args.output,
         [args.prepared, args.bundle, args.sources, args.acceptance, *map(Path, sources.values())],
     )
-    acceptance = json.loads(args.acceptance.read_text())
-    bundle_manifest = args.bundle / "manifest.json"
-    if not bundle_manifest.is_file():
-        bundle_manifest = args.bundle / "labels/manifest.json"
-    if (
-        acceptance.get("status") != "success"
-        or acceptance.get("bundle_manifest_sha256") != file_digest(bundle_manifest)
-        or not acceptance.get("result", {}).get("rows")
-        or not acceptance.get("provenance", {}).get("commit")
-    ):
-        raise ValueError("Missing acceptance bound to evaluation bundle")
+    bundle, bundle_manifest = accepted_bundle(args.bundle, args.acceptance)
     tables, prepared, _ = read_prepared(args.prepared)
-    bundle = read_bundle(args.bundle)
     tables, lists = rebind(tables, prepared, bundle)
     if not sources or any(not isinstance(name, str) or not name.isidentifier() for name in sources):
         raise ValueError("Source names must be nonempty Python identifiers")

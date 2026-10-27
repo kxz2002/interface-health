@@ -21,10 +21,12 @@ from scripts.service_model import (
     read_prepared,
     score_ids,
 )
+from scripts.service_revaluate_temporal import accepted_bundle, rebind
 from src.service.modeling.config import content_hash
 from src.service.modeling.evaluation import QUANTILES, annotate_calibration, calibrate, evaluate_run
 from src.service.modeling.neural_baseline_data import closed_window_sequences
 from src.service.modeling.patchad_adapter import score_patchad, train_patchad
+from src.service.preparation import file_digest
 
 
 def upstream_factory(path, config):
@@ -111,7 +113,11 @@ def main(argv=None):
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--tracking-uri", required=True)
     parser.add_argument("--seed", type=int, choices=[1, 2, 42])
+    parser.add_argument("--bundle", type=Path)
+    parser.add_argument("--acceptance", type=Path)
     args = parser.parse_args(argv)
+    if (args.bundle is None) != (args.acceptance is None):
+        parser.error("--bundle and --acceptance must be provided together")
     if args.output.exists():
         raise FileExistsError(args.output)
     config = json.loads(args.config.read_text())
@@ -120,6 +126,10 @@ def main(argv=None):
     validate_config(config)
     factory = upstream_factory(args.upstream, config)
     tables, prepared, _ = read_prepared(args.prepared)
+    lists = prepared.lists
+    if args.bundle:
+        bundle, bundle_manifest = accepted_bundle(args.bundle, args.acceptance)
+        tables, lists = rebind(tables, prepared, bundle)
     inputs = closed_window_sequences(prepared, config["sequence_length"])
     parent = _reference(args.prepared)
     binding = content_hash(dict(config=config, prepared=parent))
@@ -135,6 +145,12 @@ def main(argv=None):
         upstream_commit=config["upstream_commit"],
         context_policy="closed_same_case_service_split_15s_contiguous",
     )
+    if args.bundle:
+        provenance.update(
+            evaluation_bundle_sha256=file_digest(bundle_manifest),
+            acceptance_sha256=file_digest(args.acceptance),
+            evaluation_versions=tables.versions,
+        )
     with _record(args.output, config, args, provenance) as recorder:
         model, evidence = train_patchad(prepared, inputs, config["training"], factory)
         model_path = recorder.output / "run/model.pt"
@@ -144,7 +160,7 @@ def main(argv=None):
         )
         scored = {}
         for scope in ["calibration", "test"]:
-            ids = score_ids(prepared.lists, scope)
+            ids = score_ids(lists, scope)
             frame = score_patchad(model, inputs, ids, config["training"]["batch_size"])
             frame["model_version"] = config["schema_version"]
             frame["config_sha256"] = binding
@@ -157,7 +173,16 @@ def main(argv=None):
         )
         thresholds = calibrate(calibration, set(prepared.lists.calibration), config["quantiles"])
         report = evaluate_run(
-            tables, prepared.lists, scored["test"], thresholds, score_scope="test"
+            tables,
+            lists,
+            scored["test"],
+            thresholds,
+            score_scope="test",
+            source_binding=(
+                {"versions": prepared.versions, "lists_hash": prepared.lists.lists_hash}
+                if args.bundle
+                else None
+            ),
         )
         report_path = recorder.output / "evaluation/report.json"
         _json(report_path, report)
