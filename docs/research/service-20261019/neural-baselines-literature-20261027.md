@@ -1,0 +1,33 @@
+# 近期神经网络基线调研与适配记录
+
+状态：调研中；尚无本轮基线训练或评价结果。本记录用于确定候选及复现风险，不把论文在其他数据集上的结果当作本项目结果。论文和代码核对日期为 2026-10-27。
+
+## 候选及原始资料
+
+| 方法 | 论文 | 结构与输入 | 本项目适配问题 |
+|---|---|---|---|
+| CATCH | Wu 等，ICLR 2025，[论文](https://openreview.net/forum?id=m08aK3xxdJ)、[官方代码](https://github.com/decisionintelligence/CATCH) | 多变量序列；频域 patch、通道融合和重建，时间域和频域误差用于评分 | 每个 Service 单独形成序列；频域和窗口长度需考虑短 Case、缺测及闭窗时间；官方标签接口从训练和测试分数共同计算阈值，必须替换。 |
+| PatchAD | Zhong 等，IEEE Transactions on Big Data 2025，[论文](https://doi.org/10.1109/tbdata.2025.3596745)、[官方代码](https://github.com/EmorZz1G/PatchAD) | 多变量序列；多尺度 patch、MLP-Mixer 和对比表示 | 上游 trainer 用测试集做早停，且使用训练和测试分数共同定阈值，均不可沿用；patch 尺寸需整除序列长度。 |
+| ScatterAD | Yin 等，NeurIPS 2025，[论文](https://proceedings.neurips.cc/paper_files/paper/2025/hash/4b52b3c50110fc10f6a1a86055682ea2-Abstract-Conference.html)、[官方代码](https://github.com/jk-sounds/ScatterAD) | 多变量时间序列，将时间点构成图节点，结合图编码、时序一致性和对比融合 | 官方图连相邻时间点，评分还比较相邻节点；需处理末端评分和 batch 图边界，不能使用目标时刻之后的信息；依赖 PyTorch Geometric。 |
+| DCdetector | Yang 等，KDD 2023，[官方代码和论文入口](https://github.com/DAMO-DI-ML/KDD2023-DCdetector) | 多变量序列；两种 patch 视图和双分支注意力，通过对比差异评分 | 上游 `solver.py` 用测试集做早停、混合训练和测试分数定阈值；patch 尺寸需整除窗口长度。2023 年较上述候选更早，作为架构不同的候选，最终取舍需结合更多近期文献。 |
+
+CATCH、PatchAD 和 ScatterAD 均为 2025 年发表，DCdetector 是 2023 年发表。这些架构适合探讨时序异常检测，但论文原始数据与本项目的 Service 多模态观测、缺测机制和标签不同；不能直接声称论文基准表现会迁移到这里。上游示例通常使用几十至数百时间步，而已有 GRU 的默认历史为 4 步，直接统一窗口可能导致这些方法失去原有设计意义；使用更长窗口又会改变可用历史和覆盖，必须明确报告两者。
+
+## 代码核查
+
+2026-10-27 检出的上游 HEAD：CATCH `3647c69be5eb56649b072596cf89098e689e20c3`，PatchAD `38606bc1b38f4b099ea053880846e9b434171dd5`，ScatterAD `7572fa954468e46c598badf1c9cfaf6c1835c4cb`，DCdetector `9d107cae518ef24ee2eb2ad1b92107cdcd09ea10`。这是检出版本，不等于论文实验使用的版本。PatchAD 仓库有 Apache-2.0 LICENSE，ScatterAD 为 MIT；所检出的 CATCH 和 DCdetector 根目录未见 LICENSE 文件，GitHub API 也未识别许可证。引入源码前应进一步核对授权；不能默认无许可证代码允许复制。上游示例运行脚本并非直接适用于本项目，不能直接使用其评价和阈值流程。
+
+ScatterAD 的 `compute_loss` 和 `get_anomaly_scores` 对 batch 合并后的相邻节点直接做差，即使不同图之间没有边，也可能把两个样本的边界连接起来；其双向邻接也使中间节点表示包含后续信息。复现必须验证图级切分以及当前窗的因果评分，并记录由此带来的方法改动。它的 Service 数据 loader 的 `thre` 使用验证段而非测试段，但本项目仍应以独立 Normal calibration 定阈值。本机 `interface` 环境目前缺 `einops` 和 `torch_geometric`，且仅有 CPU PyTorch；gpu-b 依赖状态尚未核对，不自动安装或更改现有环境。
+
+## 数据与公平性约束
+
+- 当前时序输入每步包含 12 个数值（资源 3、执行 5、日志统计 4）、对应 12 个观测 mask、3 个模态可用性位；历史另含存在位。数值使用原 prepared 的 Normal 拟合状态和 `arcsinh` 变换。应分别说明哪些字段参与模型输入、重建或对比目标，不能把缺测填零后当作真实观测计算误差。
+- 数据键为 Case、Service、划分和时间，15 秒一窗；上下文不能跨 Case、Service、划分、时间缺口或 fit 的有效 ID 边界。不能把多个序列拼成连续时间序列。须保存目标 ID 与上下文 ID，验证无交叉。
+- 只用独立 Normal fit 学习参数；以单独留出的 Normal 数据选择停止点或超参数；独立 Normal calibration 计算 q99 阈值；Fault 仅用于最终评价，Unknown 不转负类。须冻结候选及选择规则，不能根据 Fault 分数选择设置或有意削弱模型。
+- v3 排除 POOL/DNS；主评价原有 3141 个窗口。对于不足历史、缺测或模型无法评分，必须报告全部目标 ID 的覆盖和缺失原因，不能通过删除难例提高指标；比较应同时给出相同 ID 的配对指标与各方法完整覆盖。
+- 论文网络通常读取包括当前时刻在内的序列并产生重建或逐点对比得分，现有 GRU 则从过去预测当前窗。闭窗离线评分可比较，但应声明信息集差异、窗口长度和 score-to-window 映射；不能使用目标窗之后的信息或重叠片段的未来分数。
+- 固定多个随机种子、保存原始分数、阈值、逐 Case 统计、环境、代码版本、超参数和样本身份；与原 GRU 使用同一套标签、AUROC/AP、q99 召回及 Normal FPR 计算。按故障 Case 和覆盖共同解释，不使用 point adjustment 把整段故障填为已检出。
+
+## 尚待完成
+
+进一步核对论文细节、官方许可和依赖，选定至少三个可实际复现的近期模型；在独立 Normal 验证上确定合理的窗口、超参数和早停规则；实现可追溯的适配器并验证边界、缺测、计分和样本覆盖。检查远端连接和 prepared/环境后再启动训练。各候选是否可在现有数据上运行、结果如何均尚未验证。
