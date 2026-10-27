@@ -31,7 +31,7 @@ PatchAD 的 `main_ad.py` 选择 `patchad_trainer_v2`；该 trainer 计算但未�
 
 适配训练使用 Normal fit 中具有完整连续历史的样本，记录不足历史的 fit ID；评分保留所有指定 ID，并将不足历史的前缀填零。模型输入包含 12 个数值、12 个字段 mask、3 个模态可用性，前缀填充存在位用于筛选完整训练历史而不输入上游网络。缺测位置虽附带 mask，但上游网络不直接支持缺测掩码，其归一化仍受零填充影响；这需要与覆盖率一起报告，不能称完全解决缺测。
 
-`configs/service/tt_patchad_neural_v1.json` 预设参考上游 PSM 示例的 105 窗、3/5/7 patch、3 epoch、学习率和 batch 大小；使用固定轮数而非测试集早停，未据本项目测试分数调整。`scripts/service_patchad_model.py` 验证上游 Git 版本及干净状态，复用 prepared 的独立 Normal 校准和评价，并保存 checkpoint、逐样本分数、训练样本 ID 和历史窗口 ID。由于旧 prepared 的标签协议为 v2，主结论仍须使用 `service_revaluate_temporal.py` 的已验证派生标签包生成 v3 结果。入口已做合成数据烟测，但尚未用真实 prepared、上游模型或 gpu-b 验证完整入口，真实模型仅完成合成前向、反向和训练/评分测试。该预设对本数据能否训练及其覆盖尚未验证，不可宣称它已是有效强基线。
+`configs/service/tt_patchad_neural_v1.json` 预设参考上游 PSM 示例的 105 窗、3/5/7 patch、3 epoch、学习率和 batch 大小；使用固定轮数而非测试集早停，未据本项目测试分数调整。`scripts/service_patchad_model.py` 验证上游 Git 版本及干净状态，复用 prepared 的独立 Normal 校准和评价，并保存 checkpoint、逐样本分数、训练样本 ID 和历史窗口 ID。由于旧 prepared 的标签协议为 v2，主结论仍须使用 `service_revaluate_temporal.py` 的已验证派生标签包生成 v3 结果。三种入口都已通过固定上游模型和合成 prepared 的完整训练、校准、评价、产物核对，以及复评来源/阈值验证；复评烟测沿用合成的原评价版本，并未验证真实 v3 标签包。尚未使用真实 prepared 或 gpu-b 执行，该预设对本数据能否训练及其覆盖尚未验证，不可宣称它已是有效强基线。
 
 ## 数据与公平性约束
 

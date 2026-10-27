@@ -99,6 +99,7 @@ def upstream_factory(path, config):
     if revision != config["upstream_commit"] or dirty:
         raise ValueError("Source must be the pinned clean Time-Series-Library checkout")
     sys.path.insert(0, str(root))
+    sys.dont_write_bytecode = True
     module = importlib.import_module("models." + config["model"])
     if not Path(module.__file__).resolve().is_relative_to(root):
         raise ValueError("Model is not from the pinned checkout")

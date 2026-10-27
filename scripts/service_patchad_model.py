@@ -38,6 +38,7 @@ def upstream_factory(path, config):
     if revision != config["upstream_commit"] or dirty:
         raise ValueError("PatchAD source must be the pinned clean upstream checkout")
     sys.path.insert(0, str(root))
+    sys.dont_write_bytecode = True
     from patchad_model import models
 
     if not Path(models.__file__).resolve().is_relative_to(root):

@@ -5,6 +5,7 @@ import torch
 
 import scripts.service_model as service_cli
 import scripts.service_patchad_model as patchad_cli
+from scripts.service_revaluate_temporal import evaluate_source
 from tests.test_service_model_smoke import TinyRuntime, synthetic_tables
 
 
@@ -77,3 +78,6 @@ def test_patchad_cli_publishes_calibrated_results(tmp_path, monkeypatch):
     assert report["coverage"]["missing_ids"] == []
     thresholds = json.loads((output / "run/thresholds.json").read_text())
     assert thresholds["primary_quantile"] == 0.99
+    tables, prepared_data, _ = service_cli.read_prepared(prepared)
+    reevaluated, _ = evaluate_source(output, tables, prepared_data, prepared_data.lists, prepared)
+    assert reevaluated["coverage"]["missing_ids"] == []
