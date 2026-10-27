@@ -227,11 +227,15 @@ def test_derive_evaluation_bundle_versions_scope_without_relabeling(setup, tmp_p
 
     derive_evaluation_bundle(source, preparation.parent, protocol_path, output)
     result = read_bundle(output)
+    from src.service.labeling.evaluation import evaluation_counts
 
     assert result["manifest"]["evaluation_version"] == "evaluation-v3"
     assert result["evaluation"]["evaluation_eligible"].sum() == 0
     assert result["labels"].label.equals(read_bundle(source)["labels"].label)
     assert result["splits"].split.equals(read_bundle(source)["splits"].split)
+    assert result["evaluation_coverage"] == evaluation_counts(
+        result["evaluation"], result["labels"], setup[2].grid
+    )
     assert {
         "by_case",
         "by_source",
@@ -239,6 +243,26 @@ def test_derive_evaluation_bundle_versions_scope_without_relabeling(setup, tmp_p
         "exclusion_reasons",
         "total",
     } <= set(result["evaluation_coverage"])
+
+
+def test_derive_evaluation_bundle_rejects_changed_preparation(setup, tmp_path, monkeypatch):
+    from dataclasses import replace
+
+    from src.service.labeling.bundle import derive_evaluation_bundle
+
+    build(setup, "source")
+    source = setup[0] / "source/labels"
+    protocol = json.loads((source / "protocol.json").read_text())
+    protocol["evaluation_version"] = "evaluation-v3"
+    protocol_path = tmp_path / "evaluation-v3.json"
+    protocol_path.write_text(json.dumps(protocol))
+    changed = replace(setup[2], preparation_manifest_sha256="changed")
+    monkeypatch.setattr(bundle, "load_evidence", lambda *args: changed)
+    with pytest.raises(ValueError, match="Preparation or source evidence"):
+        derive_evaluation_bundle(
+            source, tmp_path / "preparation", protocol_path, tmp_path / "derived"
+        )
+    assert not (tmp_path / "derived").exists()
 
 
 def test_derive_evaluation_bundle_rejects_label_rule_changes(setup, tmp_path):

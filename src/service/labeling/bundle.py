@@ -426,8 +426,9 @@ def derive_evaluation_bundle(
     source, preparation, protocol_path, output = map(
         Path, [source, preparation, protocol_path, output]
     )
-    if output.exists():
-        raise ValueError(f"Output already exists: {output}")
+    if not (source / "manifest.json").is_file():
+        source = source / "labels"
+    output = _protect(output, [source, preparation, protocol_path])
     data = read_bundle(source)
     protocol = json.loads(protocol_path.read_text())
     if not protocol.get("evaluation_version"):
@@ -444,83 +445,22 @@ def derive_evaluation_bundle(
         if key not in allowed_changes and protocol.get(key) != data["protocol"].get(key)
     }:
         raise ValueError("Evaluation derivation cannot change label or split rules")
+    index = load_evidence(
+        Path(data["manifest"]["inputs"]["tt_root"]), preparation, data["protocol"]
+    )
+    if (
+        index.preparation_manifest_sha256 != data["evidence"]["preparation_manifest_sha256"]
+        or _jsonable(index.sources) != _jsonable(data["evidence"]["sources"])
+        or _jsonable(index.cases) != _jsonable(data["evidence"]["cases"])
+    ):
+        raise ValueError("Preparation or source evidence differs from source bundle")
     output.mkdir(parents=True)
     shutil.copytree(source, output, dirs_exist_ok=True)
     _write(output / "protocol.json", protocol)
     labels, splits = data["labels"].copy(), data["splits"].copy()
     evaluation = evaluation_table(labels, splits, protocol)
     evaluation.to_parquet(output / "evaluation.parquet", index=False)
-    resource = pd.read_parquet(Path(preparation) / "tt/resource_windows.parquet")
-    resource_valid = resource[["sample_id", "resource_valid"]]
-    valid_evaluation = evaluation.merge(
-        resource_valid, on="sample_id", validate="one_to_one"
-    ).merge(labels[["sample_id", "label"]], on="sample_id", validate="one_to_one")
-    coverage_path = source / "evaluation_coverage.json"
-    coverage = (
-        json.loads(coverage_path.read_text())
-        if coverage_path.is_file()
-        else {
-            "by_case": {},
-            "by_source": {},
-            "input_valid": {},
-            "exclusion_reasons": {},
-            "total": {},
-        }
-    )
-    coverage["evaluation_version"] = protocol["evaluation_version"]
-    coverage["excluded_cases"] = protocol.get("evaluation_excluded_cases", [])
-    eligible = evaluation[evaluation.evaluation_eligible].merge(
-        labels[["sample_id", "label", "label_source"]], on="sample_id", validate="one_to_one"
-    )
-    coverage["total"] = {
-        "rows": len(eligible),
-        "negative": int(eligible.label.eq(0).sum()),
-        "positive": int(eligible.label.eq(1).sum()),
-    }
-    coverage["by_case"] = {
-        case: {
-            "rows": len(group),
-            "negative": int(group.label.eq(0).sum()),
-            "positive": int(group.label.eq(1).sum()),
-        }
-        for case, group in eligible.groupby("case_id")
-    }
-    coverage["by_source"] = {
-        source_name: {
-            "rows": len(group),
-            "negative": int(group.label.eq(0).sum()),
-            "positive": int(group.label.eq(1).sum()),
-        }
-        for source_name, group in eligible.groupby("label_source")
-    }
-    coverage["exclusion_reasons"] = dict(
-        coverage.get("exclusion_reasons", {}),
-        excluded_evaluation_case=int((~evaluation.evaluation_eligible).sum()),
-    )
-    coverage["input_valid"] = {
-        "resource_valid": {
-            "rows": int(
-                valid_evaluation.loc[
-                    valid_evaluation.evaluation_eligible & valid_evaluation.resource_valid
-                ].shape[0]
-            ),
-            "negative": int(
-                (
-                    valid_evaluation.evaluation_eligible
-                    & valid_evaluation.resource_valid
-                    & valid_evaluation.label.eq(0)
-                ).sum()
-            ),
-            "positive": int(
-                (
-                    valid_evaluation.evaluation_eligible
-                    & valid_evaluation.resource_valid
-                    & valid_evaluation.label.eq(1)
-                ).sum()
-            ),
-        }
-    }
-    _write(output / "evaluation_coverage.json", coverage)
+    _write(output / "evaluation_coverage.json", evaluation_counts(evaluation, labels, index.grid))
     evidence = data["evidence"]
     hashes = _semantic(protocol, evidence, labels, splits)
     label_version = _label_version(hashes)
@@ -531,6 +471,12 @@ def derive_evaluation_bundle(
     labels["label_version"] = label_version
     labels.to_parquet(output / "labels.parquet", index=False)
     manifest = dict(data["manifest"])
+    manifest["derivation"] = {
+        "source_manifest_sha256": file_digest(source / "manifest.json"),
+        "source_path": str(source.resolve()),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        **_provenance(),
+    }
     manifest["schema_version"] = 2
     manifest["label_version"] = label_version
     manifest["evaluation_version"] = protocol["evaluation_version"]
