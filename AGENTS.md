@@ -208,6 +208,14 @@ conda run -n interface python scripts/train_baseline_v0.py --cfg job
 |/tmp/b-admission-20261012|此前候选路线准入审查，仅作历史参考|
 
 这些临时资产有存在性与版本限制，先检查再引用。**核心开发原则：用正确的样本、明确的任务和可复现证据回答问题；数据工程、严格评估和现成算法组合不自动等于方法创新。**
+
+## 11. 当前研究状态（2026-10-27 更新）
+
+- POOL 与 DNS 两个 Case 已从当前 Service 主评价范围永久排除；原始数据、标签证据和历史 v2 评价包保留，只在新评价版本中移除其评价资格。
+- 新正式评价协议为 `configs/service/tt_labels_a_v3_pool_dns_excluded.json`，评价版本为 `tt_normal_test_and_controlled_positive_v3_pool_dns_excluded`。通过 `scripts/label_service_data.py derive-evaluation` 从已验证 bundle 派生，不能手工删除 metrics 行。
+- v3 只改变 evaluation membership；Normal-only fit、Normal calibration、Case split、模型 checkpoint 和阈值协议保持不变。评价 bundle 必须带完整 manifest、semantic hashes、coverage 和 provenance。
+- L2 与 Max 已废案，不再纳入后续模型矩阵、基线重跑、结果比较或研究结论；后续经典基线以仍获保留的方法清单为准。
+- 当前最佳已验证模型仍是 selected17 协议下的服务先验 GRU；POOL/DNS 排除后的结果只能作为新评价范围版本报告，不与旧 v2 指标无标记混写。
 <!-- ARIS-CODEX:BEGIN -->
 ## ARIS Codex Skill Scope
 ARIS Codex packages installed in this project: skills-codex
