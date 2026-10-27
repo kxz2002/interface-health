@@ -277,6 +277,8 @@ def build_sample_lists(
     known = labels.label.notna()
     normal = labels.label.eq(0).fillna(False)
     positive = labels.label.eq(1).fillna(False)
+    excluded_cases = (getattr(tables, "protocol", None) or {}).get("evaluation_excluded_cases", [])
+    included_case = ~frame.case_id.isin(excluded_cases)
 
     def select(mask):
         return tuple(frame.index[mask.fillna(False)])
@@ -285,12 +287,16 @@ def build_sample_lists(
     calibration = select(valid & splits.eq("calibration") & normal)
     pre_reference = labels.label_source.eq("pre_intervention_reference")
     main = select(valid & eligible & known & splits.eq("test") & ~pre_reference)
-    extended = select((valid | logs) & splits.eq("test"))
+    extended = select((valid | logs) & splits.eq("test") & included_case)
     extended_main = select((valid | logs) & eligible & known & splits.eq("test") & ~pre_reference)
     pre_mask = (
-        valid & splits.eq("test") & normal & labels.label_source.eq("pre_intervention_reference")
+        valid
+        & splits.eq("test")
+        & included_case
+        & normal
+        & labels.label_source.eq("pre_intervention_reference")
     )
-    positive_mask = valid & splits.eq("test") & positive
+    positive_mask = valid & splits.eq("test") & included_case & positive
     groups = {}
     for (case, service), group in frame.groupby(["case_id", "canonical_service_id"]):
         pre = tuple(group.index[pre_mask.reindex(group.index)])

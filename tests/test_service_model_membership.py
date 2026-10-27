@@ -78,3 +78,18 @@ def test_fault_pre_never_enters_main_even_if_marked_eligible():
     assert "d" not in result.common_main_test
     assert "d" not in result.extended_main_test
     assert "d" in result.diagnostic_pre
+
+
+def test_excluded_cases_are_absent_from_all_evaluation_scopes():
+    tables, numeric, logs = membership_fixture()
+    tables.protocol = {"evaluation_excluded_cases": ["fault"]}
+    tables.evaluation.loc[tables.evaluation.case_id.eq("fault"), "evaluation_eligible"] = False
+    result = build_sample_lists(tables, numeric, logs, "common")
+    assert result.common_fit == ("a",)
+    assert result.common_calibration == ("b",)
+    assert result.common_main_test == ("c",)
+    assert result.extended_main_test == ("c",)
+    assert result.extended_inference == ("c",)
+    assert not result.diagnostic_pre
+    assert not result.diagnostic_positive
+    assert not result.diagnostic_groups
