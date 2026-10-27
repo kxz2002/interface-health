@@ -74,8 +74,17 @@ def evaluate_source(source, tables, prepared, lists, prepared_path):
     parent = provenance["parents"]["prepared"]
     if parent["manifest_sha256"] != file_digest(Path(prepared_path) / "manifest.json"):
         raise ValueError("Model was fitted with a different prepared artifact")
+    source_lists_hash = provenance.get("lists_hash")
+    if source_lists_hash is None and manifest["stage"] in {
+        "gru_error_calibration",
+        "gru_state_temporal",
+    }:
+        parent_manifest = json.loads(
+            (Path(provenance["parents"]["baseline"]["path"]) / "manifest.json").read_text()
+        )
+        source_lists_hash = parent_manifest["provenance"]["lists_hash"]
     if (
-        provenance["lists_hash"] != prepared.lists.lists_hash
+        source_lists_hash != prepared.lists.lists_hash
         or provenance["versions"] != prepared.versions
     ):
         raise ValueError("Model training membership or versions differ")

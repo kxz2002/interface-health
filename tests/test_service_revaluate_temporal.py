@@ -101,6 +101,21 @@ def test_source_checks_binding_and_thresholds(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "check_run", lambda path: None)
     monkeypatch.setattr(module, "evaluate_run", lambda *args, **kwargs: {"ok": True})
     assert evaluate_source(source, None, prepared, lists, prepared_path)[0] == {"ok": True}
+    parent = tmp_path / "baseline"
+    parent.mkdir()
+    (parent / "manifest.json").write_text(json.dumps({"provenance": {"lists_hash": "old"}}))
+    del provenance["lists_hash"]
+    provenance["parents"]["baseline"] = {"path": str(parent)}
+    (source / "manifest.json").write_text(
+        json.dumps(
+            {"stage": "gru_error_calibration", "provenance": provenance, "artifacts": artifacts}
+        )
+    )
+    assert evaluate_source(source, None, prepared, lists, prepared_path)[0] == {"ok": True}
+    (parent / "manifest.json").write_text(json.dumps({"provenance": {"lists_hash": "wrong"}}))
+    with pytest.raises(ValueError, match="membership"):
+        evaluate_source(source, None, prepared, lists, prepared_path)
+    (parent / "manifest.json").write_text(json.dumps({"provenance": {"lists_hash": "old"}}))
     thresholds["thresholds"]["0.99"] = 5
     (source / "run/thresholds.json").write_text(json.dumps(thresholds))
     with pytest.raises(ValueError, match="Stored thresholds"):
