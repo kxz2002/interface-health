@@ -63,6 +63,8 @@ def evaluate_source(source, tables, prepared, lists, prepared_path):
     source = Path(source)
     manifest = json.loads((source / "manifest.json").read_text())
     provenance = manifest["provenance"]
+    if manifest["stage"] == "evaluate":
+        return evaluate_baseline(source, manifest, tables, prepared, lists, prepared_path)
     for name in ("scores", "calibration_scores", "thresholds"):
         if (
             manifest["artifacts"][name]["path"]
@@ -89,6 +91,43 @@ def evaluate_source(source, tables, prepared, lists, prepared_path):
         scores,
         thresholds,
         score_scope="test",
+        source_binding={"versions": prepared.versions, "lists_hash": prepared.lists.lists_hash},
+    )
+    return report, dict(
+        source=str(source.resolve()), manifest_sha256=file_digest(source / "manifest.json")
+    )
+
+
+def evaluate_baseline(source, manifest, tables, prepared, lists, prepared_path):
+    parents = manifest["provenance"]["parents"]
+    if parents["prepared"]["manifest_sha256"] != file_digest(Path(prepared_path) / "manifest.json"):
+        raise ValueError("Baseline evaluation uses a different prepared artifact")
+    if manifest["training_versions"] != prepared.versions:
+        raise ValueError("Baseline training versions differ")
+    score_root = Path(parents["scores"]["path"])
+    calibration_root = Path(parents["calibration"]["path"])
+    model = parents["model"]
+    for root, scope in [(score_root, "test"), (calibration_root, "calibration")]:
+        score_manifest = json.loads((root / "manifest.json").read_text())
+        if (
+            score_manifest["stage"] != "score"
+            or score_manifest["provenance"]["parents"]["model"] != model
+        ):
+            raise ValueError("Baseline score and model binding mismatch")
+        actual_scope = score_manifest["provenance"]["score_scope"]
+        if actual_scope != scope and not (scope == "test" and actual_scope == "extended_test"):
+            raise ValueError("Baseline score scope mismatch")
+    scores = pd.read_parquet(score_root / "run/scores.parquet")
+    calibration = pd.read_parquet(calibration_root / "run/scores.parquet")
+    thresholds = json.loads((source / "evaluation/thresholds.json").read_text())
+    if thresholds != calibrate(calibration, set(lists.calibration), list(QUANTILES)):
+        raise ValueError("Stored thresholds do not match original calibration scores")
+    report = evaluate_run(
+        tables,
+        lists,
+        scores,
+        thresholds,
+        score_scope=manifest["provenance"]["score_scope"],
         source_binding={"versions": prepared.versions, "lists_hash": prepared.lists.lists_hash},
     )
     return report, dict(

@@ -86,7 +86,9 @@ def test_source_checks_binding_and_thresholds(tmp_path, monkeypatch):
         for name in ("scores", "calibration_scores", "thresholds")
     }
     (source / "manifest.json").write_text(
-        json.dumps({"provenance": provenance, "artifacts": artifacts})
+        json.dumps(
+            {"stage": "temporal_experiment", "provenance": provenance, "artifacts": artifacts}
+        )
     )
     pd.DataFrame(
         {"sample_id": ["cal"], "score": [1.0], "label": [0], "split": ["calibration"]}
@@ -102,4 +104,63 @@ def test_source_checks_binding_and_thresholds(tmp_path, monkeypatch):
     thresholds["thresholds"]["0.99"] = 5
     (source / "run/thresholds.json").write_text(json.dumps(thresholds))
     with pytest.raises(ValueError, match="Stored thresholds"):
+        evaluate_source(source, None, prepared, lists, prepared_path)
+
+
+def test_baseline_reuses_bound_scores_and_rejects_changed_model(tmp_path, monkeypatch):
+    import json
+
+    from scripts import service_revaluate_temporal as module
+
+    prepared_path = tmp_path / "prepared"
+    prepared_path.mkdir()
+    (prepared_path / "manifest.json").write_text("{}")
+    versions = {"label_version": "old", "split_version": "split", "evaluation_version": "v2"}
+    prepared = SimpleNamespace(lists=SimpleNamespace(lists_hash="old"), versions=versions)
+    lists = SimpleNamespace(calibration=("cal",))
+    source, score, calibration = (tmp_path / name for name in ("eval", "score", "cal"))
+    for root in (source, score, calibration):
+        (root / "run").mkdir(parents=True)
+    (source / "evaluation").mkdir()
+    model = {"path": "model", "manifest_sha256": "model_hash"}
+    for root, scope in ((score, "test"), (calibration, "calibration")):
+        (root / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "stage": "score",
+                    "provenance": {"parents": {"model": model}, "score_scope": scope},
+                }
+            )
+        )
+    pd.DataFrame({"sample_id": ["test"], "score": [2.0]}).to_parquet(score / "run/scores.parquet")
+    cal = pd.DataFrame(
+        {"sample_id": ["cal"], "score": [1.0], "label": [0], "split": ["calibration"]}
+    )
+    cal.to_parquet(calibration / "run/scores.parquet")
+    thresholds = module.calibrate(cal, {"cal"}, list(module.QUANTILES))
+    (source / "evaluation/thresholds.json").write_text(json.dumps(thresholds))
+    parents = {
+        "prepared": {"manifest_sha256": module.file_digest(prepared_path / "manifest.json")},
+        "scores": {"path": str(score)},
+        "calibration": {"path": str(calibration)},
+        "model": model,
+    }
+    manifest = {
+        "stage": "evaluate",
+        "training_versions": versions,
+        "provenance": {"parents": parents, "score_scope": "test"},
+    }
+    (source / "manifest.json").write_text(json.dumps(manifest))
+    monkeypatch.setattr(module, "check_run", lambda path: None)
+    monkeypatch.setattr(module, "evaluate_run", lambda *args, **kwargs: {"ok": True})
+    assert evaluate_source(source, None, prepared, lists, prepared_path)[0] == {"ok": True}
+    (score / "manifest.json").write_text(
+        json.dumps(
+            {
+                "stage": "score",
+                "provenance": {"parents": {"model": {"path": "other"}}, "score_scope": "test"},
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="model binding"):
         evaluate_source(source, None, prepared, lists, prepared_path)
