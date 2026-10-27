@@ -15,7 +15,7 @@ import pandas as pd
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.service_model import _environment, check_run, read_prepared
+from scripts.service_model import _environment, _model_lists, check_run, read_prepared
 from src.service.labeling.bundle import _protect, read_bundle
 from src.service.modeling.data import build_sample_lists
 from src.service.modeling.evaluation import QUANTILES, calibrate, evaluate_run
@@ -107,6 +107,10 @@ def evaluate_baseline(source, manifest, tables, prepared, lists, prepared_path):
     score_root = Path(parents["scores"]["path"])
     calibration_root = Path(parents["calibration"]["path"])
     model = parents["model"]
+    model_root = Path(model["path"])
+    model_manifest = json.loads((model_root / "manifest.json").read_text())
+    source_lists = _model_lists(model_manifest, prepared, model_root)
+    target_lists = _model_lists(model_manifest, replace(prepared, lists=lists), model_root)
     for root, scope in [(score_root, "test"), (calibration_root, "calibration")]:
         score_manifest = json.loads((root / "manifest.json").read_text())
         if (
@@ -120,15 +124,15 @@ def evaluate_baseline(source, manifest, tables, prepared, lists, prepared_path):
     scores = pd.read_parquet(score_root / "run/scores.parquet")
     calibration = pd.read_parquet(calibration_root / "run/scores.parquet")
     thresholds = json.loads((source / "evaluation/thresholds.json").read_text())
-    if thresholds != calibrate(calibration, set(lists.calibration), list(QUANTILES)):
+    if thresholds != calibrate(calibration, set(target_lists.calibration), list(QUANTILES)):
         raise ValueError("Stored thresholds do not match original calibration scores")
     report = evaluate_run(
         tables,
-        lists,
+        target_lists,
         scores,
         thresholds,
         score_scope=manifest["provenance"]["score_scope"],
-        source_binding={"versions": prepared.versions, "lists_hash": prepared.lists.lists_hash},
+        source_binding={"versions": prepared.versions, "lists_hash": source_lists.lists_hash},
     )
     return report, dict(
         source=str(source.resolve()), manifest_sha256=file_digest(source / "manifest.json")

@@ -122,7 +122,10 @@ def test_baseline_reuses_bound_scores_and_rejects_changed_model(tmp_path, monkey
     for root in (source, score, calibration):
         (root / "run").mkdir(parents=True)
     (source / "evaluation").mkdir()
-    model = {"path": "model", "manifest_sha256": "model_hash"}
+    model_root = tmp_path / "model"
+    model_root.mkdir()
+    (model_root / "manifest.json").write_text("{}")
+    model = {"path": str(model_root), "manifest_sha256": "model_hash"}
     for root, scope in ((score, "test"), (calibration, "calibration")):
         (root / "manifest.json").write_text(
             json.dumps(
@@ -152,6 +155,12 @@ def test_baseline_reuses_bound_scores_and_rejects_changed_model(tmp_path, monkey
     }
     (source / "manifest.json").write_text(json.dumps(manifest))
     monkeypatch.setattr(module, "check_run", lambda path: None)
+    monkeypatch.setattr(
+        module,
+        "_model_lists",
+        lambda *args: SimpleNamespace(calibration=("cal",), lists_hash="method_hash"),
+    )
+    monkeypatch.setattr(module, "replace", lambda value, **kwargs: value)
     monkeypatch.setattr(module, "evaluate_run", lambda *args, **kwargs: {"ok": True})
     assert evaluate_source(source, None, prepared, lists, prepared_path)[0] == {"ok": True}
     (score / "manifest.json").write_text(
