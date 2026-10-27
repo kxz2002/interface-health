@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.service.labeling.acceptance import check_bundle
-from src.service.labeling.bundle import build_bundle, diff_bundles
+from src.service.labeling.bundle import build_bundle, derive_evaluation_bundle, diff_bundles
 
 
 def main(argv=None) -> int:
@@ -17,6 +17,7 @@ def main(argv=None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     arguments = {
         "build": ["tt-root", "preparation", "protocol", "output"],
+        "derive-evaluation": ["source", "preparation", "protocol", "output"],
         "check": ["bundle", "preparation"],
         "diff": ["old", "new", "output"],
     }
@@ -32,6 +33,10 @@ def main(argv=None) -> int:
                 raise ValueError("Output must be a new run, not outputs/service root")
         if args.command == "build":
             result = build_bundle(args.tt_root, args.preparation, args.protocol, args.output)
+        elif args.command == "derive-evaluation":
+            result = derive_evaluation_bundle(
+                args.source, args.preparation, args.protocol, args.output
+            )
         elif args.command == "check":
             result = check_bundle(args.bundle, args.preparation)
         else:

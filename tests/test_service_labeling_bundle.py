@@ -206,3 +206,51 @@ def test_diff_zero_to_one(setup):
     changes = pd.read_parquet(setup[0] / "positive/changes.parquet")
     assert changes.old_label.eq(0).all()
     assert changes.new_label.eq(1).all()
+
+
+def test_derive_evaluation_bundle_versions_scope_without_relabeling(setup, tmp_path):
+    from src.service.labeling.bundle import derive_evaluation_bundle, read_bundle
+
+    build(setup, "source")
+    source = setup[0] / "source/labels"
+    protocol = json.loads((source / "protocol.json").read_text())
+    protocol["evaluation_version"] = "evaluation-v3"
+    protocol["evaluation_excluded_cases"] = [next(iter(protocol["normal_splits"]))]
+    protocol_path = tmp_path / "evaluation-v3.json"
+    protocol_path.write_text(json.dumps(protocol))
+    preparation = tmp_path / "preparation/tt"
+    preparation.mkdir(parents=True)
+    pd.read_parquet(source / "labels.parquet").drop(
+        columns=["label", "label_source"], errors="ignore"
+    ).assign(resource_valid=True).to_parquet(preparation / "resource_windows.parquet", index=False)
+    output = tmp_path / "derived"
+
+    derive_evaluation_bundle(source, preparation.parent, protocol_path, output)
+    result = read_bundle(output)
+
+    assert result["manifest"]["evaluation_version"] == "evaluation-v3"
+    assert result["evaluation"]["evaluation_eligible"].sum() == 0
+    assert result["labels"].label.equals(read_bundle(source)["labels"].label)
+    assert result["splits"].split.equals(read_bundle(source)["splits"].split)
+    assert {
+        "by_case",
+        "by_source",
+        "input_valid",
+        "exclusion_reasons",
+        "total",
+    } <= set(result["evaluation_coverage"])
+
+
+def test_derive_evaluation_bundle_rejects_label_rule_changes(setup, tmp_path):
+    from src.service.labeling.bundle import derive_evaluation_bundle
+
+    build(setup, "source")
+    source = setup[0] / "source/labels"
+    protocol = json.loads((source / "protocol.json").read_text())
+    protocol["evaluation_version"] = "evaluation-v3"
+    protocol["positive_rule"] = "changed"
+    protocol_path = tmp_path / "evaluation-v3.json"
+    protocol_path.write_text(json.dumps(protocol))
+
+    with pytest.raises(ValueError, match="label or split rules"):
+        derive_evaluation_bundle(source, tmp_path / "missing", protocol_path, tmp_path / "derived")

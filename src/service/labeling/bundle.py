@@ -419,6 +419,135 @@ def build_bundle(tt_root: Path, preparation: Path, protocol_path: Path, output: 
     return manifest
 
 
+def derive_evaluation_bundle(
+    source: Path, preparation: Path, protocol_path: Path, output: Path
+) -> dict:
+    """Create a new evaluation-scope version from a verified immutable bundle."""
+    source, preparation, protocol_path, output = map(
+        Path, [source, preparation, protocol_path, output]
+    )
+    if output.exists():
+        raise ValueError(f"Output already exists: {output}")
+    data = read_bundle(source)
+    protocol = json.loads(protocol_path.read_text())
+    if not protocol.get("evaluation_version"):
+        raise ValueError("Derived evaluation bundle requires evaluation_version")
+    allowed_changes = {
+        "evaluation_version",
+        "evaluation_excluded_cases",
+        "protocol_id",
+        "reference_semantics",
+    }
+    if {
+        key
+        for key in set(protocol) | set(data["protocol"])
+        if key not in allowed_changes and protocol.get(key) != data["protocol"].get(key)
+    }:
+        raise ValueError("Evaluation derivation cannot change label or split rules")
+    output.mkdir(parents=True)
+    shutil.copytree(source, output, dirs_exist_ok=True)
+    _write(output / "protocol.json", protocol)
+    labels, splits = data["labels"].copy(), data["splits"].copy()
+    evaluation = evaluation_table(labels, splits, protocol)
+    evaluation.to_parquet(output / "evaluation.parquet", index=False)
+    resource = pd.read_parquet(Path(preparation) / "tt/resource_windows.parquet")
+    resource_valid = resource[["sample_id", "resource_valid"]]
+    valid_evaluation = evaluation.merge(
+        resource_valid, on="sample_id", validate="one_to_one"
+    ).merge(labels[["sample_id", "label"]], on="sample_id", validate="one_to_one")
+    coverage_path = source / "evaluation_coverage.json"
+    coverage = (
+        json.loads(coverage_path.read_text())
+        if coverage_path.is_file()
+        else {
+            "by_case": {},
+            "by_source": {},
+            "input_valid": {},
+            "exclusion_reasons": {},
+            "total": {},
+        }
+    )
+    coverage["evaluation_version"] = protocol["evaluation_version"]
+    coverage["excluded_cases"] = protocol.get("evaluation_excluded_cases", [])
+    eligible = evaluation[evaluation.evaluation_eligible].merge(
+        labels[["sample_id", "label", "label_source"]], on="sample_id", validate="one_to_one"
+    )
+    coverage["total"] = {
+        "rows": len(eligible),
+        "negative": int(eligible.label.eq(0).sum()),
+        "positive": int(eligible.label.eq(1).sum()),
+    }
+    coverage["by_case"] = {
+        case: {
+            "rows": len(group),
+            "negative": int(group.label.eq(0).sum()),
+            "positive": int(group.label.eq(1).sum()),
+        }
+        for case, group in eligible.groupby("case_id")
+    }
+    coverage["by_source"] = {
+        source_name: {
+            "rows": len(group),
+            "negative": int(group.label.eq(0).sum()),
+            "positive": int(group.label.eq(1).sum()),
+        }
+        for source_name, group in eligible.groupby("label_source")
+    }
+    coverage["exclusion_reasons"] = dict(
+        coverage.get("exclusion_reasons", {}),
+        excluded_evaluation_case=int((~evaluation.evaluation_eligible).sum()),
+    )
+    coverage["input_valid"] = {
+        "resource_valid": {
+            "rows": int(
+                valid_evaluation.loc[
+                    valid_evaluation.evaluation_eligible & valid_evaluation.resource_valid
+                ].shape[0]
+            ),
+            "negative": int(
+                (
+                    valid_evaluation.evaluation_eligible
+                    & valid_evaluation.resource_valid
+                    & valid_evaluation.label.eq(0)
+                ).sum()
+            ),
+            "positive": int(
+                (
+                    valid_evaluation.evaluation_eligible
+                    & valid_evaluation.resource_valid
+                    & valid_evaluation.label.eq(1)
+                ).sum()
+            ),
+        }
+    }
+    _write(output / "evaluation_coverage.json", coverage)
+    evidence = data["evidence"]
+    hashes = _semantic(protocol, evidence, labels, splits)
+    label_version = _label_version(hashes)
+    labels["label_version"] = label_version
+    labels.to_parquet(output / "labels.parquet", index=False)
+    hashes = _semantic(protocol, evidence, labels, splits)
+    label_version = _label_version(hashes)
+    labels["label_version"] = label_version
+    labels.to_parquet(output / "labels.parquet", index=False)
+    manifest = dict(data["manifest"])
+    manifest["schema_version"] = 2
+    manifest["label_version"] = label_version
+    manifest["evaluation_version"] = protocol["evaluation_version"]
+    manifest["semantic_hashes"] = hashes
+    manifest["inputs"] = dict(manifest["inputs"])
+    manifest["inputs"]["protocol_path"] = str(protocol_path.resolve())
+    manifest["inputs"]["protocol_sha256"] = file_digest(protocol_path)
+    manifest["files"] = dict(manifest["files"])
+    for name in FILES + ("evaluation.parquet", "evaluation_coverage.json"):
+        manifest["files"][name] = {
+            "bytes": (output / name).stat().st_size,
+            "sha256": file_digest(output / name),
+        }
+    _write(output / "manifest.json", manifest)
+    return read_bundle(output)["manifest"]
+
+
 def diff_bundles(old: Path, new: Path, output: Path) -> dict:
     """Outer-key comparison, including added/deleted rows and nullable labels."""
     output = _protect(Path(output), [Path(old), Path(new)])

@@ -263,3 +263,55 @@ def test_expansion_requires_containment_and_admission_without_cache_propagation(
     case["admission"]["admitted"] = True
     case["expansion_intervals"] = []
     assert not classify().label.eq(1).any()
+
+
+def test_evaluation_excludes_declared_cases_without_changing_labels_or_splits():
+    rows = []
+    for case_id, label, source in [
+        ("normal", 0, "normal_run_reference"),
+        ("pool", 1, "injection_association"),
+        ("dns", 1, "injection_association"),
+    ]:
+        rows.append(
+            dict(
+                dataset_id="tt",
+                run_id=case_id,
+                case_id=case_id,
+                canonical_service_id="svc",
+                window_start_ms=0,
+                window_end_ms=15000,
+                sample_id=case_id,
+                label=label,
+                label_source=source,
+            )
+        )
+    labels = pd.DataFrame(rows)
+    splits = labels[
+        [
+            "dataset_id",
+            "run_id",
+            "case_id",
+            "canonical_service_id",
+            "window_start_ms",
+            "window_end_ms",
+            "sample_id",
+        ]
+    ].copy()
+    splits["split"] = "test"
+    protocol = {
+        "evaluation_version": "eval-v3",
+        "evaluation_excluded_cases": ["pool", "dns"],
+    }
+
+    result = evaluation_table(labels, splits, protocol)
+
+    assert set(result.loc[result.evaluation_eligible, "sample_id"]) == {"normal"}
+    assert set(result.loc[~result.evaluation_eligible, "sample_id"]) == {"pool", "dns"}
+    assert set(result.loc[~result.evaluation_eligible, "evaluation_reason"]) == {
+        "excluded_evaluation_case"
+    }
+    assert labels.loc[labels.sample_id.isin(["pool", "dns"]), "label"].tolist() == [1, 1]
+    assert splits.loc[splits.sample_id.isin(["pool", "dns"]), "split"].tolist() == [
+        "test",
+        "test",
+    ]

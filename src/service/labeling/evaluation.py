@@ -6,13 +6,26 @@ from .rules import IDENTITY_COLUMNS
 
 def evaluation_table(labels, splits, protocol):
     frame = labels.merge(splits[KEY_COLUMNS + ["split"]], on=KEY_COLUMNS, validate="one_to_one")
-    eligible = frame.split.eq("test") & (
-        frame.label.eq(1).fillna(False)
-        | (frame.label.eq(0).fillna(False) & frame.label_source.eq("normal_run_reference"))
+    excluded_cases = protocol.get("evaluation_excluded_cases", [])
+    if (
+        not isinstance(excluded_cases, list)
+        or any(not isinstance(case_id, str) or not case_id for case_id in excluded_cases)
+        or len(set(excluded_cases)) != len(excluded_cases)
+    ):
+        raise ValueError("evaluation_excluded_cases must be a unique list of nonempty case IDs")
+    excluded = frame.case_id.isin(set(excluded_cases))
+    eligible = (
+        frame.split.eq("test")
+        & ~excluded
+        & (
+            frame.label.eq(1).fillna(False)
+            | (frame.label.eq(0).fillna(False) & frame.label_source.eq("normal_run_reference"))
+        )
     )
     result = frame[IDENTITY_COLUMNS].copy()
     result["evaluation_eligible"] = eligible.astype(bool)
     result["evaluation_reason"] = "excluded_fault_reference"
+    result.loc[excluded, "evaluation_reason"] = "excluded_evaluation_case"
     result.loc[frame.label.isna(), "evaluation_reason"] = "unknown"
     result.loc[~frame.split.eq("test"), "evaluation_reason"] = "not_test"
     result.loc[eligible, "evaluation_reason"] = "known_test_positive_or_normal_reference"
