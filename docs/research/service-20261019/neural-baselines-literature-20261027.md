@@ -19,6 +19,8 @@ CATCH、PatchAD 和 ScatterAD 均为 2025 年发表，DCdetector 是 2023 年发
 
 ScatterAD 的 `compute_loss` 和 `get_anomaly_scores` 对 batch 合并后的相邻节点直接做差，即使不同图之间没有边，也可能把两个样本的边界连接起来；其双向邻接也使中间节点表示包含后续信息。复现必须验证图级切分以及当前窗的因果评分，并记录由此带来的方法改动。它的 Service 数据 loader 的 `thre` 使用验证段而非测试段，但本项目仍应以独立 Normal calibration 定阈值。本机 `interface` 环境目前缺 `einops` 和 `torch_geometric`，且仅有 CPU PyTorch；gpu-b 依赖状态尚未核对，不自动安装或更改现有环境。
 
+PatchAD 的 `main_ad.py` 选择 `patchad_trainer_v2`；该 trainer 计算但未将重建 MSE 加入训练目标，而默认 `cont_beta=0` 的评分完全使用重建误差，重建头因此没有通过该目标训练。其另一 trainer 使用重建损失，但配置 `norm='ln'` 时与官方模型张量维度不兼容。本项目适配初步保留 v2 的对比训练目标并使用其对比分量评分（相当于 `cont_beta=1`），取闭窗最后一个时点，属于对上游默认评分的明确改动，不声称与其默认评测完全一致；适用性及效果尚待实际实验验证。已在本机用上游模型对合成输入执行前向/反向，并逐值对比上游目标和对比分量。`einops` 仅安装在 `/tmp/interface-neural-baseline-deps` 用于核验，未改动 conda 环境。
+
 ## 数据与公平性约束
 
 - 当前时序输入每步包含 12 个数值（资源 3、执行 5、日志统计 4）、对应 12 个观测 mask、3 个模态可用性位；历史另含存在位。数值使用原 prepared 的 Normal 拟合状态和 `arcsinh` 变换。应分别说明哪些字段参与模型输入、重建或对比目标，不能把缺测填零后当作真实观测计算误差。
