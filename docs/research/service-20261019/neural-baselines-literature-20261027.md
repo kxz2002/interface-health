@@ -8,6 +8,7 @@
 |---|---|---|---|
 | CATCH | Wu 等，ICLR 2025，[论文](https://openreview.net/forum?id=m08aK3xxdJ)、[官方代码](https://github.com/decisionintelligence/CATCH) | 多变量序列；频域 patch、通道融合和重建，时间域和频域误差用于评分 | 每个 Service 单独形成序列；频域和窗口长度需考虑短 Case、缺测及闭窗时间；官方标签接口从训练和测试分数共同计算阈值，必须替换。 |
 | PatchAD | Zhong 等，IEEE Transactions on Big Data 2025，[论文](https://doi.org/10.1109/tbdata.2025.3596745)、[官方代码](https://github.com/EmorZz1G/PatchAD) | 多变量序列；多尺度 patch、MLP-Mixer 和对比表示 | 上游 trainer 用测试集做早停，且使用训练和测试分数共同定阈值，均不可沿用；patch 尺寸需整除序列长度。 |
+| KAN-AD 多变量实现 | Zhou 等，ICML 2025，[论文](https://icml.cc/virtual/2025/poster/45584)、[原始代码](https://github.com/issaccv/KAN-AD)、[多变量实现](https://github.com/thuml/Time-Series-Library/blob/main/models/KANAD.py) | 原始代码用单变量历史预测下一点；Time-Series-Library 按通道共享 KAN 网络重建多变量序列 | 两者任务和输出不同，必须标为 Time-Series-Library 的多变量重建适配，不冒充作者原始预测实现；缺测数值不得计入误差。 |
 | ScatterAD | Yin 等，NeurIPS 2025，[论文](https://proceedings.neurips.cc/paper_files/paper/2025/hash/4b52b3c50110fc10f6a1a86055682ea2-Abstract-Conference.html)、[官方代码](https://github.com/jk-sounds/ScatterAD) | 多变量时间序列，将时间点构成图节点，结合图编码、时序一致性和对比融合 | 官方图连相邻时间点，评分还比较相邻节点；需处理末端评分和 batch 图边界，不能使用目标时刻之后的信息；依赖 PyTorch Geometric。 |
 | DCdetector | Yang 等，KDD 2023，[官方代码和论文入口](https://github.com/DAMO-DI-ML/KDD2023-DCdetector) | 多变量序列；两种 patch 视图和双分支注意力，通过对比差异评分 | 上游 `solver.py` 用测试集做早停、混合训练和测试分数定阈值；patch 尺寸需整除窗口长度。2023 年较上述候选更早，作为架构不同的候选，最终取舍需结合更多近期文献。 |
 
@@ -18,6 +19,10 @@ CATCH、PatchAD 和 ScatterAD 均为 2025 年发表，DCdetector 是 2023 年发
 2026-10-27 检出的上游 HEAD：CATCH `3647c69be5eb56649b072596cf89098e689e20c3`，PatchAD `38606bc1b38f4b099ea053880846e9b434171dd5`，ScatterAD `7572fa954468e46c598badf1c9cfaf6c1835c4cb`，DCdetector `9d107cae518ef24ee2eb2ad1b92107cdcd09ea10`。这是检出版本，不等于论文实验使用的版本。PatchAD 仓库有 Apache-2.0 LICENSE，ScatterAD 为 MIT；所检出的 CATCH 和 DCdetector 根目录未见 LICENSE 文件，GitHub API 也未识别许可证。引入源码前应进一步核对授权；不能默认无许可证代码允许复制。上游示例运行脚本并非直接适用于本项目，不能直接使用其评价和阈值流程。
 
 ScatterAD 的 `compute_loss` 和 `get_anomaly_scores` 对 batch 合并后的相邻节点直接做差，即使不同图之间没有边，也可能把两个样本的边界连接起来；其双向邻接也使中间节点表示包含后续信息。复现必须验证图级切分以及当前窗的因果评分，并记录由此带来的方法改动。它的 Service 数据 loader 的 `thre` 使用验证段而非测试段，但本项目仍应以独立 Normal calibration 定阈值。本机 `interface` 环境目前缺 `einops` 和 `torch_geometric`，且仅有 CPU PyTorch；gpu-b 依赖状态尚未核对，不自动安装或更改现有环境。
+
+实际运行 ScatterAD 上游 `7572fa954468e46c598badf1c9cfaf6c1835c4cb` 构造函数还发现：center 初始化为一维向量，随后按 `dim=1` 求范数，直接抛出 `IndexError`。论文描述固定中心，而代码定义可训练中心且目标编码器被冻结，二者还需核对；暂不将其视作已复现模型。仅为核查，`torch-geometric==2.6.1` 安装在 `/tmp/interface-neural-baseline-deps`，未改动 conda 环境。
+
+KAN-AD 原仓库 HEAD 为 `7c3a0d96b77e0d609660a240c2b11db084ba523f`，其作者参与的 Time-Series-Library 多变量实现检出 `4e938a1767106324dd753b2a44832bf870a0252e`；二者均为 MIT 许可。后者原始 evaluation 将测试分数用于阈值且使用 point adjustment，本项目不能沿用。当前以 27 维输入进行闭窗重建，训练和评分均不把缺测数值当有效目标；对观测 mask 与可用性字段计算重建误差。缺测值及历史填充仍进入网络内部，这一适配及信息差异需在报告中说明。已用该上游多变量模型对合成数据完成训练和评分；真实数据、模型配置、独立验证和完整评价入口仍待验证。
 
 PatchAD 的 `main_ad.py` 选择 `patchad_trainer_v2`；该 trainer 计算但未将重建 MSE 加入训练目标，而默认 `cont_beta=0` 的评分完全使用重建误差，重建头因此没有通过该目标训练。其另一 trainer 使用重建损失，但配置 `norm='ln'` 时与官方模型张量维度不兼容。本项目适配初步保留 v2 的对比训练目标并使用其对比分量评分（相当于 `cont_beta=1`），取闭窗最后一个时点，属于对上游默认评分的明确改动，不声称与其默认评测完全一致；适用性及效果尚待实际实验验证。已在本机用上游模型对合成输入执行前向/反向，并逐值对比上游目标和对比分量。`einops` 仅安装在 `/tmp/interface-neural-baseline-deps` 用于核验，未改动 conda 环境。
 
