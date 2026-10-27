@@ -4,7 +4,7 @@
 
 详细文档放 [`entries/`](./entries/)。
 
-最新研究记录：[044 · 原GRU八方向探索](entries/044-gru-eight-directions.md)，见[结果与审计](../docs/research/service-20261019/gru-eight-directions-results.md)。前轮四方向见[043](entries/043-gru-four-independent-directions.md)，有界改进见[042](entries/042-gru-normal-only-bounded-improvements.md)，基础设施见[038](entries/038-service-model-infrastructure.md)。
+最新研究记录：[045 · POOL/DNS 评价版本与历史模型复评](entries/045-pool-dns-evaluation-v3.md)，见[v3 结果](../docs/research/service-20261019/pool-dns-v3-results.md)。八方向探索见[044](entries/044-gru-eight-directions.md)，前轮四方向见[043](entries/043-gru-four-independent-directions.md)。
 
 ## 使用约定
 
@@ -29,6 +29,7 @@
 
 | # | 日期 | 类型 | 标题 | 影响域 |
 |---|------|------|------|--------|
+| [045](./entries/045-pool-dns-evaluation-v3.md) | 2026-10-27 | Feature / Experiment / Test / Docs | 排除 POOL/DNS 的 v3 评价和历史模型复评 | src/service/labeling/, src/service/modeling/, scripts/label_service_data.py, scripts/service_revaluate_temporal.py, configs/service/, tests/test_service_*, docs/research/service-20261019/, AGENTS.md |
 | [044](./entries/044-gru-eight-directions.md) | 2026-10-24 | Model / Experiment / Test / Docs | 八方向三seed探索；分组GRU均值改善、未过稳定替代门槛；实际checkpoint与MLflow审计 | src/service/modeling/, scripts/*service_eight_directions.py, configs/service/, tests/test_service_eight_directions.py, docs/research/service-20261019/ |
 | [042](./entries/042-gru-normal-only-bounded-improvements.md) | 2026-10-24 | Model / Experiment / Test / Docs | 原GRU有界三个候选；完整Normal验证、因果残差、真实MLflow与协议核验 | src/service/modeling/, scripts/service_temporal_model.py, scripts/service_gru_normal_validation.py, scripts/audit_gru_candidates.py, configs/service/, tests/test_gru_*, docs/research/service-20261019/ |
 | [043](./entries/043-gru-four-independent-directions.md) | 2026-10-23 | Model / Experiment / Test / Docs | 四方向独立验证；误差尺度、状态融合、服务偏置及短长历史；checkpoint与实际上下文审计 | src/service/modeling/, scripts/service_gru_*, scripts/audit_gru_*, configs/service/, tests/test_gru_*, docs/research/service-20261019/ |
@@ -158,4 +159,5 @@
 |src/service/, configs/service/, scripts/service_experiment.py, scripts/prepare_service_data.py|033, 036, 039（时序先验、BERT与调参）, 040（机制消融与有界停止）, 041（当前窗语义收尾）, 042（原GRU有界改进、Normal闸门及MLflow核验）, 043（四方向独立验证与架构审计）, 044（八方向探索与分组GRU）|
 |tests/test_service_*, tests/test_gru_*, docs/research/service-*|033, 035（新批研究目标、归档与后续入口）, 036（训练前准备）, 042（Normal闸门、因果残差及有界搜索）, 043（四方向、字典与context审计）, 044（内外checkpoint、分数重放与MLflow）|
 |AGENTS.md, CLAUDE.md, .gitignore, 新批selected17数据交接|035|
-|src/service/labeling/、scripts/label_service_data.py、TT标签版本与验收|037|
+|src/service/labeling/、scripts/label_service_data.py、TT标签版本与验收|037, 045|
+|scripts/service_revaluate_temporal.py、v3评价与历史模型分数复用|045|
