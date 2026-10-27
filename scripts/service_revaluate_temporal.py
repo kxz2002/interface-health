@@ -115,9 +115,12 @@ def main():
     bundle_manifest = args.bundle / "manifest.json"
     if not bundle_manifest.is_file():
         bundle_manifest = args.bundle / "labels/manifest.json"
-    if acceptance.get("status") != "success" or acceptance.get(
-        "bundle_manifest_sha256"
-    ) != file_digest(bundle_manifest):
+    if (
+        acceptance.get("status") != "success"
+        or acceptance.get("bundle_manifest_sha256") != file_digest(bundle_manifest)
+        or not acceptance.get("result", {}).get("rows")
+        or not acceptance.get("provenance", {}).get("commit")
+    ):
         raise ValueError("Missing acceptance bound to evaluation bundle")
     tables, prepared, _ = read_prepared(args.prepared)
     bundle = read_bundle(args.bundle)

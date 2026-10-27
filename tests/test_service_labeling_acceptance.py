@@ -62,6 +62,32 @@ def test_derived_bundle_replays_with_historical_rule_identity(setup, monkeypatch
         acceptance.check_bundle(root / "derived", root / "prepared")
 
 
+def test_check_cli_receipt_only_after_success(setup, monkeypatch, capsys):
+    from scripts import label_service_data
+
+    root, _ = prepared(setup, monkeypatch)
+    receipt = root / "acceptance.json"
+    args = [
+        "check",
+        "--bundle",
+        str(root / "run"),
+        "--preparation",
+        str(root / "prepared"),
+        "--receipt",
+        str(receipt),
+    ]
+    assert label_service_data.main(args) == 0
+    record = json.loads(receipt.read_text())
+    assert record["status"] == "success"
+    assert record["bundle_manifest_sha256"] == file_digest(root / "run/labels/manifest.json")
+    assert record["result"]["rows"] == 3
+    assert label_service_data.main(args) == 1
+    receipt.unlink()
+    (root / "source.json").write_text('{"changed":true}')
+    assert label_service_data.main(args) == 1
+    assert not receipt.exists()
+
+
 def test_source_hash_revalidation(setup, monkeypatch):
     root, _ = prepared(setup, monkeypatch)
     (root / "source.json").write_text('{"changed":true}')
