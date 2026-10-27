@@ -212,6 +212,7 @@ conda run -n interface python scripts/train_baseline_v0.py --cfg job
 ## 11. 当前研究状态（2026-10-27 更新）
 
 - POOL 与 DNS 两个 Case 已从当前 Service 主评价范围永久排除；原始数据、标签证据和历史 v2 评价包保留，只在新评价版本中移除其评价资格。
+- 2026-10-27 的 v3 已复评 77 个历史时序运行和四个 IF/OCSVM 基线；最新数值、样本范围和限制见 `docs/research/service-20261019/pool-dns-v3-results.md`。原型记忆在已见测试集上的均值较优，尚未证明泛化，不自动替换原先验 GRU。
 - 新正式评价协议为 `configs/service/tt_labels_a_v3_pool_dns_excluded.json`，评价版本为 `tt_normal_test_and_controlled_positive_v3_pool_dns_excluded`。通过 `scripts/label_service_data.py derive-evaluation` 从已验证 bundle 派生，不能手工删除 metrics 行。
 - v3 只改变 evaluation membership；Normal-only fit、Normal calibration、Case split、模型 checkpoint 和阈值协议保持不变。评价 bundle 必须带完整 manifest、semantic hashes、coverage 和 provenance。
 - L2 与 Max 已废案，不再纳入后续模型矩阵、基线重跑、结果比较或研究结论；后续经典基线以仍获保留的方法清单为准。
