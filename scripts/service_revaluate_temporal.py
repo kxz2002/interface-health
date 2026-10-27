@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
-from dataclasses import replace
+import tempfile
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import pandas as pd
@@ -13,9 +15,8 @@ import pandas as pd
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.service_model import check_run, read_prepared
-from src.service.labeling.acceptance import check_bundle
-from src.service.labeling.bundle import read_bundle
+from scripts.service_model import _environment, check_run, read_prepared
+from src.service.labeling.bundle import _protect, read_bundle
 from src.service.modeling.data import build_sample_lists
 from src.service.modeling.evaluation import QUANTILES, calibrate, evaluate_run
 from src.service.preparation import file_digest
@@ -99,26 +100,45 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prepared", required=True, type=Path)
     parser.add_argument("--bundle", required=True, type=Path)
-    parser.add_argument("--preparation", required=True, type=Path)
+    parser.add_argument("--acceptance", required=True, type=Path)
     parser.add_argument(
         "--sources", required=True, type=Path, help="JSON mapping names to published runs"
     )
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    if args.output.exists():
-        raise FileExistsError(args.output)
-    check_bundle(args.bundle, args.preparation)
+    sources = json.loads(args.sources.read_text())
+    output = _protect(
+        args.output,
+        [args.prepared, args.bundle, args.sources, args.acceptance, *map(Path, sources.values())],
+    )
+    acceptance = json.loads(args.acceptance.read_text())
+    bundle_manifest = args.bundle / "manifest.json"
+    if not bundle_manifest.is_file():
+        bundle_manifest = args.bundle / "labels/manifest.json"
+    if acceptance.get("status") != "success" or acceptance.get(
+        "bundle_manifest_sha256"
+    ) != file_digest(bundle_manifest):
+        raise ValueError("Missing acceptance bound to evaluation bundle")
     tables, prepared, _ = read_prepared(args.prepared)
     bundle = read_bundle(args.bundle)
     tables, lists = rebind(tables, prepared, bundle)
-    sources = json.loads(args.sources.read_text())
     if not sources or any(not isinstance(name, str) or not name.isidentifier() for name in sources):
         raise ValueError("Source names must be nonempty Python identifiers")
-    args.output.mkdir(parents=True)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=".reevaluation-staging-", dir=output.parent))
+    try:
+        publish(staging, sources, tables, prepared, lists, args, bundle_manifest)
+        staging.rename(output)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
+
+
+def publish(output, sources, tables, prepared, lists, args, bundle_manifest):
     records = {}
     for name, path in sources.items():
         report, reference = evaluate_source(path, tables, prepared, lists, args.prepared)
-        report_path = args.output / f"{name}.json"
+        report_path = output / f"{name}.json"
         report_path.write_text(json.dumps(report, sort_keys=True, allow_nan=False))
         records[name] = {**reference, "report_sha256": file_digest(report_path)}
         print(f"completed {name}", flush=True)
@@ -127,15 +147,16 @@ def main():
         sources=records,
         source_list_sha256=file_digest(args.sources),
         prepared_manifest_sha256=file_digest(args.prepared / "manifest.json"),
-        bundle_manifest_sha256=file_digest(
-            args.bundle / "manifest.json"
-            if (args.bundle / "manifest.json").is_file()
-            else args.bundle / "labels/manifest.json"
-        ),
+        bundle_manifest_sha256=file_digest(bundle_manifest),
+        acceptance_sha256=file_digest(args.acceptance),
+        source_list=sources,
+        environment=_environment(),
         evaluation_version=tables.versions["evaluation_version"],
         lists_hash=lists.lists_hash,
     )
-    (args.output / "manifest.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
+    (output / "sample_lists.json").write_text(json.dumps(asdict(lists), sort_keys=True))
+    summary["sample_lists_sha256"] = file_digest(output / "sample_lists.json")
+    (output / "manifest.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":
