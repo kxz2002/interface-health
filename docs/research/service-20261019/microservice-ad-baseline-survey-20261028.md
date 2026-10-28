@@ -1,0 +1,69 @@
+# 微服务异常检测领域基线调研（第一轮）
+
+本轮专门检索面向微服务或 AIOps 的异常检测论文，区别于此前的通用时间序列模型调研。检索重点是：输入是否包含服务依赖、Trace、Metric、Log；模型是否为神经网络；能否改造成当前 Service×15 秒、Normal-only 训练和独立 Normal 校准协议。
+
+## 候选论文
+
+| 论文 | 年份/ venue | 原始输入与任务 | 模型 | 对当前任务的适配判断 |
+|---|---|---|---|---|
+| **Triple: The Interpretable Deep Learning Anomaly Detection Framework based on Trace-Metric-Log of Microservice** | IWQoS 2023 | Trace、Metric、Log，多模态微服务异常检测 | STGCN + Deep SVDD，并提供模态解释 | 最贴近当前 Service 任务；可用固定服务依赖图、时间窗内多模态向量和 Normal-only SVDD 适配，但必须明确当前数据缺少完整请求级 Trace 图时的降级方式。 |
+| **MSTGAD: Twin Graph-based Anomaly Detection via Attentive Multi-Modal Learning for Microservice System** | 2023（arXiv 2310.04701） | 多模态微服务系统状态和服务图 | 空间/时间注意力 Transformer 图模型，半监督 | 适合服务依赖建模，但半监督设定和图级标签需要改成 Normal-only；代码公开，值得优先核对。 |
+| **TraceGra: A trace-based anomaly detection for microservice using graph deep learning** | Computer Communications 2023 | Trace 调用图、响应时间和资源消耗 | GNN + LSTM encoder-decoder | 直接面向 Trace，但当前主任务是 Service 窗口而不是请求 Trace；只有在能稳定构造服务调用图时才适合复现。 |
+| **Unsupervised Anomaly Detection on Microservice Traces through Graph VAE (TraceVAE)** | WWW 2023 | 请求级树状 Trace、节点耗时与类别 | 双变量 Graph VAE，重建和 NLL 异常分数 | 领域相关性强且是无监督模型，但需要请求级树结构；不能把当前聚合 Metric 行伪装成 TraceVAE 输入。 |
+| **AnoFusion: Robust Multimodal Failure Detection for Microservice Systems** | KDD 2023 | 实例级 Metric、Log、Trace 等多模态观测 | 多模态深度融合与图结构 | 与当前多模态方向接近，但原任务偏实例故障检测；需核对公开代码、标签和是否可抽取服务级窗口分数。 |
+| **TraceDAE: Trace-Based Anomaly Detection in Microservice Systems via Dual Autoencoder** | IEEE TNSM 2025 | 请求 Trace 及其结构/时延 | 双自编码器 | 时间较新，但主要是 Trace 粒度，当前数据是否有足够请求级结构是准入门槛。 |
+| **ServiceAnomaly** | JSS 2024 | 分布式 Trace + 六类 profiling metrics | 标注 DAG 的正常行为建模 | 不是纯深度网络，但领域适配价值高，可作为非神经领域参照，不计入三种神经基线。 |
+
+## 数据格式与公平性问题
+
+领域论文常见三种输入格式：
+
+1. **请求级 Trace 树/图**：节点是 Service/Span，边是调用关系，节点带 latency、status、资源字段。TraceVAE、TraceGra、TraceDAE 属于这一类。当前数据的 Service 15 秒聚合行不能直接替代请求级树；若没有稳定的 Trace ID 和完整父子关系，只能做明确降级适配。
+2. **服务依赖图 + 时间窗特征**：节点是 Service，边来自部署或调用拓扑，每个时间窗附带 Metric/Log/Trace 特征。Triple、MSTGAD、AnoFusion 更接近这一类，也最可能映射到当前任务。
+3. **实例级多模态事件序列**：以实例或故障事件为单位，将 Metric、Log、Trace 编码后做检测或诊断。其标签通常是 failure/event 级，不能直接与当前 Service×Window 标签混用。
+
+当前协议要求：只用独立 Normal fit 训练，只用独立 Normal calibration 选阈值，故障仅做最终评价；Unknown 不转正常；POOL/DNS 排除；不使用 point adjustment 或测试集阈值。原论文若使用故障验证、混合训练、测试集阈值或事件级标签，必须重写评测部分并记录为适配，而非声称完整复现。
+
+## 初步优先级
+
+优先核查 **Triple、MSTGAD、AnoFusion**：它们最可能使用服务图和多模态窗口，能够在当前 Service 任务保留问题粒度。TraceGra/TraceVAE/TraceDAE 作为第二梯队，除非确认当前远端数据保留可用的请求级 Trace 图，否则不强行运行。ServiceAnomaly 作为领域经典非神经参照。
+
+下一轮需要逐篇核对官方代码、许可证、训练标签、数据下载方式和输入张量，并在当前仓库检查能否从 prepared 数据生成同粒度输入。只有通过这些准入检查的模型才进入实验。
+
+## 第一轮代码核查
+
+- **MSTGAD** 官方仓库可获得，要求 MSDS 数据的 `metric.csv`、`log.csv`、`trace.csv`、`label.pkl` 和 `trace_path.pkl`。实现按服务实例节点构造时间窗，Metric 形状为 `window × num_nodes × metric_dim`，Log 形状为 `window × num_nodes × log_dim`，Trace 形状为 `window × caller × callee × trace_type`，并使用预先给定的实例图。它是半监督实现，原始标签 mask 和 MSDS 特定预处理不能直接带入当前协议；但数据张量结构与当前 Service 图适配方向最接近。
+- MSTGAD 当前公开仓库提交为 `e78201a1890d1988fcb17c7f94e464815e567c7b`，仓库根目录未发现许可证文件，因此只作为论文和数据格式参考，不直接复制其代码。
+- **TraceVAE** 官方仓库可获得且为 MIT License，输入是请求级树状 Trace 的预处理 CSV，不是聚合 Service 表。其命令会把原始 Trace 转成图数据，再训练 Graph VAE；如果当前数据无法恢复稳定的 parent/child span 和 request ID，就不应把它改造成普通时间序列后宣称复现。
+- TraceVAE 代码提交为 `823316f66f1de2ce3f5cab75eff1372eba5534ec`，提供 `traceIdHigh/traceIdLow/parentSpanId/spanId/startTime/duration/serviceName` 等字段的 CSV 示例，数据格式与当前 SkyWalking JSON 的 span 结构存在可转换关系，但需先验证跨 case 的 trace ID、父子链和时间窗边界。
+- **AnoFusion** 论文明确采用每分钟同步的 Metric、Log、Trace 通道，把每个通道作为异构图节点，再由 GTN、GAT 和 GRU 建模；它是无监督训练，但原文使用 EVT 选择 F1 阈值，必须替换为独立 Normal calibration。其输入时间粒度和当前 15 秒窗口存在可调差异，需保留在适配记录中。
+
+因此，下一轮优先级暂定为 **MSTGAD → AnoFusion → Triple**；TraceVAE/TraceGra/TraceDAE 先做数据可用性检查。若当前 Service 数据不能构造服务依赖图，领域模型只能作为协议适配研究，不能声称复现原论文的 Trace 级任务。
+
+## 原始 Trace 可用性核查
+
+在 gpu-b 对 15 个排除 POOL/DNS 后的 selected Case 扫描原始 SkyWalking JSON：每个 Case 都有 4,155–8,313 个 Trace、约 127k–234k 个 span、21–22 个服务和 40–44 条服务调用边；按 span 起始时间映射到 15 秒桶后，每个 Case 有 108–124 个时间桶，父子节点引用未发现缺失。这个结果证明当前数据可以构造服务依赖图和 Trace-Metric-Log 时间窗输入。
+
+但这只是结构覆盖核查，不等于已经完成模型适配：Trace 采集窗口、服务集合和 prepared Service 网格仍需按稳定的 `(case_id, canonical_service_id, window_start_ms)` 对齐；Trace 的请求级标签也不能直接替代当前 Service 窗口标签。核查脚本和原始产物留在 gpu-b 的独立实验目录，未修改原始数据。
+
+## 首轮领域模型适配结果
+
+基于上述输入实现了不复制上游代码的三种纯 PyTorch 适配：MSTGAD 风格图时空重建、AnoFusion 风格多模态 GRU、Triple 风格图 SVDD。三者均只用 Normal fit 训练，阈值只由独立 Normal calibration 的 q99 得到；测试严格限制到 v3 `main_test`，POOL/DNS 不进入分数。三个 seed 的共同主评价均为 3141 窗，另有 72 个历史不足窗口以显式零分数保留并报告。
+
+| 适配模型 | AUROC seed 1 / 2 / 42 | AP seed 1 / 2 / 42 | AUROC 均值 | AP 均值 | q99 召回均值 | Normal FPR 均值 |
+|---|---|---|---:|---:|---:|---:|
+| MSTGAD 风格 | 0.8665 / 0.8566 / 0.8750 | 0.6729 / 0.6716 / 0.6848 | 0.8660 | 0.6764 | 0.5790 | 0.0928 |
+| AnoFusion 风格 | 0.6975 / 0.7402 / 0.7104 | 0.5765 / 0.5877 / 0.5755 | 0.7160 | 0.5799 | 0.5409 | 0.0895 |
+| Triple 风格 | 0.9037 / 0.8783 / 0.8900 | 0.5849 / 0.5280 / 0.5885 | 0.8906 | 0.5671 | 0.7532 | 0.1531 |
+
+这些结果证明领域模型可以在当前数据和评价协议下运行，但不能称为论文的完整复现：当前实现使用服务级聚合特征和固定依赖图，未复刻上游的损失、标签或在线阈值流程；Triple 风格的 FPR 较高，三种方法仍是工程适配基线。与先验 GRU（AUROC 约 0.99）相比，三者均未超过自有模型，但正式结论还需要补充逐 Case 统计、运行 manifest 和独立审计。
+
+## 来源
+
+- [Triple（IEEE/ACM IWQoS 2023）](https://doi.org/10.1109/IWQoS57198.2023.10188773)
+- [MSTGAD（arXiv:2310.04701）](https://arxiv.org/abs/2310.04701)
+- [TraceGra（Computer Communications 2023）](https://doi.org/10.1016/j.comcom.2023.03.028)
+- [TraceVAE（WWW 2023）](https://doi.org/10.1145/3543507.3583215)
+- [AnoFusion（KDD 2023）](https://marvin233.github.io/paper/kdd23-AnoFusion.pdf)
+- [TraceDAE（IEEE TNSM 2025）](https://doi.org/10.1109/TNSM.2025.3583213)
+- [ServiceAnomaly（JSS 2024）](https://doi.org/10.1016/j.jss.2023.111917)

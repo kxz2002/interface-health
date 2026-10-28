@@ -419,6 +419,103 @@ def build_bundle(tt_root: Path, preparation: Path, protocol_path: Path, output: 
     return manifest
 
 
+def derive_evaluation_bundle(
+    source: Path, preparation: Path, protocol_path: Path, output: Path
+) -> dict:
+    """Create a new evaluation-scope version from a verified immutable bundle."""
+    source, preparation, protocol_path, output = map(
+        Path, [source, preparation, protocol_path, output]
+    )
+    if not (source / "manifest.json").is_file():
+        source = source / "labels"
+    output = _protect(output, [source, preparation, protocol_path])
+    data = read_bundle(source)
+    output = _protect(
+        output, [source, preparation, protocol_path, Path(data["manifest"]["inputs"]["tt_root"])]
+    )
+    protocol = json.loads(protocol_path.read_text())
+    if not protocol.get("evaluation_version"):
+        raise ValueError("Derived evaluation bundle requires evaluation_version")
+    allowed_changes = {
+        "evaluation_version",
+        "evaluation_excluded_cases",
+        "protocol_id",
+        "reference_semantics",
+    }
+    if {
+        key
+        for key in set(protocol) | set(data["protocol"])
+        if key not in allowed_changes and protocol.get(key) != data["protocol"].get(key)
+    }:
+        raise ValueError("Evaluation derivation cannot change label or split rules")
+    index = load_evidence(
+        Path(data["manifest"]["inputs"]["tt_root"]), preparation, data["protocol"]
+    )
+    if (
+        index.preparation_manifest_sha256 != data["evidence"]["preparation_manifest_sha256"]
+        or _jsonable(index.sources) != _jsonable(data["evidence"]["sources"])
+        or _jsonable(index.cases) != _jsonable(data["evidence"]["cases"])
+    ):
+        raise ValueError("Preparation or source evidence differs from source bundle")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=".evaluation-staging-", dir=output.parent))
+    reserved = False
+    try:
+        package = staging / "labels"
+        manifest = _write_derived_package(source, package, protocol_path, protocol, data, index)
+        read_bundle(package)
+        output.mkdir()
+        reserved = True
+        package.rename(output / "labels")
+        return manifest
+    except BaseException:
+        if reserved:
+            shutil.rmtree(output)
+        raise
+    finally:
+        shutil.rmtree(staging)
+
+
+def _write_derived_package(source, output, protocol_path, protocol, data, index):
+    shutil.copytree(source, output)
+    _write(output / "protocol.json", protocol)
+    labels, splits = data["labels"].copy(), data["splits"].copy()
+    evaluation = evaluation_table(labels, splits, protocol)
+    evaluation.to_parquet(output / "evaluation.parquet", index=False)
+    _write(output / "evaluation_coverage.json", evaluation_counts(evaluation, labels, index.grid))
+    evidence = data["evidence"]
+    hashes = _semantic(protocol, evidence, labels, splits)
+    label_version = _label_version(hashes)
+    labels["label_version"] = label_version
+    labels.to_parquet(output / "labels.parquet", index=False)
+    hashes = _semantic(protocol, evidence, labels, splits)
+    label_version = _label_version(hashes)
+    labels["label_version"] = label_version
+    labels.to_parquet(output / "labels.parquet", index=False)
+    manifest = dict(data["manifest"])
+    manifest["derivation"] = {
+        "source_manifest_sha256": file_digest(source / "manifest.json"),
+        "source_path": str(source.resolve()),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        **_provenance(),
+    }
+    manifest["schema_version"] = 2
+    manifest["label_version"] = label_version
+    manifest["evaluation_version"] = protocol["evaluation_version"]
+    manifest["semantic_hashes"] = hashes
+    manifest["inputs"] = dict(manifest["inputs"])
+    manifest["inputs"]["protocol_path"] = str(protocol_path.resolve())
+    manifest["inputs"]["protocol_sha256"] = file_digest(protocol_path)
+    manifest["files"] = dict(manifest["files"])
+    for name in FILES + ("evaluation.parquet", "evaluation_coverage.json"):
+        manifest["files"][name] = {
+            "bytes": (output / name).stat().st_size,
+            "sha256": file_digest(output / name),
+        }
+    _write(output / "manifest.json", manifest)
+    return manifest
+
+
 def diff_bundles(old: Path, new: Path, output: Path) -> dict:
     """Outer-key comparison, including added/deleted rows and nullable labels."""
     output = _protect(Path(output), [Path(old), Path(new)])

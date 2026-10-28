@@ -1,5 +1,7 @@
 # Service研究交接 — 2026-10-19
 
+- [POOL/DNS 排除后的 v3 复评](pool-dns-v3-results.md)：77 个历史时序运行和四个经典基线，含逐 seed 复算摘要与解释边界。
+
 - [原GRU八方向探索结果](gru-eight-directions-results.md)：八方向各三seed及原GRU三seed，共27组；分组GRU双指标均值最好，未通过逐seed稳定替代门槛，保留原GRU默认。附[冻结协议](gru-eight-directions-protocol.md)、[独立审计](gru-eight-directions-audit.json)及[历史基线逐值复放](gru-eight-directions-baseline-replay.json)。
 
 - [模型探索阶段收尾](model-exploration-closeout.md)：本分支完整结果表、保留原GRU的依据、各报告入口、gpu-b旧目录差异及最终隔离副本同步说明。

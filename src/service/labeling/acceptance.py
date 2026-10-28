@@ -47,11 +47,36 @@ def check_bundle(bundle: Path, preparation: Path) -> dict:
         if "size_bytes" in source and path.stat().st_size != source["size_bytes"]:
             raise ValueError(f"Source size mismatch: {path}")
     index = load_evidence(Path(inputs["tt_root"]), preparation, protocol)
+    derivation = manifest.get("derivation")
+    if derivation:
+        source = Path(derivation["source_path"])
+        if file_digest(source / "manifest.json") != derivation["source_manifest_sha256"]:
+            raise ValueError("Derived bundle source manifest mismatch")
+        original = package.read_bundle(source)
+        allowed = {
+            "evaluation_version",
+            "evaluation_excluded_cases",
+            "protocol_id",
+            "reference_semantics",
+        }
+        if (
+            any(
+                original["protocol"].get(key) != protocol.get(key)
+                for key in set(original["protocol"]) | set(protocol)
+                if key not in allowed
+            )
+            or original["evidence"] != data["evidence"]
+        ):
+            raise ValueError("Derived bundle source semantics mismatch")
     evidence = dict(
         sources=index.sources,
         cases=index.cases,
         preparation_manifest_sha256=index.preparation_manifest_sha256,
-        rules_sha256=package.implementation_hash(protocol),
+        rules_sha256=(
+            data["evidence"]["rules_sha256"]
+            if derivation
+            else package.implementation_hash(protocol)
+        ),
     )
     if package._jsonable(evidence) != package._jsonable(data["evidence"]):
         raise ValueError("Reloaded evidence/provenance mismatch")

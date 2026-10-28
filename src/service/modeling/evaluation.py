@@ -222,6 +222,9 @@ def evaluate_run(
     if not required_versions <= set(versions) or not getattr(tables, "protocol", None):
         raise ValueError("Evaluation requires persisted input versions and protocol")
     versions = {name: versions[name] for name in required_versions}
+    excluded_cases = set(tables.protocol.get("evaluation_excluded_cases", []))
+    excluded_ids = set(tables.labels.loc[tables.labels.case_id.isin(excluded_cases), "sample_id"])
+    scores = scores.loc[~scores.sample_id.isin(excluded_ids)].copy()
     if tables.protocol.get("evaluation_version") != versions["evaluation_version"]:
         raise ValueError("Protocol evaluation version mismatch")
     scores = _declare(scores, versions)

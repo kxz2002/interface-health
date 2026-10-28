@@ -1,0 +1,103 @@
+{
+  "protocol": {
+    "evaluation_version": "tt_labels_a_v3_pool_dns_excluded",
+    "main_rows": 3141,
+    "positive_rows": 289,
+    "negative_rows": 2852,
+    "missing_history_rows": 72,
+    "missing_calibration_rows": 71,
+    "threshold": "q99 independent Normal calibration; complete frozen calibration IDs reindexed with zero for unavailable history",
+    "rerun_commit": "e8c6e30"
+  },
+  "results": {
+    "mstgad_style": {
+      "seed_1": {
+        "auroc": 0.8664532144,
+        "ap": 0.672861048,
+        "recall_q99": 0.5813148789,
+        "normal_fpr": 0.0929172511,
+        "missing_calibration": 71
+      },
+      "seed_2": {
+        "auroc": 0.8566173437,
+        "ap": 0.6715948364,
+        "recall_q99": 0.5778546713,
+        "normal_fpr": 0.0925666199,
+        "missing_calibration": 71
+      },
+      "seed_42": {
+        "auroc": 0.8750479236,
+        "ap": 0.6847938985,
+        "recall_q99": 0.5778546713,
+        "normal_fpr": 0.0929172511,
+        "missing_calibration": 71
+      }
+    },
+    "anofusion_style": {
+      "seed_1": {
+        "auroc": 0.6975096697,
+        "ap": 0.5764607043,
+        "recall_q99": 0.5397923875,
+        "normal_fpr": 0.0809957924,
+        "missing_calibration": 71
+      },
+      "seed_2": {
+        "auroc": 0.7401944608,
+        "ap": 0.5877293615,
+        "recall_q99": 0.5397923875,
+        "normal_fpr": 0.0908134642,
+        "missing_calibration": 71
+      },
+      "seed_42": {
+        "auroc": 0.7103726153,
+        "ap": 0.5755169031,
+        "recall_q99": 0.5363321799,
+        "normal_fpr": 0.0922159888,
+        "missing_calibration": 71
+      }
+    },
+    "triple_style": {
+      "seed_1": {
+        "auroc": 0.9036977632,
+        "ap": 0.5849135224,
+        "recall_q99": 0.8235294118,
+        "normal_fpr": 0.1679523142,
+        "missing_calibration": 71
+      },
+      "seed_2": {
+        "auroc": 0.8782484943,
+        "ap": 0.5280310831,
+        "recall_q99": 0.6989619377,
+        "normal_fpr": 0.1511220196,
+        "missing_calibration": 71
+      },
+      "seed_42": {
+        "auroc": 0.8899843247,
+        "ap": 0.5885132421,
+        "recall_q99": 0.7508650519,
+        "normal_fpr": 0.1420056101,
+        "missing_calibration": 71
+      }
+    }
+  },
+  "mean": {
+    "mstgad_style": {
+      "auroc": 0.8660394939,
+      "ap": 0.6764165943,
+      "recall_q99": 0.5790080738,
+      "normal_fpr": 0.092800374
+    },
+    "anofusion_style": {
+      "auroc": 0.7160255819,
+      "ap": 0.579902323,
+      "recall_q99": 0.538638985,
+      "normal_fpr": 0.0880084151
+    },
+    "triple_style": {
+      "auroc": 0.8906435274,
+      "ap": 0.5671526158,
+      "recall_q99": 0.7577854671,
+      "normal_fpr": 0.1536933146
+    }
+  }
+}
