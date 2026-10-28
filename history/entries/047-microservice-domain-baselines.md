@@ -1,7 +1,7 @@
 # 047 · 微服务领域神经基线调研与首轮适配
 
 - **日期**: 2026-10-28
-- **PR**: 待定 · **Commit**: 97a6807
+- **PR**: 待定 · **Commit**: fa6832e（修复后重跑）
 - **类型**: Experiment / Model / Docs / Test
 - **影响域**: scripts/service_trace_features.py、scripts/service_domain_baselines.py、tests/test_service_trace_features.py、docs/research/service-20261019/
 
@@ -9,7 +9,7 @@
 
 补充面向微服务/AIOps 的领域文献调研，核对 Triple、MSTGAD、AnoFusion、TraceGra、TraceVAE 和 TraceDAE 的输入粒度、公开代码和标签/阈值协议。对排除 POOL/DNS 后的 15 个 Case 扫描原始 SkyWalking Trace，确认服务调用图和请求级 span 结构完整；新增 Trace→Service 时间窗特征适配器，并实现 MSTGAD、AnoFusion、Triple 风格的纯 PyTorch 适配基线。
 
-三个模型在 v3 `main_test`、Normal-only 训练和独立 Normal q99 校准下完成 seed 1/2/42 训练。均值 AUROC/AP 分别为 MSTGAD 风格 0.7956/0.5724、AnoFusion 风格 0.7169/0.5272、Triple 风格 0.8383/0.4496。
+三个模型在 v3 `main_test`、Normal-only 训练和独立 Normal q99 校准下完成 seed 1/2/42 训练。修复 Trace 对齐、拓扑来源和 fit-only 标准化后，均值 AUROC/AP 分别为 MSTGAD 风格 0.8660/0.6764、AnoFusion 风格 0.7160/0.5799、Triple 风格 0.8906/0.5671；修复前数字作废。
 
 ## 关键决策
 
