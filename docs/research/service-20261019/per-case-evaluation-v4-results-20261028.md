@@ -12,7 +12,10 @@
 | MSTGAD 风格 | 0.9481 | 0.9140 | 0.9763 | 0.9474 |
 | AnoFusion 风格 | 0.8325 | 0.8301 | 0.9073 | 0.8852 |
 | Triple 风格 | 0.9282 | 0.8758 | 0.9694 | 0.9494 |
+| PatchAD | 0.5120 | 0.4773 | 0.5473 | 0.5532 |
+| KAN-AD | 0.7859 | 0.8322 | 0.8172 | 0.8338 |
+| TimesNet | 0.7221 | 0.7667 | 0.7494 | 0.7758 |
 
-表中是 seed 1、2、42 的算术平均。per-case 宏平均只对 7 个同时含正负窗口的故障 Case 计算；Normal Case 的 AUROC/AP 保持为单类、未纳入宏平均。逐 seed 数字、q99 Recall/FPR、样本覆盖和逐 Case 结果见同名 JSON 及 gpu-b 输出目录 `percase-v4-prior-gru-20261028`、`/tmp/percase_eval_v1e`。
+表中是 seed 1、2、42 的算术平均。per-case 宏平均只对 7 个同时含正负窗口的故障 Case 计算；Normal Case 的 AUROC/AP 保持为单类、未纳入宏平均。逐 seed 数字、q99 Recall/FPR、样本覆盖和逐 Case 结果见同名 JSON 及 gpu-b 输出目录 `percase-v4-prior-gru-20261028`、`percase-v4-neural-baselines-20261028`、`/tmp/percase_eval_v1e`。
 
 本轮没有重新训练 checkpoint；重新执行了模型推理，并用新固定测试集和原独立 Normal calibration 重新计算指标。新 profile 的选择规则、derived bundle 和验收 receipt 均已固化。
