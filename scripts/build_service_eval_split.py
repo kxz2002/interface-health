@@ -20,7 +20,10 @@ def main() -> None:
 
     profiles = json.loads(args.profiles.read_text())
     profile = profiles.get("profiles", {}).get(args.profile)
-    if not isinstance(profile, dict) or profile.get("kind") != "per_case_balanced_v1":
+    if not isinstance(profile, dict) or profile.get("kind") not in {
+        "per_case_balanced_v1",
+        "per_case_balanced_v2",
+    }:
         raise ValueError(f"Unknown or non-derived evaluation profile: {args.profile}")
     source_protocol = read_bundle(args.source)["protocol"]
     excluded = profile["excluded_cases"]

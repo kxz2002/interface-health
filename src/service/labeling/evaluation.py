@@ -27,7 +27,7 @@ def _evenly_spaced(rows: pd.DataFrame, count: int) -> set[str]:
 
 def _selected_ids(frame: pd.DataFrame, selection: dict) -> tuple[set[str], dict]:
     """Build the v1 per-case balanced test set from immutable labels."""
-    if selection.get("mode") != "per_case_balanced_v1":
+    if selection.get("mode") not in {"per_case_balanced_v1", "per_case_balanced_v2"}:
         raise ValueError("Unsupported evaluation selection mode")
     excluded = set(selection.get("excluded_cases", []))
     protocol_excluded = set(selection.get("protocol_excluded_cases", excluded))
@@ -69,12 +69,14 @@ def _selected_ids(frame: pd.DataFrame, selection: dict) -> tuple[set[str], dict]
     if not usable_cases:
         raise ValueError("No two-class fault case is available for per-case split")
     quota_mode = selection.get("normal_case_quota", "mean_fault_case_matched_negative")
-    if quota_mode != "mean_fault_case_matched_negative":
+    if quota_mode == "mean_fault_case_matched_negative":
+        quota = int(
+            round(sum(item["selected_negative"] for item in usable_cases) / len(usable_cases))
+        )
+    elif type(quota_mode) is int and quota_mode > 0:
+        quota = quota_mode
+    else:
         raise ValueError("Unsupported normal-case quota")
-    quota = max(
-        1,
-        int(round(sum(item["selected_negative"] for item in usable_cases) / len(usable_cases))),
-    )
     if not len(normal):
         raise ValueError("The independent normal case has no eligible reference windows")
     normal_ids = _evenly_spaced(normal, min(quota, len(normal)))
