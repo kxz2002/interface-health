@@ -15,7 +15,10 @@
 | PatchAD | 0.5120 | 0.4773 | 0.5473 | 0.5532 |
 | KAN-AD | 0.7859 | 0.8322 | 0.8172 | 0.8338 |
 | TimesNet | 0.7221 | 0.7667 | 0.7494 | 0.7758 |
+| PatchAD short | 0.4991 | 0.5080 | 0.4009 | 0.4903 |
+| KAN-AD short | 0.7670 | 0.8193 | 0.8009 | 0.8050 |
+| TimesNet short | 0.5915 | 0.5327 | 0.6825 | 0.6502 |
 
-表中是 seed 1、2、42 的算术平均。per-case 宏平均只对 7 个同时含正负窗口的故障 Case 计算；Normal Case 的 AUROC/AP 保持为单类、未纳入宏平均。逐 seed 数字、q99 Recall/FPR、样本覆盖和逐 Case 结果见同名 JSON 及 gpu-b 输出目录 `percase-v4-prior-gru-20261028`、`percase-v4-neural-baselines-20261028`、`/tmp/percase_eval_v1e`。
+表中是 seed 1、2、42 的算术平均；short 行同样使用三个 seed。per-case 宏平均只对 7 个同时含正负窗口的故障 Case 计算；Normal Case 的 AUROC/AP 保持为单类、未纳入宏平均。逐 seed 数字、q99 Recall/FPR、样本覆盖和逐 Case 结果见同名 JSON 及 gpu-b 输出目录 `percase-v4-prior-gru-20261028`、`percase-v4-neural-baselines-20261028`、`percase-v4-neural-short-baselines-20261028`、`/tmp/percase_eval_v1e`。
 
 本轮没有重新训练 checkpoint；重新执行了模型推理，并用新固定测试集和原独立 Normal calibration 重新计算指标。新 profile 的选择规则、derived bundle 和验收 receipt 均已固化。

@@ -44,6 +44,15 @@
       "seed1": {"pooled_auroc": 0.6889207088, "pooled_ap": 0.7383209558, "per_case_auroc_macro": 0.7427027272, "per_case_ap_macro": 0.7684861173},
       "seed2": {"pooled_auroc": 0.7170932522, "pooled_ap": 0.7776776467, "per_case_auroc_macro": 0.7127617232, "per_case_ap_macro": 0.7625422611},
       "seed42": {"pooled_auroc": 0.7603364954, "pooled_ap": 0.7839529654, "per_case_auroc_macro": 0.7927121573, "per_case_ap_macro": 0.7964915751}
+    },
+    "patchad_short": {
+      "mean": {"pooled_auroc": 0.4991468290, "pooled_ap": 0.5079887821, "per_case_auroc_macro": 0.4009238800, "per_case_ap_macro": 0.4902779790}
+    },
+    "kanad_short": {
+      "mean": {"pooled_auroc": 0.7669709445, "pooled_ap": 0.8192684912, "per_case_auroc_macro": 0.8009107371, "per_case_ap_macro": 0.8050382592}
+    },
+    "timesnet_short": {
+      "mean": {"pooled_auroc": 0.5914802218, "pooled_ap": 0.5326535223, "per_case_auroc_macro": 0.6825123796, "per_case_ap_macro": 0.6502477160}
     }
   }
 }
