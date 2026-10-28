@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 from src.service.labeling.bundle import derive_evaluation_bundle, read_bundle
+from src.service.labeling.evaluation import _selected_ids
 
 
 def main() -> None:
@@ -43,6 +44,24 @@ def main() -> None:
             "normal_sampling": profile["normal_sampling"],
         },
     )
+    if profile["kind"] == "per_case_balanced_v2":
+        source_data = read_bundle(args.source)
+        frame = source_data["labels"].merge(
+            source_data["splits"][
+                ["dataset_id", "run_id", "canonical_service_id", "window_start_ms", "split"]
+            ],
+            on=["dataset_id", "run_id", "canonical_service_id", "window_start_ms"],
+            validate="one_to_one",
+        )
+        v1_selection = {
+            "mode": "per_case_balanced_v1",
+            "normal_case_id": profile["normal_case_id"],
+            "excluded_cases": excluded,
+            "protocol_excluded_cases": excluded,
+            "normal_case_quota": "mean_fault_case_matched_negative",
+        }
+        fault_ids, _ = _selected_ids(frame, v1_selection)
+        protocol["evaluation_selection"]["frozen_fault_sample_ids"] = sorted(fault_ids)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     protocol_path = args.output.parent / f"{args.output.name}.protocol.json"
     if protocol_path.exists():

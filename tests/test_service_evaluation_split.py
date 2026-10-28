@@ -118,3 +118,38 @@ def test_v2_uses_explicit_normal_quota():
     }
     result = evaluation_table(labels, splits, protocol)
     assert result.evaluation_eligible.sum() == 9
+
+
+def test_v2_rejects_short_normal_quota():
+    rows = (
+        _rows("fault", "injection_association", 1, 2)
+        + _rows("fault", "pre_intervention_reference", 0, 2, 2)
+        + _rows("normal", "normal_run_reference", 0, 1)
+    )
+    labels = pd.DataFrame(rows)
+    splits = labels[
+        [
+            "dataset_id",
+            "run_id",
+            "case_id",
+            "canonical_service_id",
+            "window_start_ms",
+            "window_end_ms",
+            "sample_id",
+        ]
+    ].copy()
+    splits["split"] = "test"
+    protocol = {
+        "evaluation_version": "per-case-v2",
+        "evaluation_excluded_cases": [],
+        "evaluation_selection": {
+            "mode": "per_case_balanced_v2",
+            "normal_case_id": "normal",
+            "excluded_cases": [],
+            "normal_case_quota": 2,
+        },
+    }
+    import pytest
+
+    with pytest.raises(ValueError, match="fewer windows"):
+        evaluation_table(labels, splits, protocol)

@@ -60,6 +60,12 @@ def _selected_ids(frame: pd.DataFrame, selection: dict) -> tuple[set[str], dict]
             "selected_negative": count,
             "excluded_reason": None if count else "missing_one_class",
         }
+    fault_selected = selected.copy()
+    frozen_fault_ids = selection.get("frozen_fault_sample_ids")
+    if frozen_fault_ids is not None:
+        frozen_fault_ids = set(frozen_fault_ids)
+        if fault_selected != frozen_fault_ids:
+            raise ValueError("Frozen fault selection differs from deterministic selection")
     normal = test[
         test.case_id.eq(normal_case)
         & test.label.eq(0)
@@ -79,7 +85,9 @@ def _selected_ids(frame: pd.DataFrame, selection: dict) -> tuple[set[str], dict]
         raise ValueError("Unsupported normal-case quota")
     if not len(normal):
         raise ValueError("The independent normal case has no eligible reference windows")
-    normal_ids = _evenly_spaced(normal, min(quota, len(normal)))
+    if len(normal) < quota:
+        raise ValueError("Independent normal case has fewer windows than its frozen quota")
+    normal_ids = _evenly_spaced(normal, quota)
     selected.update(normal_ids)
     per_case[normal_case] = {
         "positive_eligible": 0,
