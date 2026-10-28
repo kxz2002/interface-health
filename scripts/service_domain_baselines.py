@@ -211,6 +211,7 @@ def main():
     parser.add_argument("--bundle", type=Path, required=True)
     parser.add_argument("--acceptance", type=Path, required=True)
     parser.add_argument("--raw-root", type=Path, required=True)
+    parser.add_argument("--seed", type=int, default=SEED)
     args = parser.parse_args()
     tables, prepared, _ = read_prepared(args.prepared)
     bundle, _ = accepted_bundle(args.bundle, args.acceptance)
@@ -236,7 +237,7 @@ def main():
     for name in ("mstgad", "anofusion", "triple"):
         print(
             json.dumps(
-                run_model(name, arrays, fit, cal, test, labels, set(lists.main_test), SEED),
+                run_model(name, arrays, fit, cal, test, labels, set(lists.main_test), args.seed),
                 sort_keys=True,
             )
         )
