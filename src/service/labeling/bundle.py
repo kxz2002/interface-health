@@ -441,6 +441,7 @@ def derive_evaluation_bundle(
         "evaluation_excluded_cases",
         "protocol_id",
         "reference_semantics",
+        "evaluation_selection",
     }
     if {
         key

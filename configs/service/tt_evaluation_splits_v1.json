@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "profiles": {
+    "tt_normal_test_and_controlled_positive_v3_pool_dns_excluded": {
+      "kind": "bundle_protocol_default",
+      "description": "Historical v3 evaluation membership; kept unchanged for comparison."
+    },
+    "tt_per_case_balanced_v1_pool_dns_excluded": {
+      "kind": "per_case_balanced_v1",
+      "evaluation_version": "tt_per_case_balanced_v1_pool_dns_excluded",
+      "normal_case_id": "Normal_20261018T153211Z_e448a74ed7104ebd",
+      "excluded_cases": [
+        "Lv_D_CONNECTION_POOL_exhaustion_20261017T102058Z_7b28ab23f0694e7f_em",
+        "Lv_S_DNSFAIL_preserve_no_order_20261018T140118Z_81f642e966444fe0_em"
+      ],
+      "normal_case_quota": "mean_fault_case_matched_negative",
+      "selection_order": ["window_start_ms", "canonical_service_id", "sample_id"],
+      "matching": "per_fault_case_min_positive_negative",
+      "normal_sampling": "evenly_spaced_over_case",
+      "score_independent": true,
+      "notes": "Fault cases are balanced internally; Normal windows use one deterministic representative quota and are not assigned to a fault case."
+    }
+  }
+}
