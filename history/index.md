@@ -4,7 +4,7 @@
 
 详细文档放 [`entries/`](./entries/)。
 
-最新研究记录：[046 · 近期神经异常检测基线复现与短历史补充](entries/046-neural-baselines-v3.md)，见[神经基线结果](../docs/research/service-20261019/neural-baselines-v3-pilot-20261027.md)和[短历史结果](../docs/research/service-20261019/neural-short-context-plan-20261027.md)。POOL/DNS 评价版本见[045](entries/045-pool-dns-evaluation-v3.md)。
+最新研究记录：[047 · 微服务领域神经基线调研与首轮适配](entries/047-microservice-domain-baselines.md)，见[领域基线结果](../docs/research/service-20261019/microservice-domain-baselines-results-20261028.md)。通用神经基线见[046](entries/046-neural-baselines-v3.md)，POOL/DNS 评价版本见[045](entries/045-pool-dns-evaluation-v3.md)。
 
 ## 使用约定
 
@@ -31,6 +31,7 @@
 |---|------|------|------|--------|
 | [045](./entries/045-pool-dns-evaluation-v3.md) | 2026-10-27 | Feature / Experiment / Test / Docs | 排除 POOL/DNS 的 v3 评价和历史模型复评 | src/service/labeling/, src/service/modeling/, scripts/label_service_data.py, scripts/service_revaluate_temporal.py, configs/service/, tests/test_service_*, docs/research/service-20261019/, AGENTS.md |
 | [046](./entries/046-neural-baselines-v3.md) | 2026-10-28 | Experiment / Model / Docs / Test | PatchAD、KAN-AD、TimesNet 神经基线及短历史补充 | docs/research/service-20261019/, tests/test_service_*, gpu-b 专用实验 worktree |
+| [047](./entries/047-microservice-domain-baselines.md) | 2026-10-28 | Experiment / Model / Docs / Test | 微服务领域论文调研、Trace 图适配器与三种领域神经基线 | scripts/service_trace_features.py, scripts/service_domain_baselines.py, tests/test_service_trace_features.py, docs/research/service-20261019/ |
 | [044](./entries/044-gru-eight-directions.md) | 2026-10-24 | Model / Experiment / Test / Docs | 八方向三seed探索；分组GRU均值改善、未过稳定替代门槛；实际checkpoint与MLflow审计 | src/service/modeling/, scripts/*service_eight_directions.py, configs/service/, tests/test_service_eight_directions.py, docs/research/service-20261019/ |
 | [042](./entries/042-gru-normal-only-bounded-improvements.md) | 2026-10-24 | Model / Experiment / Test / Docs | 原GRU有界三个候选；完整Normal验证、因果残差、真实MLflow与协议核验 | src/service/modeling/, scripts/service_temporal_model.py, scripts/service_gru_normal_validation.py, scripts/audit_gru_candidates.py, configs/service/, tests/test_gru_*, docs/research/service-20261019/ |
 | [043](./entries/043-gru-four-independent-directions.md) | 2026-10-23 | Model / Experiment / Test / Docs | 四方向独立验证；误差尺度、状态融合、服务偏置及短长历史；checkpoint与实际上下文审计 | src/service/modeling/, scripts/service_gru_*, scripts/audit_gru_*, configs/service/, tests/test_gru_*, docs/research/service-20261019/ |
