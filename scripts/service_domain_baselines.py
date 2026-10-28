@@ -186,17 +186,18 @@ def run_model(name, arrays, fit_cases, cal_cases, test_cases, labels, allowed_te
     cal = pd.concat([score(case) for case in cal_cases], ignore_index=True)
     threshold = float(np.quantile(cal.score.to_numpy(), 0.99))
     test = pd.concat([score(case) for case in test_cases], ignore_index=True).set_index("sample_id")
-    frame = (
-        test.loc[test.index.intersection(allowed_test_ids)]
-        .join(labels[["label"]], how="inner")
-        .dropna(subset=["label"])
-    )
+    target_ids = sorted(set(allowed_test_ids))
+    missing_history = len(set(target_ids) - set(test.index))
+    test = test.reindex(target_ids)
+    test["score"] = test["score"].fillna(0.0)
+    frame = test.join(labels[["label"]], how="inner").dropna(subset=["label"])
     y, s = frame.label.astype(int), frame.score
     return dict(
         name=name,
         seed=seed,
         threshold=threshold,
         rows=len(frame),
+        missing_history=missing_history,
         auroc=roc_auc_score(y, s),
         ap=average_precision_score(y, s),
         recall=float(((s > threshold) & y.eq(1)).sum() / max(1, y.sum())),
