@@ -24,7 +24,9 @@ def _span_service(span: dict[str, Any]) -> str | None:
     return str(value) if value else None
 
 
-def read_trace_case(path: str | Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+def read_trace_case(
+    path: str | Path, bucket_origin_ms: int | None = None
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return per-window service features and directed service edges.
 
     The raw collector stores complete trace trees rather than a flat span table.
@@ -46,7 +48,11 @@ def read_trace_case(path: str | Path) -> tuple[pd.DataFrame, pd.DataFrame]:
             start_ms = span.get("start_timestamp_ms")
             if service is None or not isinstance(start_ms, (int, float)):
                 continue
-            bucket = int(start_ms) // 15_000
+            bucket = (
+                int(start_ms) // 15_000
+                if bucket_origin_ms is None
+                else (int(start_ms) - bucket_origin_ms) // 15_000
+            )
             rows.append(
                 {
                     "bucket": bucket,

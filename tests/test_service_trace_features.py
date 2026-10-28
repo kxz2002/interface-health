@@ -33,9 +33,10 @@ def test_read_trace_case_aggregates_spans_and_edges(tmp_path):
     path = tmp_path / "trace.json"
     path.write_text(json.dumps(payload))
 
-    features, edges = read_trace_case(path)
+    features, edges = read_trace_case(path, bucket_origin_ms=29_999)
 
     assert set(features.service) == {"gateway", "order"}
+    assert set(features.bucket) == {0}
     assert features.loc[features.service.eq("order"), "error_rate"].iloc[0] == 1.0
     assert edges.to_dict("records") == [{"source_service": "gateway", "target_service": "order"}]
     assert edges.attrs["missing_child_count"] == 0

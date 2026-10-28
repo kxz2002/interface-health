@@ -33,7 +33,7 @@ def _set_seed(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
-def build_arrays(prepared, tables, raw_root: Path):
+def build_arrays(prepared, tables, raw_root: Path, fit_case_ids: set[str]):
     identity = prepared.identity.set_index("sample_id")
     value = prepared.numeric["values"].set_index("sample_id").fillna(0.0)
     mask = prepared.numeric["masks"].set_index("sample_id").fillna(0.0)
@@ -46,9 +46,9 @@ def build_arrays(prepared, tables, raw_root: Path):
         paths = list((raw_root / case / "trace_data").glob("*skywalking*.json"))
         if not paths or case in set(tables.protocol["evaluation_excluded_cases"]):
             continue
-        trace, edges = read_trace_case(paths[0])
         payload = json.loads(paths[0].read_text())
         origin = int(payload["metadata"]["expected_windows"][0][0])
+        trace, edges = read_trace_case(paths[0], bucket_origin_ms=origin)
         trace_map = {(int(row.bucket), row.service): row for row in trace.itertuples()}
         rows = identity[identity.case_id.eq(case)].sort_values(
             ["window_start_ms", "canonical_service_id"]
@@ -77,8 +77,23 @@ def build_arrays(prepared, tables, raw_root: Path):
                 adjacency[
                     service_index[edge.source_service], service_index[edge.target_service]
                 ] = 1.0
-        adjacency /= adjacency.sum(axis=1, keepdims=True).clip(min=1.0)
         case_arrays[case] = dict(x=x, ids=ids, windows=windows, adjacency=adjacency)
+    fit_adjacency = np.eye(len(services), dtype=np.float32)
+    for case in fit_case_ids:
+        if case in case_arrays:
+            fit_adjacency = np.maximum(fit_adjacency, case_arrays[case]["adjacency"])
+    fit_adjacency /= fit_adjacency.sum(axis=1, keepdims=True).clip(min=1.0)
+    fit_cases = [case for case in fit_case_ids if case in case_arrays]
+    if fit_cases:
+        offset = len(numeric.columns)
+        trace_fit = np.concatenate(
+            [case_arrays[case]["x"][:, :, offset:] for case in fit_cases], axis=0
+        )
+        trace_mean = trace_fit.mean(axis=(0, 1), keepdims=True)
+        trace_std = trace_fit.std(axis=(0, 1), keepdims=True).clip(min=1e-6)
+        for case_data in case_arrays.values():
+            case_data["x"][:, :, offset:] = (case_data["x"][:, :, offset:] - trace_mean) / trace_std
+            case_data["adjacency"] = fit_adjacency
     return case_arrays, service_index
 
 
@@ -216,7 +231,8 @@ def main():
     tables, prepared, _ = read_prepared(args.prepared)
     bundle, _ = accepted_bundle(args.bundle, args.acceptance)
     tables, lists = rebind(tables, prepared, bundle)
-    arrays, _ = build_arrays(prepared, tables, args.raw_root)
+    fit_case_ids = set(prepared.identity[prepared.identity.sample_id.isin(lists.fit)].case_id)
+    arrays, _ = build_arrays(prepared, tables, args.raw_root, fit_case_ids)
     labels = tables.labels.set_index("sample_id")
     case_split = (
         prepared.identity.groupby("case_id")
