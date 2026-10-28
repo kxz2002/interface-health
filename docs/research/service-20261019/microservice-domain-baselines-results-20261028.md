@@ -2,6 +2,8 @@
 
 运行入口：`scripts/service_domain_baselines.py`。代码提交 `a238d17`，远端训练在 gpu-b 专用 worktree `v3-baselines-8413b1a` 完成。输入为 prepared Service 数据、v3 已验收标签包和原始 SkyWalking Trace；训练只消费 Normal fit，q99 只消费独立 Normal calibration。
 
+机器可读的逐 seed 汇总见 [`microservice-domain-baselines-results-20261028.json`](microservice-domain-baselines-results-20261028.json)。
+
 主评价严格使用 v3 `main_test`，共 3141 个 Service×15 秒窗口（289 正、2852 负），POOL/DNS 排除。模型历史长度为 4 个窗口；无法形成完整历史的 72 个主评价窗口保留在评价中，分数填为 0 并单独计数。
 
 | 模型适配 | seed | AUROC | AP | q99 recall | Normal FPR |

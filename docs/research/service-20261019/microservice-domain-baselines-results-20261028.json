@@ -1,0 +1,27 @@
+{
+  "protocol": {
+    "evaluation_version": "tt_labels_a_v3_pool_dns_excluded",
+    "main_rows": 3141,
+    "positive_rows": 289,
+    "negative_rows": 2852,
+    "missing_history_rows": 72,
+    "threshold": "q99 independent Normal calibration"
+  },
+  "results": {
+    "mstgad_style": {
+      "seed_1": {"auroc": 0.7877626094, "ap": 0.5669813917, "recall_q99": 0.5328719723, "normal_fpr": 0.1202664797},
+      "seed_2": {"auroc": 0.7949463013, "ap": 0.5729036537, "recall_q99": 0.5190311419, "normal_fpr": 0.1199158485},
+      "seed_42": {"auroc": 0.8042306639, "ap": 0.5774448914, "recall_q99": 0.4844290657, "normal_fpr": 0.0869565217}
+    },
+    "anofusion_style": {
+      "seed_1": {"auroc": 0.7004530300, "ap": 0.5279139003, "recall_q99": 0.4740484429, "normal_fpr": 0.0781907433},
+      "seed_2": {"auroc": 0.7124958143, "ap": 0.5262919716, "recall_q99": 0.4844290657, "normal_fpr": 0.0936185133},
+      "seed_42": {"auroc": 0.7376405558, "ap": 0.5274732461, "recall_q99": 0.4740484429, "normal_fpr": 0.0894109397}
+    },
+    "triple_style": {
+      "seed_1": {"auroc": 0.8331675216, "ap": 0.4605728310, "recall_q99": 0.6989619377, "normal_fpr": 0.1683029453},
+      "seed_2": {"auroc": 0.8010344225, "ap": 0.3976888104, "recall_q99": 0.7058823529, "normal_fpr": 0.1998597475},
+      "seed_42": {"auroc": 0.8807999728, "ap": 0.4906437753, "recall_q99": 0.7543252595, "normal_fpr": 0.1504207574}
+    }
+  }
+}
