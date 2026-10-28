@@ -40,6 +40,12 @@
 
 因此，下一轮优先级暂定为 **MSTGAD → AnoFusion → Triple**；TraceVAE/TraceGra/TraceDAE 先做数据可用性检查。若当前 Service 数据不能构造服务依赖图，领域模型只能作为协议适配研究，不能声称复现原论文的 Trace 级任务。
 
+## 原始 Trace 可用性核查
+
+在 gpu-b 对 15 个排除 POOL/DNS 后的 selected Case 扫描原始 SkyWalking JSON：每个 Case 都有 4,155–8,313 个 Trace、约 127k–234k 个 span、21–22 个服务和 40–44 条服务调用边；按 span 起始时间映射到 15 秒桶后，每个 Case 有 108–124 个时间桶，父子节点引用未发现缺失。这个结果证明当前数据可以构造服务依赖图和 Trace-Metric-Log 时间窗输入。
+
+但这只是结构覆盖核查，不等于已经完成模型适配：Trace 采集窗口、服务集合和 prepared Service 网格仍需按稳定的 `(case_id, canonical_service_id, window_start_ms)` 对齐；Trace 的请求级标签也不能直接替代当前 Service 窗口标签。核查脚本和原始产物留在 gpu-b 的独立实验目录，未修改原始数据。
+
 ## 来源
 
 - [Triple（IEEE/ACM IWQoS 2023）](https://doi.org/10.1109/IWQoS57198.2023.10188773)
