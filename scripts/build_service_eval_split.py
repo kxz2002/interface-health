@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import tempfile
 from pathlib import Path
 
 from src.service.labeling.bundle import derive_evaluation_bundle, read_bundle
@@ -42,22 +41,13 @@ def main() -> None:
         },
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(
-        mode="w",
-        suffix=".json",
-        prefix=".service-eval-protocol-",
-        dir=args.output.parent,
-        delete=False,
-    ) as handle:
-        protocol_path = Path(handle.name)
+    protocol_path = args.output.parent / f"{args.output.name}.protocol.json"
+    if protocol_path.exists():
+        raise FileExistsError(f"Refusing to overwrite protocol: {protocol_path}")
+    with protocol_path.open("x", encoding="utf-8") as handle:
         json.dump(protocol, handle, indent=2, sort_keys=True)
         handle.write("\n")
-    try:
-        manifest = derive_evaluation_bundle(
-            args.source, args.preparation, protocol_path, args.output
-        )
-    finally:
-        protocol_path.unlink(missing_ok=True)
+    manifest = derive_evaluation_bundle(args.source, args.preparation, protocol_path, args.output)
     print(json.dumps(manifest, indent=2, sort_keys=True))
 
 
