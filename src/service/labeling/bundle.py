@@ -441,6 +441,7 @@ def derive_evaluation_bundle(
         "evaluation_excluded_cases",
         "protocol_id",
         "reference_semantics",
+        "evaluation_selection",
     }
     if {
         key
@@ -493,12 +494,21 @@ def _write_derived_package(source, output, protocol_path, protocol, data, index)
     labels["label_version"] = label_version
     labels.to_parquet(output / "labels.parquet", index=False)
     manifest = dict(data["manifest"])
+    source_derivation = data["manifest"].get("derivation", {})
     manifest["derivation"] = {
         "source_manifest_sha256": file_digest(source / "manifest.json"),
         "source_path": str(source.resolve()),
         "created_at": datetime.now(timezone.utc).isoformat(),
         **_provenance(),
     }
+    if source_derivation.get("base_source_manifest_sha256"):
+        manifest["derivation"]["base_source_manifest_sha256"] = source_derivation[
+            "base_source_manifest_sha256"
+        ]
+    elif source_derivation.get("source_manifest_sha256"):
+        manifest["derivation"]["base_source_manifest_sha256"] = source_derivation[
+            "source_manifest_sha256"
+        ]
     manifest["schema_version"] = 2
     manifest["label_version"] = label_version
     manifest["evaluation_version"] = protocol["evaluation_version"]

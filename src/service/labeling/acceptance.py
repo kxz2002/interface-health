@@ -58,6 +58,7 @@ def check_bundle(bundle: Path, preparation: Path) -> dict:
             "evaluation_excluded_cases",
             "protocol_id",
             "reference_semantics",
+            "evaluation_selection",
         }
         if (
             any(

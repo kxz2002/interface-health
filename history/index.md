@@ -4,7 +4,7 @@
 
 详细文档放 [`entries/`](./entries/)。
 
-最新研究记录：[048 · per-case AUROC/AP 的标签体系缺口](entries/048-per-case-auroc-label-gap.md)。微服务领域基线见[047](entries/047-microservice-domain-baselines.md)，通用神经基线见[046](entries/046-neural-baselines-v3.md)，POOL/DNS 评价版本见[045](entries/045-pool-dns-evaluation-v3.md)。
+最新研究记录：[049 · 扩充独立 Normal 测试窗口的 pooled/per-case 评价 v2](entries/049-per-case-evaluation-v2.md)。前序标签缺口见[048](entries/048-per-case-auroc-label-gap.md)，微服务领域基线见[047](entries/047-microservice-domain-baselines.md)，通用神经基线见[046](entries/046-neural-baselines-v3.md)。
 
 ## 使用约定
 
@@ -33,6 +33,7 @@
 | [046](./entries/046-neural-baselines-v3.md) | 2026-10-28 | Experiment / Model / Docs / Test | PatchAD、KAN-AD、TimesNet 神经基线及短历史补充 | docs/research/service-20261019/, tests/test_service_*, gpu-b 专用实验 worktree |
 | [047](./entries/047-microservice-domain-baselines.md) | 2026-10-28 | Experiment / Model / Docs / Test | 微服务领域论文调研、Trace 图适配器与三种领域神经基线 | scripts/service_trace_features.py, scripts/service_domain_baselines.py, tests/test_service_trace_features.py, docs/research/service-20261019/ |
 | [048](./entries/048-per-case-auroc-label-gap.md) | 2026-10-28 | Docs / Experiment | per-case AUROC/AP 无定义及后续标签体系任务 | docs/research/service-20261019/, src/service/modeling/evaluation.py, configs/service/ |
+| [049](./entries/049-per-case-evaluation-v2.md) | 2026-10-28 | Feature / Experiment / Test / Docs | 扩充独立 Normal 测试窗口并复评 pooled/per-case 指标 | src/service/labeling/, src/service/modeling/, scripts/, configs/service/, tests/, docs/research/service-20261019/ |
 | [044](./entries/044-gru-eight-directions.md) | 2026-10-24 | Model / Experiment / Test / Docs | 八方向三seed探索；分组GRU均值改善、未过稳定替代门槛；实际checkpoint与MLflow审计 | src/service/modeling/, scripts/*service_eight_directions.py, configs/service/, tests/test_service_eight_directions.py, docs/research/service-20261019/ |
 | [042](./entries/042-gru-normal-only-bounded-improvements.md) | 2026-10-24 | Model / Experiment / Test / Docs | 原GRU有界三个候选；完整Normal验证、因果残差、真实MLflow与协议核验 | src/service/modeling/, scripts/service_temporal_model.py, scripts/service_gru_normal_validation.py, scripts/audit_gru_candidates.py, configs/service/, tests/test_gru_*, docs/research/service-20261019/ |
 | [043](./entries/043-gru-four-independent-directions.md) | 2026-10-23 | Model / Experiment / Test / Docs | 四方向独立验证；误差尺度、状态融合、服务偏置及短长历史；checkpoint与实际上下文审计 | src/service/modeling/, scripts/service_gru_*, scripts/audit_gru_*, configs/service/, tests/test_gru_*, docs/research/service-20261019/ |

@@ -222,8 +222,23 @@ def run_model(
     missing_history = len(set(target_ids) - set(test.index))
     test = test.reindex(target_ids)
     test["score"] = test["score"].fillna(0.0)
-    frame = test.join(labels[["label"]], how="inner").dropna(subset=["label"])
+    frame = test.join(labels[["label", "case_id"]], how="inner").dropna(subset=["label"])
     y, s = frame.label.astype(int), frame.score
+    per_case = {}
+    for case_id, part in frame.groupby("case_id", sort=True):
+        case_y = part.label.astype(int).to_numpy()
+        case_s = part.score.to_numpy(float)
+        has_both = len(np.unique(case_y)) == 2
+        per_case[str(case_id)] = {
+            "rows": len(part),
+            "positive": int((case_y == 1).sum()),
+            "negative": int((case_y == 0).sum()),
+            "auroc": float(roc_auc_score(case_y, case_s)) if has_both else None,
+            "ap": float(average_precision_score(case_y, case_s)) if has_both else None,
+        }
+    eligible_cases = [
+        item for item in per_case.values() if item["auroc"] is not None and item["ap"] is not None
+    ]
     return dict(
         name=name,
         seed=seed,
@@ -233,6 +248,14 @@ def run_model(
         missing_calibration=missing_calibration,
         auroc=roc_auc_score(y, s),
         ap=average_precision_score(y, s),
+        per_case=per_case,
+        per_case_auroc_macro=(
+            float(np.mean([item["auroc"] for item in eligible_cases])) if eligible_cases else None
+        ),
+        per_case_ap_macro=(
+            float(np.mean([item["ap"] for item in eligible_cases])) if eligible_cases else None
+        ),
+        per_case_cases_with_both_classes=len(eligible_cases),
         recall=float(((s > threshold) & y.eq(1)).sum() / max(1, y.sum())),
         normal_fpr=float(((s > threshold) & y.eq(0)).sum() / max(1, (y == 0).sum())),
     )

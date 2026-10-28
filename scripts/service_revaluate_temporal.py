@@ -39,10 +39,11 @@ def accepted_bundle(bundle_path, acceptance_path):
 
 def rebind(tables, prepared, bundle):
     derived = bundle["manifest"]
-    if (
-        derived.get("derivation", {}).get("source_manifest_sha256")
-        != prepared.hashes["label_manifest_sha256"]
-    ):
+    derivation = derived.get("derivation", {})
+    source_hash = derivation.get("base_source_manifest_sha256") or derivation.get(
+        "source_manifest_sha256"
+    )
+    if source_hash != prepared.hashes["label_manifest_sha256"]:
         raise ValueError("Derived bundle is not bound to the original prepared labels")
     for name in ("labels", "splits"):
         before = getattr(tables, name).sort_values("sample_id").reset_index(drop=True)

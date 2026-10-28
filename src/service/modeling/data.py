@@ -286,9 +286,18 @@ def build_sample_lists(
     fit = select(valid & splits.eq("fit") & normal)
     calibration = select(valid & splits.eq("calibration") & normal)
     pre_reference = labels.label_source.eq("pre_intervention_reference")
-    main = select(valid & eligible & known & splits.eq("test") & ~pre_reference)
+    # Historical v3 deliberately omitted fault reference windows. Versioned
+    # per-case profiles make those rows eligible explicitly, so the evaluator
+    # must consume the persisted evaluation table without reapplying v3's rule.
+    include_selected_reference = getattr(tables, "protocol", None) and bool(
+        tables.protocol.get("evaluation_selection")
+    )
+    reference_scope = (
+        pd.Series(True, index=frame.index) if include_selected_reference else ~pre_reference
+    )
+    main = select(valid & eligible & known & splits.eq("test") & reference_scope)
     extended = select((valid | logs) & splits.eq("test") & included_case)
-    extended_main = select((valid | logs) & eligible & known & splits.eq("test") & ~pre_reference)
+    extended_main = select((valid | logs) & eligible & known & splits.eq("test") & reference_scope)
     pre_mask = (
         valid
         & splits.eq("test")
