@@ -123,7 +123,7 @@ def _windows(case_data, fit_windows: set[int], history: int):
             yield wi, x[wi - history + 1 : wi + 1]
 
 
-def run_model(name, arrays, fit_cases, cal_cases, test_cases, labels, seed):
+def run_model(name, arrays, fit_cases, cal_cases, test_cases, labels, allowed_test_ids, seed):
     _set_seed(seed)
     sample = next(iter(arrays.values()))
     dim = sample["x"].shape[-1]
@@ -186,7 +186,11 @@ def run_model(name, arrays, fit_cases, cal_cases, test_cases, labels, seed):
     cal = pd.concat([score(case) for case in cal_cases], ignore_index=True)
     threshold = float(np.quantile(cal.score.to_numpy(), 0.99))
     test = pd.concat([score(case) for case in test_cases], ignore_index=True).set_index("sample_id")
-    frame = test.join(labels[["label"]], how="inner").dropna(subset=["label"])
+    frame = (
+        test.loc[test.index.intersection(allowed_test_ids)]
+        .join(labels[["label"]], how="inner")
+        .dropna(subset=["label"])
+    )
     y, s = frame.label.astype(int), frame.score
     return dict(
         name=name,
@@ -229,7 +233,12 @@ def main():
     ]
     test = [c for c in arrays if c not in fit and c not in cal]
     for name in ("mstgad", "anofusion", "triple"):
-        print(json.dumps(run_model(name, arrays, fit, cal, test, labels, SEED), sort_keys=True))
+        print(
+            json.dumps(
+                run_model(name, arrays, fit, cal, test, labels, set(lists.main_test), SEED),
+                sort_keys=True,
+            )
+        )
 
 
 if __name__ == "__main__":
