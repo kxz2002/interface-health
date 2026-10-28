@@ -1,10 +1,10 @@
 # 微服务领域神经基线首轮结果
 
-运行入口：`scripts/service_domain_baselines.py`。代码提交 `fa6832e` 修复了 Trace bucket 对齐、Normal-fit 图拓扑泄漏和 Trace 特征 fit-only 标准化；远端训练在 gpu-b 专用 worktree `v3-baselines-8413b1a` 完成。输入为 prepared Service 数据、v3 已验收标签包和原始 SkyWalking Trace；训练只消费 Normal fit，q99 只消费独立 Normal calibration。
+运行入口：`scripts/service_domain_baselines.py`。代码提交 `fa6832e` 修复了 Trace bucket 对齐、Normal-fit 图拓扑泄漏和 Trace 特征 fit-only 标准化；随后 `e8c6e30` 修复了冻结 calibration ID 的完整重建与缺失历史填充；远端训练在 gpu-b 专用 worktree `v3-baselines-8413b1a` 完成。输入为 prepared Service 数据、v3 已验收标签包和原始 SkyWalking Trace；训练只消费 Normal fit，q99 只消费独立 Normal calibration。
 
 机器可读的逐 seed 汇总见 [`microservice-domain-baselines-results-20261028.json`](microservice-domain-baselines-results-20261028.json)。
 
-主评价严格使用 v3 `main_test`，共 3141 个 Service×15 秒窗口（289 正、2852 负），POOL/DNS 排除。模型历史长度为 4 个窗口；无法形成完整历史的 72 个主评价窗口保留在评价中，分数填为 0 并单独计数。
+主评价严格使用 v3 `main_test`，共 3141 个 Service×15 秒窗口（289 正、2852 负），POOL/DNS 排除。模型历史长度为 4 个窗口；无法形成完整历史的 72 个主评价窗口和 71 个独立 Normal calibration 窗口保留在各自冻结集合中，分数填为 0 并单独计数。
 
 当前每个 Normal Case 全为负类、每个故障 Case 全为正类，因此 per-case AUROC/AP 均无定义（`n_cases_with_both_classes=0`）。本轮不填充伪造的逐 Case 指标；标签体系修改列为后续独立分支，当前结果只报告 pooled 指标。
 
@@ -14,13 +14,13 @@
 | MSTGAD 风格图时空重建 | 2 | 0.8566 | 0.6716 | 0.5779 | 0.0926 |
 | MSTGAD 风格图时空重建 | 42 | 0.8750 | 0.6848 | 0.5779 | 0.0929 |
 | AnoFusion 风格多模态 GRU | 1 | 0.6975 | 0.5765 | 0.5398 | 0.0810 |
-| AnoFusion 风格多模态 GRU | 2 | 0.7402 | 0.5877 | 0.5433 | 0.0929 |
-| AnoFusion 风格多模态 GRU | 42 | 0.7104 | 0.5755 | 0.5398 | 0.0947 |
-| Triple 风格图 SVDD | 1 | 0.9037 | 0.5849 | 0.8097 | 0.1655 |
-| Triple 风格图 SVDD | 2 | 0.8783 | 0.5280 | 0.6990 | 0.1522 |
-| Triple 风格图 SVDD | 42 | 0.8900 | 0.5885 | 0.7509 | 0.1417 |
+| AnoFusion 风格多模态 GRU | 2 | 0.7402 | 0.5877 | 0.5398 | 0.0908 |
+| AnoFusion 风格多模态 GRU | 42 | 0.7104 | 0.5755 | 0.5363 | 0.0922 |
+| Triple 风格图 SVDD | 1 | 0.9037 | 0.5849 | 0.8235 | 0.1680 |
+| Triple 风格图 SVDD | 2 | 0.8782 | 0.5280 | 0.6990 | 0.1511 |
+| Triple 风格图 SVDD | 42 | 0.8900 | 0.5885 | 0.7509 | 0.1420 |
 
-修复后三个 seed 均值为：MSTGAD 风格 AUROC/AP `0.8660/0.6764`，AnoFusion 风格 `0.7160/0.5799`，Triple 风格 `0.8906/0.5671`。Triple 风格的 FPR 均值约 `0.1531`，仍然偏高，不能只看召回宣称优越。
+重新按完整冻结 calibration 集合评测后三个 seed 均值为：MSTGAD 风格 AUROC/AP `0.8660/0.6764`，AnoFusion 风格 `0.7160/0.5799`，Triple 风格 `0.8906/0.5672`。q99 Recall/FPR 均值分别为 `0.5790/0.0928`、`0.5386/0.0880`、`0.7578/0.1537`。Triple 风格的 FPR 仍然偏高，不能只看召回宣称优越。AUROC/AP 与原报告基本一致，变化主要来自完整 calibration 后的阈值统计。
 
 ## 适配边界
 
