@@ -60,7 +60,10 @@ def main() -> None:
             "protocol_excluded_cases": excluded,
             "normal_case_quota": "mean_fault_case_matched_negative",
         }
-        fault_ids, _ = _selected_ids(frame, v1_selection)
+        selected_ids, _ = _selected_ids(frame, v1_selection)
+        fault_ids = selected_ids - set(
+            frame.loc[frame.case_id.eq(profile["normal_case_id"]), "sample_id"]
+        )
         protocol["evaluation_selection"]["frozen_fault_sample_ids"] = sorted(fault_ids)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     protocol_path = args.output.parent / f"{args.output.name}.protocol.json"
