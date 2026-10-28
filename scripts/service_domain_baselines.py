@@ -209,9 +209,10 @@ def run_model(
         return pd.DataFrame({"sample_id": [sid for _, sid in sample_ids], "score": scores})
 
     calibration_ids = sorted(allowed_calibration_ids)
-    cal = pd.concat([score(case) for case in cal_cases], ignore_index=True).set_index("sample_id")
-    if set(cal.index) - set(calibration_ids):
-        raise ValueError("Calibration scores contain IDs outside the frozen calibration scope")
+    cal = pd.concat([score(case) for case in cal_cases], ignore_index=True)
+    cal = cal[cal.sample_id.isin(calibration_ids)].set_index("sample_id")
+    if cal.index.duplicated().any():
+        raise ValueError("Calibration scores contain duplicate frozen IDs")
     missing_calibration = len(set(calibration_ids) - set(cal.index))
     cal = cal.reindex(calibration_ids)
     cal["score"] = cal["score"].fillna(0.0)
