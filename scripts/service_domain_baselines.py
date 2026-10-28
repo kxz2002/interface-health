@@ -138,7 +138,17 @@ def _windows(case_data, fit_windows: set[int], history: int):
             yield wi, x[wi - history + 1 : wi + 1]
 
 
-def run_model(name, arrays, fit_cases, cal_cases, test_cases, labels, allowed_test_ids, seed):
+def run_model(
+    name,
+    arrays,
+    fit_cases,
+    cal_cases,
+    test_cases,
+    labels,
+    allowed_calibration_ids,
+    allowed_test_ids,
+    seed,
+):
     _set_seed(seed)
     sample = next(iter(arrays.values()))
     dim = sample["x"].shape[-1]
@@ -198,7 +208,13 @@ def run_model(name, arrays, fit_cases, cal_cases, test_cases, labels, allowed_te
                 )
         return pd.DataFrame({"sample_id": [sid for _, sid in sample_ids], "score": scores})
 
-    cal = pd.concat([score(case) for case in cal_cases], ignore_index=True)
+    calibration_ids = sorted(allowed_calibration_ids)
+    cal = pd.concat([score(case) for case in cal_cases], ignore_index=True).set_index("sample_id")
+    if set(cal.index) - set(calibration_ids):
+        raise ValueError("Calibration scores contain IDs outside the frozen calibration scope")
+    missing_calibration = len(set(calibration_ids) - set(cal.index))
+    cal = cal.reindex(calibration_ids)
+    cal["score"] = cal["score"].fillna(0.0)
     threshold = float(np.quantile(cal.score.to_numpy(), 0.99))
     test = pd.concat([score(case) for case in test_cases], ignore_index=True).set_index("sample_id")
     target_ids = sorted(set(allowed_test_ids))
@@ -213,6 +229,7 @@ def run_model(name, arrays, fit_cases, cal_cases, test_cases, labels, allowed_te
         threshold=threshold,
         rows=len(frame),
         missing_history=missing_history,
+        missing_calibration=missing_calibration,
         auroc=roc_auc_score(y, s),
         ap=average_precision_score(y, s),
         recall=float(((s > threshold) & y.eq(1)).sum() / max(1, y.sum())),
@@ -253,7 +270,17 @@ def main():
     for name in ("mstgad", "anofusion", "triple"):
         print(
             json.dumps(
-                run_model(name, arrays, fit, cal, test, labels, set(lists.main_test), args.seed),
+                run_model(
+                    name,
+                    arrays,
+                    fit,
+                    cal,
+                    test,
+                    labels,
+                    set(lists.calibration),
+                    set(lists.main_test),
+                    args.seed,
+                ),
                 sort_keys=True,
             )
         )
