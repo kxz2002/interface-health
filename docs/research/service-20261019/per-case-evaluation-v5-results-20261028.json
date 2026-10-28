@@ -1,6 +1,6 @@
 {
   "evaluation_version": "tt_per_case_balanced_v2_pool_dns_excluded",
-  "bundle": "tt-labels-a-v5-per-case-expanded-normal-20261028",
+  "bundle": "tt-labels-a-v5-per-case-expanded-normal-20261028-c",
   "selected_rows": 1488,
   "selected_positive": 167,
   "selected_negative": 1321,
@@ -11,9 +11,9 @@
   "missing_calibration_rows": 71,
   "mean_metrics": {
     "prior_gru": {"pooled_auroc": 0.978556, "pooled_ap": 0.813636, "per_case_auroc_macro": 0.983527, "per_case_ap_macro": 0.955956},
-    "mstgad": {"pooled_auroc": 0.910779, "pooled_ap": 0.664692, "per_case_auroc_macro": 0.976319, "per_case_ap_macro": 0.947438},
+    "mstgad": {"pooled_auroc": 0.910777, "pooled_ap": 0.664690, "per_case_auroc_macro": 0.976319, "per_case_ap_macro": 0.947438},
     "anofusion": {"pooled_auroc": 0.757093, "pooled_ap": 0.587427, "per_case_auroc_macro": 0.907267, "per_case_ap_macro": 0.885195},
-    "triple": {"pooled_auroc": 0.834220, "pooled_ap": 0.335816, "per_case_auroc_macro": 0.969360, "per_case_ap_macro": 0.949379},
+    "triple": {"pooled_auroc": 0.834218, "pooled_ap": 0.335815, "per_case_auroc_macro": 0.969360, "per_case_ap_macro": 0.949379},
     "patchad": {"pooled_auroc": 0.534107, "pooled_ap": 0.127048, "per_case_auroc_macro": 0.547298, "per_case_ap_macro": 0.553202},
     "kanad": {"pooled_auroc": 0.828786, "pooled_ap": 0.658350, "per_case_auroc_macro": 0.817247, "per_case_ap_macro": 0.833816},
     "timesnet": {"pooled_auroc": 0.797888, "pooled_ap": 0.563744, "per_case_auroc_macro": 0.749392, "per_case_ap_macro": 0.775840},

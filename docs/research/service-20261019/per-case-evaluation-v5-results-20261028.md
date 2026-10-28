@@ -1,6 +1,6 @@
 # v2 扩充 Normal 测试集结果
 
-本轮使用 `tt_per_case_balanced_v2_pool_dns_excluded`。训练集和独立 Normal calibration 完全沿用既有协议，分别为 10,600 和 2,975 个窗口；只扩充独立 Normal case 的测试窗口。
+本轮使用 `tt_per_case_balanced_v2_pool_dns_excluded`，最终验收 bundle 为 `tt-labels-a-v5-per-case-expanded-normal-20261028-c`。训练集和独立 Normal calibration 完全沿用既有协议，分别为 10,600 和 2,975 个窗口；只扩充独立 Normal case 的测试窗口。
 
 测试集现在包含 1,488 个窗口：167 个正类、1,321 个负类，其中独立 Normal case 提供 1,154 个负类窗口，7 个故障 Case 仍各自保持正负窗口匹配。POOL、DNS、Unknown 和不支持 recovery 继续排除。时序历史不足导致每个模型实际评分 1,421 行，67 个窗口按既有缺失历史规则处理。
 
