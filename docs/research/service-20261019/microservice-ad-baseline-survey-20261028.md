@@ -33,7 +33,9 @@
 ## 第一轮代码核查
 
 - **MSTGAD** 官方仓库可获得，要求 MSDS 数据的 `metric.csv`、`log.csv`、`trace.csv`、`label.pkl` 和 `trace_path.pkl`。实现按服务实例节点构造时间窗，Metric 形状为 `window × num_nodes × metric_dim`，Log 形状为 `window × num_nodes × log_dim`，Trace 形状为 `window × caller × callee × trace_type`，并使用预先给定的实例图。它是半监督实现，原始标签 mask 和 MSDS 特定预处理不能直接带入当前协议；但数据张量结构与当前 Service 图适配方向最接近。
+- MSTGAD 当前公开仓库提交为 `e78201a1890d1988fcb17c7f94e464815e567c7b`，仓库根目录未发现许可证文件，因此只作为论文和数据格式参考，不直接复制其代码。
 - **TraceVAE** 官方仓库可获得且为 MIT License，输入是请求级树状 Trace 的预处理 CSV，不是聚合 Service 表。其命令会把原始 Trace 转成图数据，再训练 Graph VAE；如果当前数据无法恢复稳定的 parent/child span 和 request ID，就不应把它改造成普通时间序列后宣称复现。
+- TraceVAE 代码提交为 `823316f66f1de2ce3f5cab75eff1372eba5534ec`，提供 `traceIdHigh/traceIdLow/parentSpanId/spanId/startTime/duration/serviceName` 等字段的 CSV 示例，数据格式与当前 SkyWalking JSON 的 span 结构存在可转换关系，但需先验证跨 case 的 trace ID、父子链和时间窗边界。
 - **AnoFusion** 论文明确采用每分钟同步的 Metric、Log、Trace 通道，把每个通道作为异构图节点，再由 GTN、GAT 和 GRU 建模；它是无监督训练，但原文使用 EVT 选择 F1 阈值，必须替换为独立 Normal calibration。其输入时间粒度和当前 15 秒窗口存在可调差异，需保留在适配记录中。
 
 因此，下一轮优先级暂定为 **MSTGAD → AnoFusion → Triple**；TraceVAE/TraceGra/TraceDAE 先做数据可用性检查。若当前 Service 数据不能构造服务依赖图，领域模型只能作为协议适配研究，不能声称复现原论文的 Trace 级任务。
