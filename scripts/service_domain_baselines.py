@@ -60,10 +60,10 @@ def build_arrays(prepared, tables, raw_root: Path):
         ids = []
         for wi, start in enumerate(windows):
             index = int((start - origin) // 15_000)
-            for row in rows[rows.window_start_ms.eq(start)].itertuples():
+            for sample_id, row in rows[rows.window_start_ms.eq(start)].iterrows():
                 si = service_index[row.canonical_service_id]
-                ids.append((wi, si, row.sample_id))
-                x[wi, si, : len(numeric.columns)] = numeric.loc[row.sample_id].to_numpy(
+                ids.append((wi, si, sample_id))
+                x[wi, si, : len(numeric.columns)] = numeric.loc[sample_id].to_numpy(
                     dtype=np.float32
                 )
                 feature = trace_map.get((index, row.canonical_service_id))
