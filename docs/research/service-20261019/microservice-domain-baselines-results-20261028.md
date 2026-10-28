@@ -6,6 +6,8 @@
 
 主评价严格使用 v3 `main_test`，共 3141 个 Service×15 秒窗口（289 正、2852 负），POOL/DNS 排除。模型历史长度为 4 个窗口；无法形成完整历史的 72 个主评价窗口保留在评价中，分数填为 0 并单独计数。
 
+当前每个 Normal Case 全为负类、每个故障 Case 全为正类，因此 per-case AUROC/AP 均无定义（`n_cases_with_both_classes=0`）。本轮不填充伪造的逐 Case 指标；标签体系修改列为后续独立分支，当前结果只报告 pooled 指标。
+
 | 模型适配 | seed | AUROC | AP | q99 recall | Normal FPR |
 |---|---:|---:|---:|---:|---:|
 | MSTGAD 风格图时空重建 | 1 | 0.8665 | 0.6729 | 0.5813 | 0.0929 |
