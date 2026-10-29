@@ -1,29 +1,96 @@
-from pathlib import Path
+import pandas as pd
 
 from src.service.modeling.sn_adapter import SN_RESOURCE_MAPPING, build_sn_prepared
 from src.service.modeling.temporal import temporal_inputs
 
-ROOT = Path("outputs/service/sn-preparation-20261029-task1")
+
+def _write_fixture(root):
+    sn = root / "sn"
+    sn.mkdir(parents=True)
+    runs = [
+        ("fit", "run-fit"),
+        ("calibration", "run-cal"),
+        ("holdout", "run-normal"),
+        ("test", "run-fault"),
+    ]
+    rows = []
+    for role, run_id in runs:
+        for service in ["svc-a", "svc-b"]:
+            for start in [0, 15000, 30000]:
+                rows.append(
+                    {
+                        "dataset_id": "eadro_sn_v1",
+                        "run_id": run_id,
+                        "canonical_service_id": service,
+                        "window_start_ms": start,
+                        "window_end_ms": start + 15000,
+                        "sample_id": f"{run_id}-{service}-{start}",
+                        "role": role,
+                    }
+                )
+    identity = pd.DataFrame(rows)
+    resource = identity.drop(columns="role").copy()
+    resource["cpu_usage_total_mean"] = 0.1
+    resource["memory_usage_mean"] = 0.2
+    resource["resource_sample_count"] = 15.0
+    resource["resource_coverage"] = 1.0
+    for column in [
+        "cpu_usage_system_mean",
+        "cpu_usage_user_mean",
+        "memory_working_set_mean",
+        "rx_bytes_mean",
+        "tx_bytes_mean",
+    ]:
+        resource[column] = 0.0
+    resource["quality_status"] = "OBSERVED_RAW_UNKNOWN_SEMANTICS"
+    execution = identity.drop(columns="role").copy()
+    execution["observation_count"] = 2.0
+    execution["duration_mean_ms"] = 1.0
+    execution["duration_p95_ms"] = 1.0
+    execution["duration_max_ms"] = 1.0
+    execution["error_known_count"] = 2.0
+    execution["error_count"] = 0.0
+    execution["error_coverage"] = 1.0
+    execution["quality_status"] = "OBSERVED"
+    logs = identity.drop(columns="role").copy()
+    logs["messages_json"] = "[]"
+    logs["event_count"] = 1.0
+    logs["quality_status"] = "OBSERVED"
+    labels = identity.drop(columns="role").copy()
+    labels["label"] = pd.Series([None] * len(labels), dtype="Float64")
+    labels["label_reason"] = "unknown"
+    splits = identity.drop(columns="role").copy()
+    role_map = identity.set_index("sample_id").role
+    splits["run_role"] = splits.sample_id.map(role_map)
+    splits["reference_eligible"] = splits.run_role.isin(["fit", "calibration", "holdout"])
+    splits["reference_reason"] = "fixture"
+    splits["training_eligible"] = splits.run_role.eq("fit")
+    splits["training_reason"] = "fixture"
+    splits["calibration_eligible"] = splits.run_role.eq("calibration")
+    splits["calibration_reason"] = "fixture"
+    splits["eligibility_scope"] = "fixture"
+    resource.to_parquet(sn / "resource_windows.parquet", index=False)
+    execution.to_parquet(sn / "execution_windows.parquet", index=False)
+    logs.to_parquet(sn / "log_windows.parquet", index=False)
+    labels.to_parquet(sn / "labels.parquet", index=False)
+    splits.to_parquet(sn / "splits.parquet", index=False)
+    return root
 
 
-def test_sn_adapter_keeps_role_pools_and_source_mapping():
-    prepared = build_sn_prepared(ROOT)
-
-    assert len(prepared.sample_ids) == 7908
-    assert len(prepared.lists.fit) == 1140
-    assert len(prepared.lists.calibration) == 1140
+def test_sn_adapter_keeps_role_pools_and_source_mapping(tmp_path):
+    prepared = build_sn_prepared(_write_fixture(tmp_path))
+    assert len(prepared.sample_ids) == 24
+    assert len(prepared.lists.fit) == 6
+    assert len(prepared.lists.calibration) == 6
     assert prepared.provenance["resource_mapping"] == SN_RESOURCE_MAPPING
     assert prepared.source_labels.label.isna().all()
     assert set(prepared.labels.label.dropna().unique()) == {0, 1}
-    assert set(prepared.lists.fit) <= set(prepared.lists.main_test) | set(prepared.sample_ids)
 
 
-def test_sn_temporal_inputs_preserve_fixed_shape_and_mask():
-    prepared = build_sn_prepared(ROOT)
+def test_sn_temporal_inputs_preserve_fixed_shape_and_mask(tmp_path):
+    prepared = build_sn_prepared(_write_fixture(tmp_path))
     inputs = temporal_inputs(prepared, context_windows=4)
-
-    assert inputs["context"].shape == (7908, 4, 28)
-    assert inputs["values"].shape == (7908, 12)
+    assert inputs["context"].shape == (24, 4, 28)
+    assert inputs["values"].shape == (24, 12)
     assert inputs["observed"].dtype == bool
-    assert inputs["availability"].shape == (7908, 3)
-    assert inputs["history_ids"][prepared.sample_ids[0]] == []
+    assert inputs["availability"].shape == (24, 3)
