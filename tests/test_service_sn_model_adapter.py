@@ -1,5 +1,6 @@
 import pandas as pd
 
+from src.service.modeling import sn_adapter
 from src.service.modeling.sn_adapter import SN_RESOURCE_MAPPING, build_sn_prepared
 from src.service.modeling.temporal import temporal_inputs
 
@@ -8,10 +9,10 @@ def _write_fixture(root):
     sn = root / "sn"
     sn.mkdir(parents=True)
     runs = [
-        ("fit", "run-fit"),
-        ("calibration", "run-cal"),
-        ("holdout", "run-normal"),
-        ("test", "run-fault"),
+        ("fit", "SN.2022-04-20T182405D2022-04-20T184806"),
+        ("calibration", "SN.2022-04-21T105249D2022-04-21T111651"),
+        ("holdout", "SN.2022-04-21T153302D2022-04-21T155703"),
+        ("test", "SN.2022-04-17T190213D2022-04-17T192544"),
     ]
     rows = []
     for role, run_id in runs:
@@ -77,7 +78,17 @@ def _write_fixture(root):
     return root
 
 
-def test_sn_adapter_keeps_role_pools_and_source_mapping(tmp_path):
+def test_sn_adapter_keeps_role_pools_and_source_mapping(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        sn_adapter,
+        "EXPECTED_SN_ROLES",
+        {
+            "SN.2022-04-20T182405D2022-04-20T184806": "fit",
+            "SN.2022-04-21T105249D2022-04-21T111651": "calibration",
+            "SN.2022-04-21T153302D2022-04-21T155703": "holdout",
+            "SN.2022-04-17T190213D2022-04-17T192544": "test",
+        },
+    )
     prepared = build_sn_prepared(_write_fixture(tmp_path))
     assert len(prepared.sample_ids) == 24
     assert len(prepared.lists.fit) == 6
@@ -87,7 +98,17 @@ def test_sn_adapter_keeps_role_pools_and_source_mapping(tmp_path):
     assert set(prepared.labels.label.dropna().unique()) == {0, 1}
 
 
-def test_sn_temporal_inputs_preserve_fixed_shape_and_mask(tmp_path):
+def test_sn_temporal_inputs_preserve_fixed_shape_and_mask(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        sn_adapter,
+        "EXPECTED_SN_ROLES",
+        {
+            "SN.2022-04-20T182405D2022-04-20T184806": "fit",
+            "SN.2022-04-21T105249D2022-04-21T111651": "calibration",
+            "SN.2022-04-21T153302D2022-04-21T155703": "holdout",
+            "SN.2022-04-17T190213D2022-04-17T192544": "test",
+        },
+    )
     prepared = build_sn_prepared(_write_fixture(tmp_path))
     inputs = temporal_inputs(prepared, context_windows=4)
     assert inputs["context"].shape == (24, 4, 28)

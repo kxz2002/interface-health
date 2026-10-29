@@ -30,12 +30,29 @@ SN_LOG_COLUMNS = [
     "max_matched_fraction",
     "unmatched_count",
 ]
+EXPECTED_SN_ROLES = {
+    "SN.2022-04-20T182405D2022-04-20T184806": "fit",
+    "SN.2022-04-21T105249D2022-04-21T111651": "calibration",
+    "SN.2022-04-21T153302D2022-04-21T155703": "holdout",
+    "SN.2022-04-17T190213D2022-04-17T192544": "test",
+    "SN.2022-04-17T183729D2022-04-17T190100": "test",
+    "SN.2022-04-17T192658D2022-04-17T195031": "test",
+    "SN.2022-04-17T181245D2022-04-17T183616": "test",
+}
 
 
 def _hash(value: object) -> str:
     return hashlib.sha256(
         json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
     ).hexdigest()
+
+
+def _file_hash(path: Path, algorithm: str = "sha256") -> str:
+    digest = hashlib.new(algorithm)
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _ids(frame: pd.DataFrame) -> list[str]:
@@ -153,6 +170,14 @@ def build_sn_prepared(root: Path):
         raise ValueError("SN model adapter table ID sets differ")
     if source_labels.label.notna().any():
         raise ValueError("SN source labels must remain Unknown")
+    observed_roles = splits.groupby("run_id").run_role.unique().to_dict()
+    if set(observed_roles) != set(EXPECTED_SN_ROLES):
+        raise ValueError("SN split run allowlist differs from frozen exploratory roles")
+    if any(
+        len(roles) != 1 or roles[0] != EXPECTED_SN_ROLES[run_id]
+        for run_id, roles in observed_roles.items()
+    ):
+        raise ValueError("SN split roles contradict frozen exploratory roles")
     identity = source_labels[
         [
             "sample_id",
@@ -241,6 +266,22 @@ def build_sn_prepared(root: Path):
             )
         ),
         versions=versions,
-        hashes={"preparation_root": str(root.resolve())},
+        hashes={
+            "preparation_root": str(root.resolve()),
+            "preparation_manifest_sha256": (
+                _file_hash(root / "artifact_manifest.json")
+                if (root / "artifact_manifest.json").is_file()
+                else None
+            ),
+            "inventory_sha256": (
+                _file_hash(root / "inventory.json") if (root / "inventory.json").is_file() else None
+            ),
+            "modality_sources_sha256": (
+                _file_hash(root / "modality_sources.json")
+                if (root / "modality_sources.json").is_file()
+                else None
+            ),
+            "source_archive_md5": "4c523faf64770b1e9a709cdd610e07c4",
+        },
         provenance=provenance,
     )
